@@ -10,161 +10,82 @@ export default function NewPatientPage() {
   const [summary, setSummary] = useState('')
   const [link, setLink] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
+    
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    const { data: status } = await supabase
+      .from('workflow_statuses')
+      .select('id')
+      .eq('code', 'prospect_created')
+      .single()
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
+    const { error } = await supabase.from('patients').insert({
+      patient_name: name,
+      clinical_summary: summary,
+      sharepoint_link: link,
+      current_status_id: status?.id,
+      created_by: session?.user.id
+    })
 
-      if (!session) {
-        setError('Vous devez être connecté')
-        setLoading(false)
-        return
-      }
-
-      const { data: status } = await supabase
-        .from('workflow_statuses')
-        .select('id')
-        .eq('code', 'prospect_created')
-        .single()
-
-      const { data: newPatient, error: insertError } = await supabase
-        .from('patients')
-        .insert({
-          patient_name: name,
-          clinical_summary: summary,
-          sharepoint_link: link,
-          current_status_id: status?.id,
-          created_by: session.user.id
-        })
-        .select()
-        .single()
-
-      if (insertError) {
-        setError(insertError.message)
-        setLoading(false)
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', session.user.id)
-        .single()
-
-      await fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: 'franchir@example.com',
-          subject: `Nouveau patient créé : ${name}`,
-          html: `
-            <h2>Nouveau dossier patient</h2>
-            <p><strong>Patient :</strong> ${name}</p>
-            <p><strong>Créé par :</strong> ${profile?.full_name || 'Utilisateur'}</p>
-            <p><strong>Résumé clinique :</strong></p>
-            <p>${summary || 'Aucun résumé fourni'}</p>
-            <p><a href="${link}">Voir le dossier SharePoint</a></p>
-          `
-        })
-      })
-
+    if (!error) {
       router.push('/dashboard')
       router.refresh()
-    } catch (err) {
-      setError('Une erreur est survenue')
-      setLoading(false)
+    } else {
+      alert("Erreur lors de la création : " + error.message)
     }
+    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm mb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold text-gray-900">FRANCHIR - Nouveau Patient</h1>
-            <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">
-              ← Retour au tableau
-            </Link>
-          </div>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">FRANCHIR - Nouveau Patient</h1>
+          <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">← Retour au tableau</Link>
         </div>
-      </nav>
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold mb-6">Nouveau Dossier Patient</h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow">
+        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-              Nom du Patient *
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Nom du Patient *</label>
             <input 
-              id="name"
-              type="text" 
-              required 
-              value={name} 
-              onChange={e => setName(e.target.value)}
-              className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+              type="text" required value={name} onChange={e => setName(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
               placeholder="Ex: Jean Dupont"
             />
           </div>
-
           <div>
-            <label htmlFor="summary" className="block text-sm font-medium text-gray-700">
-              Résumé clinique minimal
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Résumé clinique minimal</label>
             <textarea 
-              id="summary"
-              value={summary} 
-              onChange={e => setSummary(e.target.value)}
-              className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500" 
+              value={summary} onChange={e => setSummary(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
               rows={4}
-              placeholder="Brève description de la pathologie et du contexte..."
+              placeholder="Résumé des pathologies..."
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Le dossier médical complet reste sur SharePoint
-            </p>
+            <p className="text-xs text-gray-500 mt-1">Le dossier médical complet reste sur SharePoint</p>
           </div>
-
           <div>
-            <label htmlFor="link" className="block text-sm font-medium text-gray-700">
-              Lien sécurisé SharePoint *
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Lien sécurisé SharePoint *</label>
             <input 
-              id="link"
-              type="url" 
-              required 
-              value={link} 
-              onChange={e => setLink(e.target.value)}
-              className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500" 
+              type="url" required value={link} onChange={e => setLink(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
               placeholder="https://sharepoint.com/..."
             />
           </div>
-
-          {error && (
-            <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
-              {error}
-            </div>
-          )}
-
-          <div className="flex gap-4">
+          <div className="flex gap-4 pt-4">
             <button 
               type="submit" 
               disabled={loading}
-              className="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
             >
               {loading ? 'Création...' : 'Créer le dossier'}
             </button>
-            <Link 
-              href="/dashboard"
-              className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-center"
-            >
+            <Link href="/dashboard" className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
               Annuler
             </Link>
           </div>
