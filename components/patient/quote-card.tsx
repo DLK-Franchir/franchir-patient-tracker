@@ -24,7 +24,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
       .eq('patient_id', patientId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (data) {
       setQuote(data)
@@ -107,7 +107,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
               placeholder="Ex: 15000"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white"
             />
           </div>
 
@@ -119,7 +119,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
               placeholder="Conditions du devis, modalités de paiement..."
               value={conditions}
               onChange={e => setConditions(e.target.value)}
-              className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white"
               rows={4}
             />
           </div>

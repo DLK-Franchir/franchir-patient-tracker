@@ -51,7 +51,7 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-gray-50 p-4 rounded-md">
+    <form onSubmit={handleSubmit} className="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Date de chirurgie
@@ -61,7 +61,7 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
           required
           value={eventDate}
           onChange={e => setEventDate(e.target.value)}
-          className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500"
+          className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white"
         />
       </div>
 
@@ -72,7 +72,7 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
         <select
           value={eventType}
           onChange={e => setEventType(e.target.value)}
-          className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500"
+          className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white"
         >
           <option value="proposed_date">Date proposée</option>
           <option value="confirmed_date">Date confirmée</option>
@@ -86,7 +86,7 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500"
+          className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 bg-white"
           rows={2}
           placeholder="Informations complémentaires..."
         />
@@ -96,14 +96,15 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 disabled:opacity-50"
+          className="flex-1 bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 font-medium"
         >
           {loading ? 'Ajout...' : 'Ajouter'}
         </button>
         <button
           type="button"
           onClick={() => setShowForm(false)}
-          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+          disabled={loading}
+          className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-400 disabled:opacity-50 font-medium"
         >
           Annuler
         </button>

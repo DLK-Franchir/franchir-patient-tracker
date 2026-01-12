@@ -1,8 +1,21 @@
 import { createServerClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { can, type Role } from '@/lib/permissions'
+import NotificationBell from '@/components/notifications/notification-bell'
+import LogoutButton from '@/components/auth/logout-button'
 
 export default async function DashboardPage() {
   const supabase = await createServerClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, full_name, email')
+    .eq('id', user?.id)
+    .single()
+
+  const userRole = profile?.role as Role
 
   const { data: patients } = await supabase
     .from('patients')
@@ -19,13 +32,24 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-extrabold text-gray-900">Tableau de Suivi FRANCHIR</h1>
-          <Link 
-            href="/dashboard/new" 
-            className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-all"
-          >
-            + Nouveau Patient
-          </Link>
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900">Tableau de Suivi FRANCHIR</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Connecté : {profile?.full_name} ({profile?.email}) - Rôle : <span className="font-semibold">{userRole}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            {can(userRole, 'CREATE_PATIENT') && (
+              <Link
+                href="/dashboard/new"
+                className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-all"
+              >
+                + Nouveau Patient
+              </Link>
+            )}
+            <LogoutButton />
+          </div>
         </div>
 
         <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">

@@ -16,28 +16,38 @@ export default function NewPatientPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    
+
     const { data: { session } } = await supabase.auth.getSession()
-    
-    const { data: status } = await supabase
+    console.log('🔍 Session:', session?.user.id)
+
+    const { data: status, error: statusError } = await supabase
       .from('workflow_statuses')
       .select('id')
       .eq('code', 'prospect_created')
       .single()
 
-    const { error } = await supabase.from('patients').insert({
+    console.log('🔍 Status:', status, 'Error:', statusError)
+
+    const insertData = {
       patient_name: name,
       clinical_summary: summary,
       sharepoint_link: link,
       current_status_id: status?.id,
       created_by: session?.user.id
-    })
+    }
+
+    console.log('🔍 Insert data:', insertData)
+
+    const { data, error } = await supabase.from('patients').insert(insertData).select()
+
+    console.log('🔍 Insert result:', data, 'Error:', error)
 
     if (!error) {
       router.push('/dashboard')
       router.refresh()
     } else {
       alert("Erreur lors de la création : " + error.message)
+      console.error('❌ Full error:', error)
     }
     setLoading(false)
   }

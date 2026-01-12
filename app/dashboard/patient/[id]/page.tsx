@@ -3,11 +3,26 @@ import { BadgeStatus } from '@/components/ui/badge-status'
 import WorkflowActions from './workflow-actions'
 import QuoteCard from '@/components/patient/quote-card'
 import CalendarEventForm from '@/components/patient/calendar-event-form'
+import MessageThread from '@/components/patient/message-thread'
+import MessageComposer from '@/components/patient/message-composer'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { can, type Role } from '@/lib/permissions'
+import NotificationBell from '@/components/notifications/notification-bell'
 
-export default async function PatientDetailPage({ params }: { params: { id: string } }) {
+export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createServerClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: currentUserProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single()
+
+  const userRole = currentUserProfile?.role as Role
 
   const { data: patient } = await supabase
     .from('patients')
@@ -16,12 +31,18 @@ export default async function PatientDetailPage({ params }: { params: { id: stri
       workflow_statuses (*),
       profiles (full_name, role)
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!patient) {
     redirect('/dashboard')
   }
+
+  const { data: messages } = await supabase
+    .from('patient_messages')
+    .select('*')
+    .eq('patient_id', id)
+    .order('created_at', { ascending: true })
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -29,9 +50,12 @@ export default async function PatientDetailPage({ params }: { params: { id: stri
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <h1 className="text-xl font-bold text-gray-900">FRANCHIR - Dossier Patient</h1>
-            <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">
-              ← Retour au tableau
-            </Link>
+            <div className="flex items-center gap-4">
+              <NotificationBell />
+              <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">
+                ← Retour au tableau
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -70,36 +94,34 @@ export default async function PatientDetailPage({ params }: { params: { id: stri
             </section>
 
             <section className="bg-white p-6 rounded-lg shadow">
-              <h3 className="font-bold text-lg mb-4">Historique & Décisions</h3>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3 text-sm">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5"></div>
-                  <div>
-                    <p className="text-gray-600">
-                      <span className="font-medium">{patient.profiles.full_name}</span> a créé le dossier
-                    </p>
-                    <p className="text-gray-400 text-xs">{new Date(patient.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 italic pl-5">
-                  L'historique complet des décisions sera affiché ici...
-                </p>
+              <h3 className="font-bold text-lg mb-4">Messages & Historique</h3>
+              <MessageThread
+                patientId={patient.id}
+                initialMessages={messages || []}
+              />
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h4 className="font-medium text-gray-900 mb-3">Écrire un message</h4>
+                <MessageComposer patientId={patient.id} />
               </div>
             </section>
 
-            <section className="bg-white p-6 rounded-lg shadow">
-              <h3 className="font-bold text-lg mb-4">Devis</h3>
-              <QuoteCard patientId={patient.id} />
-            </section>
+            {can(userRole, 'EDIT_QUOTE') && (
+              <section className="bg-white p-6 rounded-lg shadow">
+                <h3 className="font-bold text-lg mb-4">Devis</h3>
+                <QuoteCard patientId={patient.id} />
+              </section>
+            )}
 
-            <section className="bg-white p-6 rounded-lg shadow">
-              <h3 className="font-bold text-lg mb-4">Date de chirurgie</h3>
-              <CalendarEventForm patientId={patient.id} />
-            </section>
+            {can(userRole, 'SCHEDULE_SURGERY') && (
+              <section className="bg-white p-6 rounded-lg shadow">
+                <h3 className="font-bold text-lg mb-4">Date de chirurgie</h3>
+                <CalendarEventForm patientId={patient.id} />
+              </section>
+            )}
           </div>
 
           <div className="space-y-6">
-            <WorkflowActions patientId={patient.id} currentStatus={patient.workflow_statuses} />
+            <WorkflowActions patientId={patient.id} currentStatus={patient.workflow_statuses} userRole={userRole} />
           </div>
         </div>
       </div>
