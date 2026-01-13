@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import PatientDetailClient from './client-page'
+import AppHeader from '@/components/app-header'
 import { type UserRole } from '@/lib/workflow-v2'
 
 export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -54,10 +55,13 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     .order('created_at', { ascending: true })
 
   return (
-    <PatientDetailClient
-      initialPatient={patient}
-      initialMessages={allMessages || []}
-      userRole={userRole}
-    />
+    <>
+      <AppHeader userRole={userRole} userName={profile.full_name} showActions={true} />
+      <PatientDetailClient
+        initialPatient={patient}
+        initialMessages={allMessages || []}
+        userRole={userRole}
+      />
+    </>
   )
 }
