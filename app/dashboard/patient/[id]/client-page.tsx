@@ -166,19 +166,19 @@ export default function PatientDetailClient({
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Historique</h2>
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {medicalMessages.slice(-5).reverse().map((msg) => (
-                  <div key={msg.id} className="text-sm border-l-2 border-gray-200 pl-3 py-2">
-                    <p className="font-medium text-gray-900">{msg.title || msg.author_name}</p>
-                    <p className="text-gray-600 text-xs mt-1">
-                      {new Date(msg.created_at).toLocaleDateString('fr-FR', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                  </div>
-                ))}
+                {medicalMessages.slice(-5).reverse().map((msg) => {
+                  const date = new Date(msg.created_at)
+                  const formattedDate = `${date.getDate()} ${date.toLocaleDateString('fr-FR', { month: 'short' })} à ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+
+                  return (
+                    <div key={msg.id} className="text-sm border-l-2 border-gray-200 pl-3 py-2">
+                      <p className="font-medium text-gray-900">{msg.title || msg.author_name}</p>
+                      <p className="text-gray-600 text-xs mt-1">
+                        {formattedDate}
+                      </p>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
