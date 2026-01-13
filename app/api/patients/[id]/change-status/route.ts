@@ -1,13 +1,13 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { can, type Role } from '@/lib/permissions'
+import { type ActionId } from '@/lib/workflow-v2'
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: patientId } = await params
-  const { newStatusCode, medicalDecision } = await req.json()
+  const { actionId, data } = await req.json()
 
   const supabase = await createServerClient()
 
@@ -29,90 +29,136 @@ export async function POST(
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
   }
 
-  const userRole = profile.role as Role
-
-  const isMedicalAction = ['validated_medical', 'rejected_medical', 'need_info'].includes(newStatusCode)
-  if (isMedicalAction && !can(userRole, 'VALIDATE_MEDICAL')) {
-    return NextResponse.json({ error: 'Forbidden: You cannot perform medical validation' }, { status: 403 })
-  }
-
-  const isQuoteAction = ['quote_issued', 'quote_accepted'].includes(newStatusCode)
-  if (isQuoteAction && !can(userRole, 'EDIT_QUOTE')) {
-    return NextResponse.json({ error: 'Forbidden: You cannot manage quotes' }, { status: 403 })
-  }
-
-  const isSurgeryAction = ['surgery_scheduled', 'surgery_done', 'completed'].includes(newStatusCode)
-  if (isSurgeryAction && !can(userRole, 'SCHEDULE_SURGERY')) {
-    return NextResponse.json({ error: 'Forbidden: You cannot manage surgery scheduling' }, { status: 403 })
-  }
+  const userRole = profile.role as 'marcel' | 'franchir' | 'gilles' | 'admin'
 
   const { data: patient } = await supabase
     .from('patients')
     .select(`
       patient_name,
-      workflow_statuses!current_status_id (code, label)
+      current_status:workflow_statuses!current_status_id (code, label)
     `)
     .eq('id', patientId)
     .single()
 
-  if (!patient || !patient.workflow_statuses) {
+  if (!patient) {
     return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
   }
 
-  const oldStatus = Array.isArray(patient.workflow_statuses)
-    ? patient.workflow_statuses[0]
-    : patient.workflow_statuses
+  const currentStatus = Array.isArray(patient.current_status)
+    ? patient.current_status[0]
+    : patient.current_status
 
-  const { data: newStatus } = await supabase
-    .from('workflow_statuses')
-    .select('id, code, label')
-    .eq('code', newStatusCode)
-    .single()
+  let messageBody = ''
+  let newStatusCode = ''
+  let messageTitle = ''
 
-  if (!newStatus) {
-    return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  switch (actionId as ActionId) {
+    case 'submit_to_medical':
+      newStatusCode = 'medical_review'
+      messageTitle = 'Soumis à validation médicale'
+      messageBody = 'Le dossier a été soumis au Dr Dubois pour validation médicale.'
+      break
+
+    case 'approve_medical':
+      newStatusCode = 'validated_medical'
+      messageTitle = 'Validé médicalement'
+      messageBody = data?.message || 'Le dossier a été validé médicalement.'
+      if (data?.surgeons && data.surgeons.length > 0) {
+        messageBody += `\n\nChirurgiens recommandés: ${data.surgeons.join(', ')}`
+      }
+      break
+
+    case 'request_more_info':
+      newStatusCode = 'need_info'
+      messageTitle = 'Informations complémentaires demandées'
+      messageBody = data?.message || 'Des informations complémentaires sont nécessaires.'
+      break
+
+    case 'reject_medical':
+      newStatusCode = 'rejected_medical'
+      messageTitle = 'Refusé médicalement'
+      messageBody = data?.justification || 'Le dossier a été refusé médicalement.'
+      break
+
+    case 'confirm_quote':
+      messageTitle = 'Devis confirmé'
+      messageBody = 'Le devis a été confirmé par Marcel.'
+      break
+
+    case 'confirm_date':
+      messageTitle = 'Date confirmée'
+      messageBody = 'La date de chirurgie a été confirmée par Marcel.'
+      break
+
+    case 'finalize_scheduled':
+      newStatusCode = 'surgery_scheduled'
+      messageTitle = 'Dossier programmé'
+      messageBody = 'Le dossier est maintenant programmé (devis et date confirmés).'
+      break
+
+    case 'reopen_case':
+      newStatusCode = 'draft'
+      messageTitle = 'Dossier réouvert'
+      messageBody = data?.message || 'Le dossier a été réouvert par un administrateur.'
+      break
+
+    case 'add_budget':
+      messageTitle = 'Budget indicatif ajouté'
+      messageBody = `Budget indicatif: ${data?.budget || 'Non spécifié'}`
+      break
+
+    case 'propose_dates':
+      messageTitle = 'Dates proposées'
+      messageBody = `Dates proposées:\n${data?.dates || 'Non spécifié'}`
+      break
+
+    default:
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
-  const { error: updateError } = await supabase
-    .from('patients')
-    .update({ current_status_id: newStatus.id })
-    .eq('id', patientId)
+  if (newStatusCode) {
+    const { data: newStatus } = await supabase
+      .from('workflow_statuses')
+      .select('id, code, label')
+      .eq('code', newStatusCode)
+      .single()
 
-  if (updateError) {
-    console.error('❌ Erreur mise à jour patient:', updateError)
-    return NextResponse.json({ error: updateError.message }, { status: 500 })
+    if (!newStatus) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    }
+
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ current_status_id: newStatus.id })
+      .eq('id', patientId)
+
+    if (updateError) {
+      console.error('❌ Erreur mise à jour patient:', updateError)
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    }
   }
-
-  const messageBody = medicalDecision || `Statut changé de "${oldStatus.label}" vers "${newStatus.label}"`
 
   await supabase.from('patient_messages').insert({
     patient_id: patientId,
     author_id: user.id,
     author_name: profile.full_name,
     author_role: profile.role,
-    kind: 'status_change',
-    title: `Statut: ${newStatus.label}`,
+    kind: newStatusCode ? 'status_change' : 'action',
+    title: messageTitle,
     body: messageBody,
-    meta: {
-      old_status: oldStatus.code,
+    topic: actionId.includes('quote') || actionId.includes('date') || actionId.includes('budget') || actionId.includes('propose') ? 'commercial' : 'medical',
+    meta: newStatusCode ? {
+      old_status: currentStatus?.code,
       new_status: newStatusCode,
+      action_id: actionId,
+    } : {
+      action_id: actionId,
     },
   })
 
-  if (medicalDecision && isMedicalAction) {
-    const { error: decisionError } = await supabase.from('medical_decisions').insert({
-      patient_id: patientId,
-      decided_by: user.id,
-      decision_type: newStatusCode === 'validated_medical' ? 'validated' : 'rejected',
-      justification: medicalDecision,
-    })
-
-    if (decisionError) {
-      console.error('❌ Erreur décision médicale:', decisionError)
-    }
+  if (newStatusCode) {
+    await createNotificationForStatusChange(supabase, patientId, newStatusCode, user.id, patient.patient_name)
   }
-
-  await createNotificationForStatusChange(supabase, patientId, newStatusCode, user.id, patient.patient_name)
 
   return NextResponse.json({ success: true })
 }
@@ -144,25 +190,13 @@ async function createNotificationForStatusChange(
         roles: ['marcel', 'franchir', 'admin'],
         message: `Des informations supplémentaires sont demandées pour ${patientName}.`,
       },
-      quote_issued: {
-        roles: ['gilles', 'admin'],
-        message: `Un devis a été émis pour ${patientName}.`,
-      },
-      quote_accepted: {
-        roles: ['marcel', 'franchir', 'gilles', 'admin'],
-        message: `Le devis de ${patientName} a été accepté. Vous pouvez programmer la chirurgie.`,
-      },
       surgery_scheduled: {
         roles: ['gilles', 'marcel', 'franchir', 'admin'],
         message: `La chirurgie de ${patientName} a été programmée.`,
       },
-      surgery_done: {
-        roles: ['gilles', 'marcel', 'franchir', 'admin'],
-        message: `La chirurgie de ${patientName} a été effectuée.`,
-      },
-      completed: {
+      draft: {
         roles: ['marcel', 'franchir', 'admin'],
-        message: `Le dossier de ${patientName} est maintenant complet.`,
+        message: `Le dossier de ${patientName} a été réouvert.`,
       },
     }
 
