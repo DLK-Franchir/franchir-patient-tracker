@@ -18,7 +18,6 @@ export type ActionId =
   | 'reject_medical'
   | 'confirm_quote'
   | 'confirm_date'
-  | 'finalize_scheduled'
   | 'reopen_case'
   | 'add_budget'
   | 'propose_dates'
@@ -235,7 +234,7 @@ export function getAvailableActions({
       }
     } else if (globalStatus === 'commercial_in_progress') {
       const actions: Action[] = []
-      
+
       if (!quoteAccepted) {
         actions.push({
           id: 'confirm_quote',
@@ -244,7 +243,7 @@ export function getAvailableActions({
           targetGlobalStatus: 'stay',
         })
       }
-      
+
       if (!dateAccepted) {
         actions.push({
           id: 'confirm_date',
@@ -254,14 +253,7 @@ export function getAvailableActions({
         })
       }
 
-      if (quoteAccepted && dateAccepted) {
-        result.primaryAction = {
-          id: 'finalize_scheduled',
-          label: 'Marquer comme Programmé',
-          variant: 'primary',
-          targetGlobalStatus: 'scheduled',
-        }
-      } else {
+      if (actions.length > 0) {
         result.primaryAction = actions[0]
         result.secondaryActions = actions.slice(1)
       }

@@ -35,6 +35,8 @@ export async function POST(
     .from('patients')
     .select(`
       patient_name,
+      quote_accepted,
+      date_accepted,
       current_status:workflow_statuses!current_status_id (code, label)
     `)
     .eq('id', patientId)
@@ -89,17 +91,31 @@ export async function POST(
     case 'confirm_quote':
       messageTitle = 'Devis confirmé'
       messageBody = 'Le devis a été confirmé par Marcel.'
+      await supabase
+        .from('patients')
+        .update({ quote_accepted: true })
+        .eq('id', patientId)
+
+      if (patient.date_accepted) {
+        newStatusCode = 'surgery_scheduled'
+        messageTitle = 'Devis confirmé - Dossier programmé'
+        messageBody = 'Le devis a été confirmé. Le dossier est maintenant programmé (devis et date confirmés).'
+      }
       break
 
     case 'confirm_date':
       messageTitle = 'Date confirmée'
       messageBody = 'La date de chirurgie a été confirmée par Marcel.'
-      break
+      await supabase
+        .from('patients')
+        .update({ date_accepted: true })
+        .eq('id', patientId)
 
-    case 'finalize_scheduled':
-      newStatusCode = 'surgery_scheduled'
-      messageTitle = 'Dossier programmé'
-      messageBody = 'Le dossier est maintenant programmé (devis et date confirmés).'
+      if (patient.quote_accepted) {
+        newStatusCode = 'surgery_scheduled'
+        messageTitle = 'Date confirmée - Dossier programmé'
+        messageBody = 'La date a été confirmée. Le dossier est maintenant programmé (devis et date confirmés).'
+      }
       break
 
     case 'reopen_case':

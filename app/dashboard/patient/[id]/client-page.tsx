@@ -61,7 +61,7 @@ export default function PatientDetailClient({
         throw new Error('Failed to execute action')
       }
 
-      router.refresh()
+      window.location.reload()
     } catch (error) {
       console.error('Action failed:', error)
       alert('Une erreur est survenue lors de l\'exécution de l\'action')
