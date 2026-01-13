@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { type ActionId } from '@/lib/workflow-v2'
 
 export async function POST(
@@ -181,6 +182,12 @@ export async function POST(
   if (newStatusCode) {
     await createNotificationForStatusChange(supabase, patientId, newStatusCode, user.id, patient.patient_name)
   }
+
+  // Forcer le refresh de la page patient
+  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/patient/${patientId}`)
+
+  console.log('✅ [CHANGE-STATUS] Action completed:', actionId, '- New status:', newStatusCode || 'no change')
 
   return NextResponse.json({ success: true })
 }

@@ -39,12 +39,44 @@ export interface WorkflowStatus {
 }
 
 export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | undefined): GlobalStatus {
-  if (!status) return 'draft'
+  if (!status) {
+    console.log('⚠️ [STATUS MAPPING] No status provided, defaulting to draft')
+    return 'draft'
+  }
 
+  // PRIORITÉ 1: Utiliser le code (clé stable)
+  if (status.code) {
+    const code = status.code.toLowerCase()
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [STATUS MAPPING] code:', status.code, 'label:', status.label)
+    }
+
+    // Mapping strict par code
+    if (code === 'draft' || code === 'prospect' || code === 'created') {
+      return 'draft'
+    }
+    if (code === 'medical_review' || code === 'pending_medical' || code === 'awaiting_medical') {
+      return 'medical_review'
+    }
+    if (code === 'need_info' || code === 'medical_more_info' || code === 'incomplete') {
+      return 'medical_more_info'
+    }
+    if (code === 'rejected_medical' || code === 'rejected' || code === 'refused') {
+      return 'rejected'
+    }
+    if (code === 'surgery_scheduled' || code === 'scheduled' || code === 'confirmed') {
+      return 'scheduled'
+    }
+    if (code === 'validated_medical' || code === 'approved_medical' || code === 'commercial' || code === 'quote_pending' || code === 'awaiting_quote') {
+      return 'commercial_in_progress'
+    }
+  }
+
+  // PRIORITÉ 2: Fallback sur label/name (keywords)
   const text = (
     status.label ||
     status.name ||
-    status.code ||
     status.key ||
     ''
   ).toLowerCase()
@@ -53,7 +85,7 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     return 'draft'
   }
 
-  if (text.includes('revue médicale') || text.includes('médicale') || text.includes('medical_review')) {
+  if (text.includes('revue médicale') || (text.includes('médicale') && !text.includes('validé'))) {
     return 'medical_review'
   }
 
@@ -61,41 +93,36 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     text.includes('à compléter') ||
     text.includes('incomplet') ||
     text.includes('infos supplémentaires') ||
-    text.includes('complément') ||
-    text.includes('need_info') ||
-    text.includes('more_info')
+    text.includes('complément')
   ) {
     return 'medical_more_info'
   }
 
-  if (text.includes('refus') || text.includes('rejet') || text.includes('rejected')) {
+  if (text.includes('refus') || text.includes('rejet')) {
     return 'rejected'
   }
 
   if (
     text.includes('programmé') ||
-    text.includes('scheduled') ||
     text.includes('confirmé') ||
-    text.includes('confirmed') ||
-    text.includes('acompte') ||
-    text.includes('deposit')
+    text.includes('acompte')
   ) {
     return 'scheduled'
   }
 
   if (
+    text.includes('validé') ||
     text.includes('devis') ||
     text.includes('date') ||
     text.includes('programmation') ||
     text.includes('chirurgie') ||
     text.includes('chirurgien') ||
-    text.includes('commercial') ||
-    text.includes('quote') ||
-    text.includes('surgeon')
+    text.includes('commercial')
   ) {
     return 'commercial_in_progress'
   }
 
+  console.warn('⚠️ [STATUS MAPPING] No match found for status:', status, '- defaulting to draft')
   return 'draft'
 }
 
