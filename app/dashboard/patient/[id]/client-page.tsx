@@ -7,6 +7,7 @@ import MessageThread, { type Message } from '@/components/patient/message-thread
 import MessageComposer from '@/components/patient/message-composer'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
+import CommercialData from '@/components/patient/commercial-data'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import { useRouter } from 'next/navigation'
 
@@ -16,6 +17,8 @@ interface PatientData {
   clinical_summary: string | null
   sharepoint_link: string | null
   created_at: string
+  quote_amount?: number | null
+  proposed_date?: string | null
   current_status: {
     id: string
     code: string
@@ -162,38 +165,41 @@ export default function PatientDetailClient({
               )}
 
               {activeTab === 'commercial' && showCommercialTab && (
-                <div className="space-y-4">
-                  {commercialMessages.length > 0 ? (
-                    <>
-                      <MessageThread
-                        patientId={patient.id}
-                        initialMessages={commercialMessages}
-                      />
-                      {!isReadOnly && (
-                        <div className="pt-4 border-t border-gray-200">
-                          <h3 className="text-sm font-medium text-gray-900 mb-3">Ajouter un message commercial</h3>
-                          <MessageComposer patientId={patient.id} topic="commercial" />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
+                <div className="space-y-6">
+                  <CommercialData
+                    patientId={patient.id}
+                    initialQuoteAmount={patient.quote_amount}
+                    initialProposedDate={patient.proposed_date}
+                    canEdit={userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'}
+                  />
+
+                  <div className="border-t border-gray-200 pt-6">
+                    <h3 className="text-sm font-medium text-gray-900 mb-4">Messages commerciaux</h3>
+                    {commercialMessages.length > 0 ? (
+                      <>
+                        <MessageThread
+                          patientId={patient.id}
+                          initialMessages={commercialMessages}
+                        />
+                        {!isReadOnly && (
+                          <div className="pt-4 border-t border-gray-200">
+                            <MessageComposer patientId={patient.id} topic="commercial" />
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-sm text-gray-500 mb-4">
+                          Aucun message commercial pour le moment
+                        </p>
+                        {!isReadOnly && (
+                          <div className="max-w-md mx-auto">
+                            <MessageComposer patientId={patient.id} topic="commercial" />
+                          </div>
+                        )}
                       </div>
-                      <h3 className="text-sm font-medium text-gray-900 mb-1">Aucun devis ou planning pour le moment</h3>
-                      <p className="text-sm text-gray-500 mb-4">
-                        Les informations commerciales (devis, dates proposées) apparaîtront ici une fois ajoutées.
-                      </p>
-                      {!isReadOnly && (
-                        <div className="max-w-md mx-auto">
-                          <MessageComposer patientId={patient.id} topic="commercial" />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </div>
