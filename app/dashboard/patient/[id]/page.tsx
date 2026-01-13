@@ -1,10 +1,11 @@
 import { createServerClient } from '@/lib/supabase/server'
-import WorkflowActions from './workflow-actions'
 import MessageThread from '@/components/patient/message-thread'
 import MessageComposer from '@/components/patient/message-composer'
 import { redirect } from 'next/navigation'
 import FranchirHeader from '@/components/franchir-header'
 import WorkflowTimeline from '@/components/workflow-timeline'
+import { WorkflowGuidance } from '@/components/workflow-guidance'
+import { WorkflowActions } from '@/components/workflow-actions'
 import { globalStatusFromWorkflowStatus, type GlobalStatus } from '@/lib/workflow-v2'
 
 export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -69,6 +70,11 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
 
   const showCommercialTab = userRole !== 'gilles'
   const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
+
+  const handleAction = async (actionId: string, data?: any) => {
+    'use server'
+    console.log('Action:', actionId, data)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -157,14 +163,20 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
           </div>
 
           <div className="lg:col-span-1">
-            <div className="sticky top-24">
-              <WorkflowActions
-                patientId={patient.id}
-                currentStatus={patient.current_status}
-                globalStatus={globalStatus}
-                userRole={userRole}
-                isReadOnly={isReadOnly}
-              />
+            <div className="sticky top-24 space-y-4">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
+                <WorkflowGuidance globalStatus={globalStatus} userRole={userRole} />
+                <div className="mt-4">
+                  <WorkflowActions
+                    globalStatus={globalStatus}
+                    userRole={userRole}
+                    quoteAccepted={false}
+                    dateAccepted={false}
+                    onAction={handleAction}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
