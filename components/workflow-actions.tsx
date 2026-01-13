@@ -79,7 +79,7 @@ export function WorkflowActions({
                   }}
                   className="rounded border-gray-300"
                 />
-                <span className="text-sm">{surgeon}</span>
+                <span className="text-sm text-gray-900">{surgeon}</span>
               </label>
             ))}
           </div>
@@ -97,7 +97,7 @@ export function WorkflowActions({
             value={formData[input.type] || ''}
             onChange={(e) => setFormData({ ...formData, [input.type]: e.target.value })}
             rows={4}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+            className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-900"
             placeholder={`Saisissez ${input.label.toLowerCase()}...`}
           />
         </div>
@@ -114,7 +114,7 @@ export function WorkflowActions({
             type="text"
             value={formData.budget || ''}
             onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+            className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-900"
             placeholder="Ex: 5000-7000€ TTC"
           />
         </div>
@@ -131,7 +131,7 @@ export function WorkflowActions({
             value={formData.dates || ''}
             onChange={(e) => setFormData({ ...formData, dates: e.target.value })}
             rows={3}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+            className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-900 text-gray-900"
             placeholder="Ex: 15 mars 2024, 22 mars 2024"
           />
         </div>
@@ -203,7 +203,7 @@ export function WorkflowActions({
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
-            <h3 className="text-lg font-semibold mb-4">{showModal.label}</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{showModal.label}</h3>
             {showModal.description && (
               <p className="text-sm text-gray-600 mb-4">{showModal.description}</p>
             )}
@@ -217,7 +217,7 @@ export function WorkflowActions({
                   setFormData({})
                 }}
                 disabled={loading}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 text-gray-700 font-medium"
               >
                 Annuler
               </button>
