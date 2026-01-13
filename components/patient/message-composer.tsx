@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function MessageComposer({ patientId }: { patientId: string }) {
+export default function MessageComposer({ patientId, topic = 'medical' }: { patientId: string; topic?: string }) {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +22,7 @@ export default function MessageComposer({ patientId }: { patientId: string }) {
       const response = await fetch(`/api/patients/${patientId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message.trim() }),
+        body: JSON.stringify({ message: message.trim(), topic }),
       })
 
       const data = await response.json()
@@ -51,17 +51,17 @@ export default function MessageComposer({ patientId }: { patientId: string }) {
       />
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
           {error}
         </div>
       )}
 
       <button
         type="submit"
-        disabled={loading || !message.trim()}
-        className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+        disabled={loading}
+        className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Envoi...' : 'Envoyer le message'}
+        {loading ? 'Envoi...' : 'Envoyer'}
       </button>
     </form>
   )
