@@ -10,7 +10,6 @@ interface PatientSummaryCardProps {
   sharepointLink: string | null
   globalStatus: GlobalStatus
   userRole: UserRole
-  patientId: string
   onUpdate: (summary: string, link: string) => Promise<void>
 }
 
@@ -20,7 +19,6 @@ export default function PatientSummaryCard({
   sharepointLink,
   globalStatus,
   userRole,
-  patientId,
   onUpdate,
 }: PatientSummaryCardProps) {
   const [isEditing, setIsEditing] = useState(false)

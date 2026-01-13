@@ -39,16 +39,11 @@ export default function PatientDetailClient({
 }) {
   const router = useRouter()
   const [patient, setPatient] = useState(initialPatient)
-  const [messages, setMessages] = useState(initialMessages)
 
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
 
-  const medicalMessages = messages.filter(m =>
+  const medicalMessages = initialMessages.filter(m =>
     m.topic === 'medical' || m.topic === 'system' || !m.topic
-  )
-
-  const commercialMessages = messages.filter(m =>
-    m.topic === 'commercial'
   )
 
   const showCommercialTab = userRole !== 'gilles'
@@ -114,7 +109,6 @@ export default function PatientDetailClient({
             sharepointLink={patient.sharepoint_link}
             globalStatus={globalStatus}
             userRole={userRole}
-            patientId={patient.id}
             onUpdate={handleUpdateSummary}
           />
 
