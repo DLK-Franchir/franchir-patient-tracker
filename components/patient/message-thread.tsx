@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 
-type Message = {
+export type Message = {
   id: string
-  kind: 'message' | 'status_change' | 'system'
+  kind: 'message' | 'status_change' | 'system' | 'action'
   title: string | null
   body: string
   author_name: string | null
   author_role: string | null
   created_at: string
-  meta: any
+  topic?: string | null
+  meta?: any
 }
 
 const kindIcons: Record<string, string> = {
