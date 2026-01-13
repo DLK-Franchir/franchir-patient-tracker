@@ -144,11 +144,11 @@ export function WorkflowActions({
   const buttonVariantClass = (variant: Action['variant']) => {
     switch (variant) {
       case 'primary':
-        return 'bg-blue-600 hover:bg-blue-700 text-white'
+        return 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-sm'
       case 'secondary':
-        return 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
+        return 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300'
       case 'danger':
-        return 'bg-red-600 hover:bg-red-700 text-white'
+        return 'bg-red-600 hover:bg-red-700 text-white shadow-sm'
     }
   }
 

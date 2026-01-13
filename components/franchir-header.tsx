@@ -1,9 +1,10 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 export default function FranchirHeader() {
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
@@ -20,11 +21,9 @@ export default function FranchirHeader() {
           </div>
           <Link
             href="/dashboard"
-            className="text-sm text-gray-600 hover:text-[#0066CC] transition flex items-center gap-2"
+            className="text-sm text-gray-600 hover:text-[#2563EB] transition flex items-center gap-2 font-medium"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
+            <ArrowLeft className="w-4 h-4" />
             Retour au tableau
           </Link>
         </div>

@@ -59,6 +59,12 @@ export async function POST(
       messageBody = 'Le dossier a été soumis au Dr Dubois pour validation médicale.'
       break
 
+    case 'resubmit_to_medical':
+      newStatusCode = 'medical_review'
+      messageTitle = 'Dossier complété et renvoyé pour validation'
+      messageBody = data?.message || 'Le dossier a été complété et renvoyé au Dr Dubois pour validation médicale.'
+      break
+
     case 'approve_medical':
       newStatusCode = 'validated_medical'
       messageTitle = 'Validé médicalement'

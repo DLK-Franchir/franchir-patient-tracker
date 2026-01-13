@@ -12,6 +12,7 @@ export type MessageTopic = 'medical' | 'commercial' | 'system'
 
 export type ActionId =
   | 'submit_to_medical'
+  | 'resubmit_to_medical'
   | 'approve_medical'
   | 'request_more_info'
   | 'reject_medical'
@@ -217,6 +218,21 @@ export function getAvailableActions({
         { label: 'Proposition commerciale', reason: 'Après validation' },
         { label: 'Confirmation', reason: 'Après acceptation devis et date' },
       ]
+    } else if (globalStatus === 'medical_more_info') {
+      result.primaryAction = {
+        id: 'resubmit_to_medical',
+        label: 'Renvoyer à validation médicale (Dr Dubois)',
+        description: 'Renvoyer le dossier complété au Dr Dubois pour revue médicale',
+        variant: 'primary',
+        targetGlobalStatus: 'medical_review',
+        requiresInput: [
+          {
+            type: 'message',
+            label: 'Informations complémentaires fournies',
+            required: false,
+          },
+        ],
+      }
     } else if (globalStatus === 'commercial_in_progress') {
       const actions: Action[] = []
       
