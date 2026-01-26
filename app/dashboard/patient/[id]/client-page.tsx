@@ -46,6 +46,15 @@ export default function PatientDetailClient({
 
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
 
+  console.log('📄 [PatientDetailClient] Rendering with:', {
+    patientId: patient.id,
+    patientName: patient.patient_name,
+    currentStatusCode: patient.current_status?.code,
+    currentStatusLabel: patient.current_status?.label,
+    globalStatus,
+    userRole
+  })
+
   const medicalMessages = initialMessages.filter(m =>
     m.topic === 'medical' || m.topic === 'system' || !m.topic
   )

@@ -206,6 +206,8 @@ export function getAvailableActions({
   quoteAccepted?: boolean
   dateAccepted?: boolean
 }): AvailableActions {
+  console.log('🔍 [getAvailableActions] Called with:', { globalStatus, role, quoteAccepted, dateAccepted })
+
   const result: AvailableActions = {
     secondaryActions: [],
     futureSteps: [],
@@ -227,10 +229,12 @@ export function getAvailableActions({
         ],
       }
     }
+    console.log('🔍 [getAvailableActions] Status is rejected, returning:', result)
     return result
   }
 
   if (role === 'marcel') {
+    console.log('🔍 [getAvailableActions] Role is marcel, checking status...')
     if (globalStatus === 'draft') {
       result.primaryAction = {
         id: 'submit_to_medical',
@@ -288,7 +292,9 @@ export function getAvailableActions({
   }
 
   if (role === 'gilles' || role === 'admin') {
+    console.log('🔍 [getAvailableActions] Role is gilles or admin, checking status...')
     if (globalStatus === 'medical_review') {
+      console.log('🔍 [getAvailableActions] Status is medical_review, adding actions for gilles/admin')
       result.primaryAction = {
         id: 'approve_medical',
         label: 'Valider médicalement',
@@ -336,11 +342,15 @@ export function getAvailableActions({
           ],
         },
       ]
+    } else {
+      console.log('🔍 [getAvailableActions] Role is gilles or admin but status is not medical_review:', globalStatus)
     }
   }
 
   if (role === 'franchir' || role === 'admin') {
+    console.log('🔍 [getAvailableActions] Role is franchir or admin, checking status...')
     if (globalStatus === 'commercial_in_progress') {
+      console.log('🔍 [getAvailableActions] Status is commercial_in_progress, adding franchir/admin actions')
       result.secondaryActions.push(
         {
           id: 'add_budget',
@@ -372,5 +382,6 @@ export function getAvailableActions({
     }
   }
 
+  console.log('🔍 [getAvailableActions] Returning result:', result)
   return result
 }
