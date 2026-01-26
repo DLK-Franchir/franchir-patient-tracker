@@ -22,6 +22,8 @@ export type ActionId =
   | 'add_budget'
   | 'propose_dates'
 
+export type ActionStatus = 'urgent' | 'available' | 'in_progress' | 'completed'
+
 export const SURGEONS = [
   'Doan Co-Minh',
   'Simon Teyssedou',
@@ -179,6 +181,7 @@ export interface Action {
   description?: string
   variant: 'primary' | 'secondary' | 'danger'
   targetGlobalStatus: GlobalStatus | 'stay'
+  actionStatus?: ActionStatus
   requiresInput?: {
     type: 'surgeons' | 'message' | 'justification' | 'budget' | 'dates'
     label: string
@@ -189,6 +192,7 @@ export interface Action {
 export interface AvailableActions {
   primaryAction?: Action
   secondaryActions: Action[]
+  completedActions: Action[]
   futureSteps: Array<{
     label: string
     reason: string
