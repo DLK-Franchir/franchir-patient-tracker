@@ -168,7 +168,7 @@ export default function CommercialData({
             </div>
           </div>
         ) : (
-          <p className="text-lg font-semibold text-gray-900">
+          <p className="text-lg font-semibold text-gray-900" suppressHydrationWarning>
             {proposedDate ? formatDate(proposedDate) : 'Non renseignée'}
           </p>
         )}
