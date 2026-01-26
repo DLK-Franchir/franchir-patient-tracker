@@ -19,6 +19,8 @@ interface PatientData {
   created_at: string
   quote_amount?: number | null
   proposed_date?: string | null
+  quote_accepted?: boolean
+  date_accepted?: boolean
   current_status: {
     id: string
     code: string
@@ -224,8 +226,8 @@ export default function PatientDetailClient({
                 <WorkflowActions
                   globalStatus={globalStatus}
                   userRole={userRole}
-                  quoteAccepted={false}
-                  dateAccepted={false}
+                  quoteAccepted={patient.quote_accepted || false}
+                  dateAccepted={patient.date_accepted || false}
                   onAction={handleAction}
                 />
               </div>
@@ -236,13 +238,12 @@ export default function PatientDetailClient({
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {medicalMessages.slice(-5).reverse().map((msg) => {
                   const date = new Date(msg.created_at)
-                  const formattedDate = `${date.getDate()} ${date.toLocaleDateString('fr-FR', { month: 'short' })} à ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
 
                   return (
                     <div key={msg.id} className="text-sm border-l-2 border-gray-200 pl-3 py-2">
                       <p className="font-medium text-gray-900">{msg.title || msg.author_name}</p>
-                      <p className="text-gray-600 text-xs mt-1">
-                        {formattedDate}
+                      <p className="text-gray-600 text-xs mt-1" suppressHydrationWarning>
+                        {date.getDate()} {date.toLocaleDateString('fr-FR', { month: 'short' })} à {date.getHours().toString().padStart(2, '0')}:{date.getMinutes().toString().padStart(2, '0')}
                       </p>
                     </div>
                   )
