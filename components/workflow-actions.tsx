@@ -164,27 +164,6 @@ export function WorkflowActions({
 
   return (
     <div className="space-y-4">
-      {/* BANDEAU DE DEBUG PERMANENT - Visible pour tous */}
-      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-        <div className="font-semibold text-blue-800 mb-1">🔍 Debug (visible pour diagnostic)</div>
-        <div className="text-blue-700 space-y-0.5">
-          <div>Status: <span className="font-mono font-semibold">{globalStatus}</span></div>
-          <div>Role: <span className="font-mono font-semibold">{userRole}</span></div>
-          <div>Actions: {primaryAction ? '✅ Primary' : '❌ No Primary'} | {secondaryActions.length} secondary</div>
-        </div>
-      </div>
-
-      {/* Debug info - à retirer après diagnostic */}
-      {!primaryAction && secondaryActions.length === 0 && (
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
-          <div className="font-semibold text-yellow-800 mb-2">⚠️ Aucune action disponible</div>
-          <div className="text-yellow-700 space-y-1">
-            <div>Quote Accepted: <span className="font-mono">{String(quoteAccepted)}</span></div>
-            <div>Date Accepted: <span className="font-mono">{String(dateAccepted)}</span></div>
-          </div>
-        </div>
-      )}
-
       {primaryAction && (
         <button
           onClick={() => handleActionClick(primaryAction)}
