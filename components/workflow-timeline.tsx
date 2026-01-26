@@ -1,14 +1,7 @@
 'use client'
 
 import { FileText, Stethoscope, AlertCircle, DollarSign, Calendar } from 'lucide-react'
-
-export type GlobalStatus = 
-  | 'draft'
-  | 'medical_review'
-  | 'medical_more_info'
-  | 'rejected'
-  | 'commercial_in_progress'
-  | 'scheduled'
+import { type GlobalStatus } from '@/lib/workflow-v2'
 
 interface TimelineStepProps {
   status: GlobalStatus
