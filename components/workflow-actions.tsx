@@ -35,6 +35,16 @@ export function WorkflowActions({
     dateAccepted,
   })
 
+  console.log('🎯 [WorkflowActions] Rendered with:', {
+    globalStatus,
+    userRole,
+    quoteAccepted,
+    dateAccepted,
+    primaryAction: primaryAction?.label,
+    secondaryActionsCount: secondaryActions.length,
+    futureStepsCount: futureSteps.length
+  })
+
   const handleActionClick = (action: Action) => {
     if (action.requiresInput && action.requiresInput.length > 0) {
       setShowModal(action)
@@ -154,6 +164,20 @@ export function WorkflowActions({
 
   return (
     <div className="space-y-4">
+      {/* Debug info - à retirer après diagnostic */}
+      {!primaryAction && secondaryActions.length === 0 && (
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+          <div className="font-semibold text-yellow-800 mb-2">🔍 Debug Info</div>
+          <div className="text-yellow-700 space-y-1">
+            <div>Status: <span className="font-mono">{globalStatus}</span></div>
+            <div>Role: <span className="font-mono">{userRole}</span></div>
+            <div>Quote Accepted: <span className="font-mono">{String(quoteAccepted)}</span></div>
+            <div>Date Accepted: <span className="font-mono">{String(dateAccepted)}</span></div>
+            <div className="mt-2 text-red-600 font-semibold">⚠️ Aucune action disponible</div>
+          </div>
+        </div>
+      )}
+
       {primaryAction && (
         <button
           onClick={() => handleActionClick(primaryAction)}
