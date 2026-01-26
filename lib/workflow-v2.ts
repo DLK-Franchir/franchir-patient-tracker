@@ -214,6 +214,7 @@ export function getAvailableActions({
 
   const result: AvailableActions = {
     secondaryActions: [],
+    completedActions: [],
     futureSteps: [],
   }
 
