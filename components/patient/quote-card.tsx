@@ -194,9 +194,9 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
             </div>
           </div>
 
-          <p className="text-xs text-gray-400">
+          <div className="text-xs text-gray-500 mt-2" suppressHydrationWarning>
             Créé le {new Date(quote.created_at).toLocaleDateString()}
-          </p>
+          </div>
         </div>
       ) : (
         <p className="text-gray-500 text-sm">Aucun devis créé pour ce patient.</p>
