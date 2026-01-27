@@ -131,19 +131,11 @@ export default function NotificationBell() {
           <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-20 max-h-[500px] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="font-bold text-gray-900">Notifications</h3>
-              <button
-                onClick={createTestNotification}
-                className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
-              >
-                Test
-              </button>
             </div>
             <div className="max-h-96 overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-sm text-gray-500">Aucune notification</p>
-                  <p className="text-xs text-gray-400 mt-2">{debugInfo}</p>
-                  <p className="text-xs text-gray-400 mt-1">User ID: {userId?.substring(0, 8)}...</p>
                 </div>
               ) : (
                 notifications.map((notif) => (
