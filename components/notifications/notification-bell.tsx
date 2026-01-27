@@ -18,7 +18,6 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>('')
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -69,8 +68,6 @@ export default function NotificationBell() {
   async function loadNotifications() {
     if (!userId) return
 
-    console.log('🔔 Chargement des notifications pour userId:', userId)
-
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -79,40 +76,14 @@ export default function NotificationBell() {
       .order('created_at', { ascending: false })
       .limit(10)
 
-    if (error) {
-      console.error('🔔 Erreur chargement notifications:', error)
-      setDebugInfo(`Erreur: ${error.message}`)
-    } else {
-      console.log('🔔 Notifications chargées:', data)
-      setDebugInfo(`${data?.length || 0} notifications trouvées`)
-      if (data) {
-        setNotifications(data)
-      }
+    if (data) {
+      setNotifications(data)
     }
   }
 
   async function markAsRead(id: string) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)
     loadNotifications()
-  }
-
-  async function createTestNotification() {
-    if (!userId) return
-
-    const { error } = await supabase.from('notifications').insert({
-      user_id: userId,
-      title: 'Test notification',
-      message: 'Ceci est une notification de test créée manuellement',
-      type: 'info',
-    })
-
-    if (error) {
-      console.error('🔔 Erreur création test:', error)
-      alert(`Erreur: ${error.message}`)
-    } else {
-      console.log('🔔 Notification de test créée')
-      loadNotifications()
-    }
   }
 
   const handleNotificationClick = (notification: Notification) => {
@@ -130,7 +101,6 @@ export default function NotificationBell() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-gray-900 transition"
-        title={debugInfo}
       >
         <svg
           className="w-6 h-6"
