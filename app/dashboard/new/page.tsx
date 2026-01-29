@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 export default function NewPatientPage() {
   const [name, setName] = useState('')
@@ -53,51 +54,60 @@ export default function NewPatientPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">FRANCHIR - Nouveau Patient</h1>
-          <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">← Retour au tableau</Link>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Nouveau Patient</h1>
+          <Link 
+            href="/dashboard" 
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour au tableau
+          </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
+        <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6 bg-white p-4 sm:p-6 lg:p-8 rounded-xl shadow-sm border border-gray-200">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Nom du Patient *</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Nom du Patient *</label>
             <input 
               type="text" required value={name} onChange={e => setName(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 text-base focus:ring-2 focus:ring-[#2563EB] outline-none"
               placeholder="Ex: Jean Dupont"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Résumé clinique minimal</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Résumé clinique minimal</label>
             <textarea 
               value={summary} onChange={e => setSummary(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 text-base focus:ring-2 focus:ring-[#2563EB] outline-none" 
               rows={4}
               placeholder="Résumé des pathologies..."
             />
             <p className="text-xs text-gray-500 mt-1">Le dossier médical complet reste sur SharePoint</p>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Lien sécurisé SharePoint *</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Lien sécurisé SharePoint *</label>
             <input 
               type="url" required value={link} onChange={e => setLink(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 text-base focus:ring-2 focus:ring-[#2563EB] outline-none" 
               placeholder="https://sharepoint.com/..."
             />
           </div>
-          <div className="flex gap-4 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
+            <Link 
+              href="/dashboard" 
+              className="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-center font-medium min-h-[48px] flex items-center justify-center"
+            >
+              Annuler
+            </Link>
             <button 
               type="submit" 
               disabled={loading}
-              className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+              className="w-full sm:flex-1 bg-[#2563EB] text-white py-3 rounded-lg font-bold hover:bg-[#1d4ed8] disabled:opacity-50 min-h-[48px]"
             >
               {loading ? 'Création...' : 'Créer le dossier'}
             </button>
-            <Link href="/dashboard" className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-              Annuler
-            </Link>
           </div>
         </form>
       </div>

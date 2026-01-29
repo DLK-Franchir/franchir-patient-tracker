@@ -76,14 +76,14 @@ export default function CommercialData({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-gray-900">Budget indicatif</label>
           {canEdit && !isEditingQuote && (
             <button
               onClick={() => setIsEditingQuote(true)}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium py-1 px-2 min-h-[36px]"
             >
               Modifier
             </button>
@@ -91,32 +91,34 @@ export default function CommercialData({
         </div>
 
         {isEditingQuote ? (
-          <div className="flex items-center gap-2">
+          <div className="space-y-3">
             <input
               type="number"
               value={quoteAmount}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuoteAmount(e.target.value)}
               placeholder="Montant en €"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2563EB] text-base"
               disabled={isSaving}
             />
-            <button
-              onClick={handleSaveQuote}
-              disabled={isSaving}
-              className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              Enregistrer
-            </button>
-            <button
-              onClick={() => {
-                setIsEditingQuote(false)
-                setQuoteAmount(initialQuoteAmount?.toString() || '')
-              }}
-              disabled={isSaving}
-              className="px-3 py-2 text-gray-600 hover:text-gray-700"
-            >
-              Annuler
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={handleSaveQuote}
+                disabled={isSaving}
+                className="flex-1 px-4 py-3 bg-[#2563EB] text-white rounded-lg hover:bg-[#1d4ed8] disabled:opacity-50 font-medium min-h-[48px]"
+              >
+                Enregistrer
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditingQuote(false)
+                  setQuoteAmount(initialQuoteAmount?.toString() || '')
+                }}
+                disabled={isSaving}
+                className="px-4 py-3 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg min-h-[48px]"
+              >
+                Annuler
+              </button>
+            </div>
           </div>
         ) : (
           <p className="text-lg font-semibold text-gray-900">
@@ -131,7 +133,7 @@ export default function CommercialData({
           {canEdit && !isEditingDate && (
             <button
               onClick={() => setIsEditingDate(true)}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium py-1 px-2 min-h-[36px]"
             >
               Modifier
             </button>
@@ -139,19 +141,19 @@ export default function CommercialData({
         </div>
 
         {isEditingDate ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <input
               type="date"
               value={proposedDate}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProposedDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2563EB] text-base"
               disabled={isSaving}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button
                 onClick={handleSaveDate}
                 disabled={isSaving}
-                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 px-4 py-3 bg-[#2563EB] text-white rounded-lg hover:bg-[#1d4ed8] disabled:opacity-50 font-medium min-h-[48px]"
               >
                 Enregistrer
               </button>
@@ -161,7 +163,7 @@ export default function CommercialData({
                   setProposedDate(initialProposedDate ? new Date(initialProposedDate).toISOString().split('T')[0] : '')
                 }}
                 disabled={isSaving}
-                className="px-3 py-2 text-gray-600 hover:text-gray-700"
+                className="px-4 py-3 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg min-h-[48px]"
               >
                 Annuler
               </button>

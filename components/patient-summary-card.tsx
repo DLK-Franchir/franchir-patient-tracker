@@ -48,16 +48,16 @@ export default function PatientSummaryCard({
   }
 
   return (
-    <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Fiche Patient</h2>
+    <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900">Fiche Patient</h2>
         {canEdit && !isEditing && (
           <button
             onClick={() => setIsEditing(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#2563EB] hover:bg-blue-50 rounded-lg transition"
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#2563EB] hover:bg-blue-50 rounded-lg transition min-h-[44px]"
           >
             <Edit2 className="w-4 h-4" />
-            Modifier
+            <span className="hidden sm:inline">Modifier</span>
           </button>
         )}
       </div>
@@ -75,11 +75,11 @@ export default function PatientSummaryCard({
               value={editSummary}
               onChange={(e) => setEditSummary(e.target.value)}
               rows={6}
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+              className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
               placeholder="Saisissez le résumé clinique..."
             />
           ) : (
-            <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 rounded-lg p-4">
+            <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 rounded-lg p-3 sm:p-4 text-sm sm:text-base">
               {clinicalSummary || (
                 <p className="text-gray-400 italic">Aucun résumé clinique fourni.</p>
               )}
@@ -94,7 +94,7 @@ export default function PatientSummaryCard({
               type="url"
               value={editLink}
               onChange={(e) => setEditLink(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+              className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
               placeholder="https://..."
             />
           ) : sharepointLink ? (
@@ -102,7 +102,7 @@ export default function PatientSummaryCard({
               href={sharepointLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-white rounded-lg hover:bg-[#1d4ed8] transition font-medium"
+              className="inline-flex items-center gap-2 px-4 py-3 bg-[#2563EB] text-white rounded-lg hover:bg-[#1d4ed8] transition font-medium text-sm sm:text-base min-h-[48px]"
             >
               <ExternalLink className="w-4 h-4" />
               Ouvrir le dossier SharePoint
@@ -113,11 +113,11 @@ export default function PatientSummaryCard({
         </div>
 
         {isEditing && (
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
             <button
               onClick={handleSave}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-white rounded-lg hover:bg-[#1d4ed8] transition font-medium disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-[#2563EB] text-white rounded-lg hover:bg-[#1d4ed8] transition font-medium disabled:opacity-50 min-h-[48px]"
             >
               <Save className="w-4 h-4" />
               {loading ? 'Enregistrement...' : 'Enregistrer'}
@@ -125,7 +125,7 @@ export default function PatientSummaryCard({
             <button
               onClick={handleCancel}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium min-h-[48px]"
             >
               <X className="w-4 h-4" />
               Annuler
