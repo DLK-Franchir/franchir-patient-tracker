@@ -1,23 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 
 export default function QuoteCard({ patientId }: { patientId: string }) {
-  const supabase = createClient()
-  const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const [quote, setQuote] = useState<any>(null)
   const [amount, setAmount] = useState('')
   const [conditions, setConditions] = useState('')
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
 
-  useEffect(() => {
-    loadQuote()
-  }, [patientId])
-
-  const loadQuote = async () => {
+  const loadQuote = useCallback(async () => {
     const { data } = await supabase
       .from('quotes')
       .select('*')
@@ -33,11 +27,15 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
     } else {
       setEditing(true)
     }
-  }
+  }, [patientId, supabase])
 
-  const saveQuote = async () => {
+  useEffect(() => {
+    loadQuote()
+  }, [loadQuote])
+
+  const saveQuote = useCallback(async () => {
     setLoading(true)
-    
+
     try {
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -62,25 +60,23 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
 
       await loadQuote()
       setEditing(false)
-      router.refresh()
     } catch (error) {
       console.error('Error saving quote:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [quote, amount, conditions, patientId, supabase, loadQuote])
 
-  const updateQuoteStatus = async (status: string) => {
+  const updateQuoteStatus = useCallback(async (status: string) => {
     if (!quote) return
-    
+
     await supabase
       .from('quotes')
       .update({ status })
       .eq('id', quote.id)
 
     await loadQuote()
-    router.refresh()
-  }
+  }, [quote, supabase, loadQuote])
 
   return (
     <div className="bg-white p-6 rounded-lg shadow">

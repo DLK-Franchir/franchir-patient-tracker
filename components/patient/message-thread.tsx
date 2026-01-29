@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+import { useEffect, useState, useMemo } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 export type Message = {
   id: string
@@ -36,10 +36,7 @@ export default function MessageThread({
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     const channel = supabase
@@ -61,7 +58,7 @@ export default function MessageThread({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [patientId])
+  }, [patientId, supabase])
 
   if (messages.length === 0) {
     return (

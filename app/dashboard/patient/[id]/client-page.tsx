@@ -1,15 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { WorkflowGuidance } from '@/components/workflow-guidance'
 import { WorkflowActions } from '@/components/workflow-actions'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
-import MessageComposer from '@/components/patient/message-composer'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
-import CommercialData from '@/components/patient/commercial-data'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import { useRouter } from 'next/navigation'
+
+const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
+const CommercialData = lazy(() => import('@/components/patient/commercial-data'))
+
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center py-8">
+      <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
+}
 
 interface PatientData {
   id: string
@@ -48,15 +57,6 @@ export default function PatientDetailClient({
 
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
 
-  console.log('📄 [PatientDetailClient] Rendering with:', {
-    patientId: patient.id,
-    patientName: patient.patient_name,
-    currentStatusCode: patient.current_status?.code,
-    currentStatusLabel: patient.current_status?.label,
-    globalStatus,
-    userRole
-  })
-
   const medicalMessages = initialMessages.filter(m =>
     m.topic === 'medical' || m.topic === 'system' || !m.topic
   )
@@ -80,7 +80,7 @@ export default function PatientDetailClient({
         throw new Error('Failed to execute action')
       }
 
-      window.location.reload()
+      router.refresh()
     } catch (error) {
       console.error('Action failed:', error)
       alert('Une erreur est survenue lors de l\'exécution de l\'action')
@@ -185,7 +185,9 @@ export default function PatientDetailClient({
                   {!isReadOnly && (
                     <div className="pt-4 border-t border-gray-200">
                       <h3 className="text-sm font-medium text-gray-900 mb-3">Ajouter un message</h3>
-                      <MessageComposer patientId={patient.id} topic="medical" />
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <MessageComposer patientId={patient.id} topic="medical" />
+                      </Suspense>
                     </div>
                   )}
                 </div>
@@ -193,12 +195,14 @@ export default function PatientDetailClient({
 
               {activeTab === 'commercial' && showCommercialTab && (
                 <div className="space-y-4 sm:space-y-6">
-                  <CommercialData
-                    patientId={patient.id}
-                    initialQuoteAmount={patient.quote_amount}
-                    initialProposedDate={patient.proposed_date}
-                    canEdit={userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'}
-                  />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <CommercialData
+                      patientId={patient.id}
+                      initialQuoteAmount={patient.quote_amount}
+                      initialProposedDate={patient.proposed_date}
+                      canEdit={userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'}
+                    />
+                  </Suspense>
 
                   <div className="border-t border-gray-200 pt-4 sm:pt-6">
                     <h3 className="text-sm font-medium text-gray-900 mb-4">Messages commerciaux</h3>
@@ -210,7 +214,9 @@ export default function PatientDetailClient({
                         />
                         {!isReadOnly && (
                           <div className="pt-4 border-t border-gray-200">
-                            <MessageComposer patientId={patient.id} topic="commercial" />
+                            <Suspense fallback={<LoadingSpinner />}>
+                              <MessageComposer patientId={patient.id} topic="commercial" />
+                            </Suspense>
                           </div>
                         )}
                       </>
@@ -221,7 +227,9 @@ export default function PatientDetailClient({
                         </p>
                         {!isReadOnly && (
                           <div className="max-w-md mx-auto">
-                            <MessageComposer patientId={patient.id} topic="commercial" />
+                            <Suspense fallback={<LoadingSpinner />}>
+                              <MessageComposer patientId={patient.id} topic="commercial" />
+                            </Suspense>
                           </div>
                         )}
                       </div>
@@ -249,21 +257,16 @@ export default function PatientDetailClient({
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Historique</h2>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {medicalMessages.slice(-5).reverse().map((msg) => {
-                  const date = new Date(msg.created_at)
-
-                  return (
-                    <div key={msg.id} className="text-sm border-l-2 border-gray-200 pl-3 py-2">
-                      <p className="font-medium text-gray-900">{msg.title || msg.author_name}</p>
-                      <p className="text-gray-600 text-xs mt-1" suppressHydrationWarning>
-                        {date.getDate()} {date.toLocaleDateString('fr-FR', { month: 'short' })} à {date.getHours().toString().padStart(2, '0')}:{date.getMinutes().toString().padStart(2, '0')}
-                      </p>
-                    </div>
-                  )
-                })}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Informations</h3>
+              <div className="space-y-2 text-xs text-blue-800">
+                <p>
+                  <span className="font-medium">Créé par:</span> {patient.creator.full_name}
+                </p>
+                <p>
+                  <span className="font-medium">Date:</span>{' '}
+                  {new Date(patient.created_at).toLocaleDateString('fr-FR')}
+                </p>
               </div>
             </div>
           </div>
