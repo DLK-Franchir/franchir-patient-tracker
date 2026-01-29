@@ -109,19 +109,35 @@ export default function PatientDetailClient({
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
       <WorkflowTimeline currentStatus={globalStatus} />
 
       {isReadOnly && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <p className="text-sm text-yellow-800">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+          <p className="text-xs sm:text-sm text-yellow-800">
             ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.
           </p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="lg:hidden mb-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <h2 className="text-base font-semibold text-gray-900 mb-3">Actions disponibles</h2>
+          <WorkflowGuidance globalStatus={globalStatus} userRole={userRole} />
+          <div className="mt-3">
+            <WorkflowActions
+              globalStatus={globalStatus}
+              userRole={userRole}
+              quoteAccepted={patient.quote_accepted || false}
+              dateAccepted={patient.date_accepted || false}
+              onAction={handleAction}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           <PatientSummaryCard
             patientName={patient.patient_name}
             clinicalSummary={patient.clinical_summary}
@@ -136,7 +152,7 @@ export default function PatientDetailClient({
               <nav className="flex -mb-px">
                 <button
                   onClick={() => setActiveTab('medical')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition ${
+                  className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-sm font-medium border-b-2 transition ${
                     activeTab === 'medical'
                       ? 'border-[#2563EB] text-[#2563EB]'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -147,7 +163,7 @@ export default function PatientDetailClient({
                 {showCommercialTab && (
                   <button
                     onClick={() => setActiveTab('commercial')}
-                    className={`px-6 py-3 text-sm font-medium border-b-2 transition ${
+                    className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-sm font-medium border-b-2 transition ${
                       activeTab === 'commercial'
                         ? 'border-[#2563EB] text-[#2563EB]'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -159,7 +175,7 @@ export default function PatientDetailClient({
               </nav>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {activeTab === 'medical' && (
                 <div className="space-y-4">
                   <MessageThread
@@ -176,7 +192,7 @@ export default function PatientDetailClient({
               )}
 
               {activeTab === 'commercial' && showCommercialTab && (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   <CommercialData
                     patientId={patient.id}
                     initialQuoteAmount={patient.quote_amount}
@@ -184,7 +200,7 @@ export default function PatientDetailClient({
                     canEdit={userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'}
                   />
 
-                  <div className="border-t border-gray-200 pt-6">
+                  <div className="border-t border-gray-200 pt-4 sm:pt-6">
                     <h3 className="text-sm font-medium text-gray-900 mb-4">Messages commerciaux</h3>
                     {commercialMessages.length > 0 ? (
                       <>
@@ -199,7 +215,7 @@ export default function PatientDetailClient({
                         )}
                       </>
                     ) : (
-                      <div className="text-center py-8">
+                      <div className="text-center py-6 sm:py-8">
                         <p className="text-sm text-gray-500 mb-4">
                           Aucun message commercial pour le moment
                         </p>
@@ -217,8 +233,8 @@ export default function PatientDetailClient({
           </div>
         </div>
 
-        <div className="lg:col-span-1">
-          <div className="sticky top-24 space-y-6">
+        <div className="hidden lg:block lg:col-span-1">
+          <div className="sticky top-20 space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions disponibles</h2>
               <WorkflowGuidance globalStatus={globalStatus} userRole={userRole} />

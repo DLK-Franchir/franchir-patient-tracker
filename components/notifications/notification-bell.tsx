@@ -18,7 +18,6 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>('')
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -69,8 +68,6 @@ export default function NotificationBell() {
   async function loadNotifications() {
     if (!userId) return
 
-    console.log('🔔 Chargement des notifications pour userId:', userId)
-
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -79,40 +76,14 @@ export default function NotificationBell() {
       .order('created_at', { ascending: false })
       .limit(10)
 
-    if (error) {
-      console.error('🔔 Erreur chargement notifications:', error)
-      setDebugInfo(`Erreur: ${error.message}`)
-    } else {
-      console.log('🔔 Notifications chargées:', data)
-      setDebugInfo(`${data?.length || 0} notifications trouvées`)
-      if (data) {
-        setNotifications(data)
-      }
+    if (data) {
+      setNotifications(data)
     }
   }
 
   async function markAsRead(id: string) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)
     loadNotifications()
-  }
-
-  async function createTestNotification() {
-    if (!userId) return
-
-    const { error } = await supabase.from('notifications').insert({
-      user_id: userId,
-      title: 'Test notification',
-      message: 'Ceci est une notification de test créée manuellement',
-      type: 'info',
-    })
-
-    if (error) {
-      console.error('🔔 Erreur création test:', error)
-      alert(`Erreur: ${error.message}`)
-    } else {
-      console.log('🔔 Notification de test créée')
-      loadNotifications()
-    }
   }
 
   const handleNotificationClick = (notification: Notification) => {
@@ -129,8 +100,7 @@ export default function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 transition"
-        title={debugInfo}
+        className="relative p-2 text-gray-600 hover:text-gray-900 transition min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
         <svg
           className="w-6 h-6"
@@ -146,7 +116,7 @@ export default function NotificationBell() {
           />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[20px]">
             {unreadCount}
           </span>
         )}
@@ -155,40 +125,38 @@ export default function NotificationBell() {
       {isOpen && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-10 bg-black/20 sm:bg-transparent"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-20 max-h-[500px] overflow-hidden flex flex-col">
+          <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-20 max-h-[80vh] sm:max-h-[500px] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="font-bold text-gray-900">Notifications</h3>
-              <button
-                onClick={createTestNotification}
-                className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="sm:hidden p-2 text-gray-500 hover:text-gray-700"
               >
-                Test
+                ✕
               </button>
             </div>
-            <div className="max-h-96 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-sm text-gray-500">Aucune notification</p>
-                  <p className="text-xs text-gray-400 mt-2">{debugInfo}</p>
-                  <p className="text-xs text-gray-400 mt-1">User ID: {userId?.substring(0, 8)}...</p>
                 </div>
               ) : (
                 notifications.map((notif) => (
                   <div
                     key={notif.id}
-                    className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition"
+                    className="p-4 border-b border-gray-100 hover:bg-gray-50 active:bg-gray-100 cursor-pointer transition"
                     onClick={() => handleNotificationClick(notif)}
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="text-lg">
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg shrink-0">
                         {notif.type === 'urgent' ? '🔴' : notif.type === 'success' ? '✅' : 'ℹ️'}
                       </span>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-gray-900">{notif.title}</p>
-                        <p className="text-xs text-gray-600 mt-1">{notif.message}</p>
+                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notif.message}</p>
                         <p className="text-xs text-gray-400 mt-1">
                           {new Date(notif.created_at).toLocaleString('fr-FR')}
                         </p>

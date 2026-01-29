@@ -74,9 +74,9 @@ export function WorkflowActions({
           <label className="block text-sm font-medium text-gray-700">
             {input.label} {input.required && <span className="text-red-500">*</span>}
           </label>
-          <div className="space-y-1">
+          <div className="space-y-1 max-h-40 overflow-y-auto">
             {SURGEONS.map((surgeon) => (
-              <label key={surgeon} className="flex items-center space-x-2">
+              <label key={surgeon} className="flex items-center space-x-2 py-1">
                 <input
                   type="checkbox"
                   checked={formData.surgeons?.includes(surgeon) || false}
@@ -87,7 +87,7 @@ export function WorkflowActions({
                       : current.filter((s: string) => s !== surgeon)
                     setFormData({ ...formData, surgeons: updated })
                   }}
-                  className="rounded border-gray-300"
+                  className="rounded border-gray-300 w-5 h-5"
                 />
                 <span className="text-sm text-gray-900">{surgeon}</span>
               </label>
@@ -107,7 +107,7 @@ export function WorkflowActions({
             value={formData[input.type] || ''}
             onChange={(e) => setFormData({ ...formData, [input.type]: e.target.value })}
             rows={4}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-900"
+            className="w-full border border-gray-300 rounded-lg p-3 text-base text-gray-900"
             placeholder={`Saisissez ${input.label.toLowerCase()}...`}
           />
         </div>
@@ -124,7 +124,7 @@ export function WorkflowActions({
             type="text"
             value={formData.budget || ''}
             onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-900"
+            className="w-full border border-gray-300 rounded-lg p-3 text-base text-gray-900"
             placeholder="Ex: 5000-7000€ TTC"
           />
         </div>
@@ -141,7 +141,7 @@ export function WorkflowActions({
             value={formData.dates || ''}
             onChange={(e) => setFormData({ ...formData, dates: e.target.value })}
             rows={3}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-900 text-gray-900"
+            className="w-full border border-gray-300 rounded-lg p-3 text-base text-gray-900"
             placeholder="Ex: 15 mars 2024, 22 mars 2024"
           />
         </div>
@@ -163,12 +163,12 @@ export function WorkflowActions({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {primaryAction && (
         <button
           onClick={() => handleActionClick(primaryAction)}
           disabled={loading}
-          className={`w-full py-3 px-4 rounded-lg font-medium transition disabled:opacity-50 ${buttonVariantClass(
+          className={`w-full py-3 px-4 rounded-lg font-medium transition disabled:opacity-50 text-sm sm:text-base min-h-[48px] ${buttonVariantClass(
             primaryAction.variant
           )}`}
         >
@@ -183,7 +183,7 @@ export function WorkflowActions({
               key={action.id}
               onClick={() => handleActionClick(action)}
               disabled={loading}
-              className={`w-full py-2 px-4 rounded-lg font-medium transition disabled:opacity-50 text-sm ${buttonVariantClass(
+              className={`w-full py-2.5 sm:py-2 px-4 rounded-lg font-medium transition disabled:opacity-50 text-sm min-h-[44px] ${buttonVariantClass(
                 action.variant
               )}`}
             >
@@ -194,7 +194,7 @@ export function WorkflowActions({
       )}
 
       {futureSteps.length > 0 && (
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
           <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Prochaines étapes</div>
           <div className="space-y-2">
             {futureSteps.map((step, idx) => (
@@ -211,30 +211,32 @@ export function WorkflowActions({
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">{showModal.label}</h3>
-            {showModal.description && (
-              <p className="text-sm text-gray-600 mb-4">{showModal.description}</p>
-            )}
-            <div className="space-y-4 mb-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-lg shadow-xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 sm:border-b-0">
+              <h3 className="text-lg font-semibold text-gray-900">{showModal.label}</h3>
+              {showModal.description && (
+                <p className="text-sm text-gray-600 mt-1">{showModal.description}</p>
+              )}
+            </div>
+            <div className="p-4 sm:p-6 sm:pt-0 space-y-4">
               {showModal.requiresInput?.map((input) => renderInput(input))}
             </div>
-            <div className="flex space-x-3">
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6 flex flex-col-reverse sm:flex-row gap-3 sm:gap-3">
               <button
                 onClick={() => {
                   setShowModal(null)
                   setFormData({})
                 }}
                 disabled={loading}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 text-gray-700 font-medium"
+                className="w-full sm:flex-1 py-3 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 text-gray-700 font-medium min-h-[48px]"
               >
                 Annuler
               </button>
               <button
                 onClick={() => executeAction(showModal)}
                 disabled={loading}
-                className={`flex-1 py-2 px-4 rounded-lg font-medium transition disabled:opacity-50 ${buttonVariantClass(
+                className={`w-full sm:flex-1 py-3 px-4 rounded-lg font-medium transition disabled:opacity-50 min-h-[48px] ${buttonVariantClass(
                   showModal.variant
                 )}`}
               >

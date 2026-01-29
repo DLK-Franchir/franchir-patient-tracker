@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowLeft, LogOut, Plus } from 'lucide-react'
+import { ArrowLeft, LogOut, Plus, Menu, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 interface AppHeaderProps {
@@ -13,6 +14,7 @@ interface AppHeaderProps {
 
 export default function AppHeader({ userRole, userName, showActions = false }: AppHeaderProps) {
   const pathname = usePathname()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isPatientPage = pathname?.includes('/dashboard/patient/')
   const canCreatePatient = userRole === 'marcel' || userRole === 'admin' || userRole === 'franchir'
 
@@ -24,7 +26,7 @@ export default function AppHeader({ userRole, userName, showActions = false }: A
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-14 sm:h-16">
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition">
               <Image
@@ -32,13 +34,13 @@ export default function AppHeader({ userRole, userName, showActions = false }: A
                 alt="FRANCHIR"
                 width={140}
                 height={45}
-                className="h-11 w-auto"
+                className="h-8 sm:h-11 w-auto"
                 priority
               />
             </Link>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-3">
             {isPatientPage && (
               <Link
                 href="/dashboard"
@@ -69,7 +71,50 @@ export default function AppHeader({ userRole, userName, showActions = false }: A
               </button>
             )}
           </div>
+
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="sm:hidden p-2 rounded-lg hover:bg-gray-100 transition"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="sm:hidden border-t border-gray-200 py-3 space-y-2">
+            {isPatientPage && (
+              <Link
+                href="/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                Retour au tableau
+              </Link>
+            )}
+
+            {showActions && canCreatePatient && (
+              <Link
+                href="/dashboard/new"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-3 bg-[#2563EB] text-white rounded-lg font-medium"
+              >
+                <Plus className="w-5 h-5" />
+                Nouveau Patient
+              </Link>
+            )}
+
+            {showActions && (
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-3 text-red-600 hover:bg-red-50 rounded-lg transition"
+              >
+                <LogOut className="w-5 h-5" />
+                Déconnexion
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </header>
   )
