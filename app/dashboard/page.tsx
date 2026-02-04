@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
-import { can, type Role } from '@/lib/permissions'
+import { type Role } from '@/lib/permissions'
 import NotificationBell from '@/components/notifications/notification-bell'
 import AppHeader from '@/components/app-header'
 import { unstable_cache } from 'next/cache'

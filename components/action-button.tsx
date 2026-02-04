@@ -11,7 +11,7 @@ interface ActionButtonProps {
   label: string
   status?: ActionStatus
   statusMessage?: string
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
   onClick?: () => void
   disabled?: boolean
   loading?: boolean
@@ -53,7 +53,7 @@ export function ActionButton({
   label,
   status = 'available',
   statusMessage,
-  variant = 'outline',
+  variant = 'secondary',
   onClick,
   disabled = false,
   loading = false,

@@ -1,16 +1,16 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
-export function Analytics() {
+function AnalyticsContent() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const url = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '')
-      
+
       if (window.gtag) {
         window.gtag('config', process.env.NEXT_PUBLIC_GA_ID, {
           page_path: url,
@@ -21,11 +21,21 @@ export function Analytics() {
         window.plausible('pageview', { props: { path: url } })
       }
 
-      console.log('[Analytics] Page view:', url)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Analytics] Page view:', url)
+      }
     }
   }, [pathname, searchParams])
 
   return null
+}
+
+export function Analytics() {
+  return (
+    <Suspense fallback={null}>
+      <AnalyticsContent />
+    </Suspense>
+  )
 }
 
 declare global {

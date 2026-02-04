@@ -21,7 +21,7 @@ export default function PatientList({
   hasMore: boolean
   currentPage: number
 }) {
-  const [patients, setPatients] = useState<Patient[]>(initialPatients)
+  const [patients] = useState<Patient[]>(initialPatients)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(currentPage)
   const observerRef = useRef<HTMLDivElement>(null)
