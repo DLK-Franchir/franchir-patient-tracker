@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 type Notification = {
@@ -20,21 +20,33 @@ export default function NotificationBell() {
   const [userId, setUserId] = useState<string | null>(null)
   const router = useRouter()
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     const initUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setUserId(user.id)
-        console.log('🔔 NotificationBell - User ID:', user.id)
       }
     }
     initUser()
-  }, [])
+  }, [supabase])
+
+  const loadNotifications = useCallback(async () => {
+    if (!userId) return
+
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_read', false)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (data) {
+      setNotifications(data)
+    }
+  }, [userId, supabase])
 
   useEffect(() => {
     if (!userId) return
@@ -51,48 +63,41 @@ export default function NotificationBell() {
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
-          console.log('🔔 Nouvelle notification reçue:', payload)
+        () => {
           loadNotifications()
         }
       )
-      .subscribe((status) => {
-        console.log('🔔 Subscription status:', status)
-      })
+      .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [userId])
+  }, [userId, supabase, loadNotifications])
 
-  async function loadNotifications() {
-    if (!userId) return
+  const markAsRead = useCallback(async (id: string) => {
+    // Optimistic update: remove notification immediately from UI
+    setNotifications(prev => prev.filter(n => n.id !== id))
 
-    const { data, error } = await supabase
+    // Then confirm with server
+    const { error } = await supabase
       .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_read', false)
-      .order('created_at', { ascending: false })
-      .limit(10)
+      .update({ is_read: true })
+      .eq('id', id)
 
-    if (data) {
-      setNotifications(data)
+    // If server update fails, reload notifications to restore state
+    if (error) {
+      console.error('Failed to mark notification as read:', error)
+      loadNotifications()
     }
-  }
+  }, [supabase, loadNotifications])
 
-  async function markAsRead(id: string) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
-    loadNotifications()
-  }
-
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = useCallback((notification: Notification) => {
     markAsRead(notification.id)
     if (notification.patient_id) {
       router.push(`/dashboard/patient/${notification.patient_id}`)
       setIsOpen(false)
     }
-  }
+  }, [markAsRead, router])
 
   const unreadCount = notifications.length
 
@@ -131,7 +136,7 @@ export default function NotificationBell() {
           <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-20 max-h-[80vh] sm:max-h-[500px] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="font-bold text-gray-900">Notifications</h3>
-              <button 
+              <button
                 onClick={() => setIsOpen(false)}
                 className="sm:hidden p-2 text-gray-500 hover:text-gray-700"
               >
@@ -151,13 +156,23 @@ export default function NotificationBell() {
                     onClick={() => handleNotificationClick(notif)}
                   >
                     <div className="flex items-start gap-3">
-                      <span className="text-lg shrink-0">
-                        {notif.type === 'urgent' ? '🔴' : notif.type === 'success' ? '✅' : 'ℹ️'}
-                      </span>
+                      <div
+                        className={`w-2 h-2 rounded-full mt-2 shrink-0 ${
+                          notif.type === 'urgent'
+                            ? 'bg-red-500'
+                            : notif.type === 'success'
+                            ? 'bg-green-500'
+                            : 'bg-blue-500'
+                        }`}
+                      />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-gray-900">{notif.title}</p>
-                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notif.message}</p>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-sm font-semibold text-gray-900 mb-1">
+                          {notif.title}
+                        </p>
+                        <p className="text-xs text-gray-600 mb-2">
+                          {notif.message}
+                        </p>
+                        <p className="text-xs text-gray-400">
                           {new Date(notif.created_at).toLocaleString('fr-FR')}
                         </p>
                       </div>

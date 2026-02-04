@@ -30,8 +30,6 @@ export async function POST(
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
   }
 
-  const userRole = profile.role as 'marcel' | 'franchir' | 'gilles' | 'admin'
-
   const { data: patient } = await supabase
     .from('patients')
     .select(`

@@ -12,7 +12,7 @@ interface AppHeaderProps {
   showActions?: boolean
 }
 
-export default function AppHeader({ userRole, userName, showActions = false }: AppHeaderProps) {
+export default function AppHeader({ userRole, showActions = false }: AppHeaderProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isPatientPage = pathname?.includes('/dashboard/patient/')
