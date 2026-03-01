@@ -2,6 +2,11 @@ import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { type ActionId } from '@/lib/workflow-v2'
+import { Resend } from 'resend'
+import { EMAIL_FROM, getEmailForProfile } from '@/lib/email-config'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.franchir.eu'
 
 export async function POST(
   req: Request,
@@ -237,7 +242,7 @@ async function createNotificationForStatusChange(
 
     const { data: targetUsers, error: usersError } = await supabase
       .from('profiles')
-      .select('id, role, full_name')
+      .select('id, role, full_name, email')
       .in('role', rule.roles)
       .neq('id', actorId)
 
@@ -265,6 +270,32 @@ async function createNotificationForStatusChange(
     } else {
       console.log('✅ Notifications créées avec succès')
     }
+
+    const patientLink = `${APP_URL}/dashboard/patient/${patientId}`
+
+    const emailPromises = targetUsers
+      .map((u: any) => ({ ...u, realEmail: getEmailForProfile(u) }))
+      .filter((u: any) => u.realEmail)
+      .map((u: any) =>
+        resend.emails.send({
+          from: EMAIL_FROM,
+          to: u.realEmail,
+          subject: `Mise à jour dossier — ${patientName}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2563EB;">Mise à jour du dossier patient</h2>
+              <p>Bonjour ${u.full_name},</p>
+              <p>${rule.message}</p>
+              <a href="${patientLink}" style="display: inline-block; background-color: #2563EB; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 8px;">
+                Voir le dossier
+              </a>
+              <p style="color: #6B7280; font-size: 12px; margin-top: 24px;">FRANCHIR — Suivi des dossiers patients</p>
+            </div>
+          `,
+        })
+      )
+
+    await Promise.allSettled(emailPromises)
   } catch (error) {
     console.error('❌ Erreur création notification:', error)
   }

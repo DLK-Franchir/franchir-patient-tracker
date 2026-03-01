@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -11,46 +10,36 @@ export default function NewPatientPage() {
   const [summary, setSummary] = useState('')
   const [link, setLink] = useState('')
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { data: { session } } = await supabase.auth.getSession()
-    console.log('🔍 Session:', session?.user.id)
+    try {
+      const response = await fetch('/api/patients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_name: name,
+          clinical_summary: summary,
+          sharepoint_link: link,
+        }),
+      })
 
-    const { data: status, error: statusError } = await supabase
-      .from('workflow_statuses')
-      .select('id')
-      .eq('code', 'prospect_created')
-      .single()
+      const data = await response.json()
 
-    console.log('🔍 Status:', status, 'Error:', statusError)
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la création')
+      }
 
-    const insertData = {
-      patient_name: name,
-      clinical_summary: summary,
-      sharepoint_link: link,
-      current_status_id: status?.id,
-      created_by: session?.user.id
-    }
-
-    console.log('🔍 Insert data:', insertData)
-
-    const { data, error } = await supabase.from('patients').insert(insertData).select()
-
-    console.log('🔍 Insert result:', data, 'Error:', error)
-
-    if (!error) {
       router.push('/dashboard')
       router.refresh()
-    } else {
-      alert("Erreur lors de la création : " + error.message)
-      console.error('❌ Full error:', error)
+    } catch (err: any) {
+      alert('Erreur lors de la création : ' + err.message)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { EMAIL_FROM } from '@/lib/email-config'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await resend.emails.send({
-      from: 'FRANCHIR <notifications@franchir.eu>',
+      from: EMAIL_FROM,
       to,
       subject,
       html
