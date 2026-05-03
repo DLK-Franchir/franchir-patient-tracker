@@ -2,15 +2,19 @@ import { Resend } from 'resend'
 import { staffRecipients } from '@/lib/access-control'
 import { EMAIL_FROM, getEmailForProfile } from '@/lib/email-config'
 import { Logger } from '@/lib/logger'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import {
   newPatientEmailHtml,
   newMessageEmailHtml,
   statusChangeEmailHtml,
 } from '@/lib/email-templates'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.franchir.eu'
 const log = new Logger('notifications')
+
+function getResend(): Resend | null {
+  return process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+}
 
 export type ProfileRow = {
   id: string
@@ -21,8 +25,27 @@ export type ProfileRow = {
 
 type SupabaseClient = Awaited<ReturnType<typeof import('@/lib/supabase/server').createServerClient>>
 
-function canSendEmails(): boolean {
-  return Boolean(process.env.RESEND_API_KEY)
+type NotificationInsert = {
+  user_id: string
+  patient_id: string
+  type: string
+  title: string
+  message: string
+}
+
+async function insertNotifications(rows: NotificationInsert[], context: string): Promise<void> {
+  try {
+    const supabase = createServiceRoleClient() as unknown as SupabaseClient
+    const { error } = await supabase
+      .from('notifications')
+      .insert(rows.map(row => ({ is_read: false, ...row })))
+
+    if (error) {
+      log.error(context, error)
+    }
+  } catch (error) {
+    log.error(context, error)
+  }
 }
 
 export function patientLink(patientId: string): string {
@@ -34,9 +57,7 @@ export async function sendNewPatientNotifications(
   actor: { id: string; full_name: string },
   patient: { id: string; patient_name: string }
 ): Promise<void> {
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, role, email, full_name')
+  const { data: profiles } = await supabase.from('profiles').select('id, role, email, full_name')
 
   const targetProfiles = staffRecipients(profiles as ProfileRow[] | null, actor.id)
 
@@ -44,24 +65,25 @@ export async function sendNewPatientNotifications(
 
   const link = patientLink(patient.id)
 
-  const { error: insertError } = await supabase.from('notifications').insert(
-    targetProfiles.map((p) => ({
+  await insertNotifications(
+    targetProfiles.map(p => ({
       user_id: p.id,
       patient_id: patient.id,
       type: 'info',
       title: 'Nouveau dossier créé',
       message: `${actor.full_name} a créé le dossier de ${patient.patient_name}.`,
-    }))
+    })),
+    'Failed to insert new patient notifications'
   )
 
-  if (insertError) log.error('Failed to insert new patient notifications', insertError)
-  if (!canSendEmails()) return
+  const emailClient = getResend()
+  if (!emailClient) return
 
   const emailPromises = targetProfiles
-    .map((p) => ({ ...p, realEmail: getEmailForProfile(p) }))
-    .filter((p) => p.realEmail)
-    .map((p) =>
-      resend.emails.send({
+    .map(p => ({ ...p, realEmail: getEmailForProfile(p) }))
+    .filter(p => p.realEmail)
+    .map(p =>
+      emailClient.emails.send({
         from: EMAIL_FROM,
         to: p.realEmail!,
         subject: `Nouveau dossier créé — ${patient.patient_name}`,
@@ -81,9 +103,7 @@ export async function sendNewMessageNotifications(
   patient: { id: string; patient_name: string },
   message: string
 ): Promise<void> {
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, role, email, full_name')
+  const { data: profiles } = await supabase.from('profiles').select('id, role, email, full_name')
 
   const targetProfiles = staffRecipients(profiles as ProfileRow[] | null, actor.id)
 
@@ -91,28 +111,34 @@ export async function sendNewMessageNotifications(
 
   const link = patientLink(patient.id)
 
-  const { error: insertError } = await supabase.from('notifications').insert(
-    targetProfiles.map((p) => ({
+  await insertNotifications(
+    targetProfiles.map(p => ({
       user_id: p.id,
       patient_id: patient.id,
       type: 'message',
       title: 'Nouveau message',
       message: `${actor.full_name} a écrit un message`,
-    }))
+    })),
+    'Failed to insert message notifications'
   )
-
-  if (insertError) log.error('Failed to insert message notifications', insertError)
-  if (!canSendEmails()) return
+  const emailClient = getResend()
+  if (!emailClient) return
 
   const emailPromises = targetProfiles
-    .map((p) => ({ ...p, realEmail: getEmailForProfile(p) }))
-    .filter((p) => p.realEmail)
-    .map((p) =>
-      resend.emails.send({
+    .map(p => ({ ...p, realEmail: getEmailForProfile(p) }))
+    .filter(p => p.realEmail)
+    .map(p =>
+      emailClient.emails.send({
         from: EMAIL_FROM,
         to: p.realEmail!,
         subject: `Nouveau message de ${actor.full_name} — ${patient.patient_name}`,
-        html: newMessageEmailHtml(p.full_name, actor.full_name, patient.patient_name, message, link),
+        html: newMessageEmailHtml(
+          p.full_name,
+          actor.full_name,
+          patient.patient_name,
+          message,
+          link
+        ),
       })
     )
 
@@ -122,30 +148,34 @@ export async function sendNewMessageNotifications(
   })
 }
 
-export const STATUS_NOTIFICATION_RULES: Record<string, { roles: string[]; message: (name: string) => string }> = {
+export const STATUS_NOTIFICATION_RULES: Record<
+  string,
+  { roles: string[]; message: (name: string) => string }
+> = {
   medical_review: {
     roles: ['gilles'],
-    message: (name) => `Le dossier de ${name} est prêt pour votre revue médicale.`,
+    message: name => `Le dossier de ${name} est prêt pour votre revue médicale.`,
   },
   validated_medical: {
     roles: ['marcel', 'franchir', 'admin'],
-    message: (name) => `Le dossier de ${name} a été validé médicalement. Vous pouvez préparer le devis.`,
+    message: name =>
+      `Le dossier de ${name} a été validé médicalement. Vous pouvez préparer le devis.`,
   },
   rejected_medical: {
     roles: ['marcel', 'franchir', 'admin'],
-    message: (name) => `Le dossier de ${name} a été refusé médicalement.`,
+    message: name => `Le dossier de ${name} a été refusé médicalement.`,
   },
   need_info: {
     roles: ['marcel', 'franchir', 'admin'],
-    message: (name) => `Des informations supplémentaires sont demandées pour ${name}.`,
+    message: name => `Des informations supplémentaires sont demandées pour ${name}.`,
   },
   surgery_scheduled: {
     roles: ['gilles', 'marcel', 'franchir', 'admin'],
-    message: (name) => `La chirurgie de ${name} a été programmée.`,
+    message: name => `La chirurgie de ${name} a été programmée.`,
   },
   draft: {
     roles: ['marcel', 'franchir', 'admin'],
-    message: (name) => `Le dossier de ${name} a été réouvert.`,
+    message: name => `Le dossier de ${name} a été réouvert.`,
   },
 }
 
@@ -175,24 +205,25 @@ export async function sendStatusChangeNotifications(
 
   if (targetUsers.length === 0) return
 
-  const { error: insertError } = await supabase.from('notifications').insert(
-    targetUsers.map((u) => ({
+  await insertNotifications(
+    targetUsers.map(u => ({
       user_id: u.id,
       patient_id: patient.id,
       title: 'Nouveau statut patient',
       message: statusMessage,
       type: 'info',
-    }))
+    })),
+    'Failed to insert status notifications'
   )
 
-  if (insertError) log.error('Failed to insert status notifications', insertError)
-  if (!canSendEmails()) return
+  const emailClient = getResend()
+  if (!emailClient) return
 
   const emailPromises = targetUsers
-    .map((u) => ({ ...u, realEmail: getEmailForProfile(u) }))
-    .filter((u) => u.realEmail)
-    .map((u) =>
-      resend.emails.send({
+    .map(u => ({ ...u, realEmail: getEmailForProfile(u) }))
+    .filter(u => u.realEmail)
+    .map(u =>
+      emailClient.emails.send({
         from: EMAIL_FROM,
         to: u.realEmail!,
         subject: `Mise à jour dossier — ${patient.patient_name}`,

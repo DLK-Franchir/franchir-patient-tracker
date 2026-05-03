@@ -1,4 +1,6 @@
-export type GlobalStatus = 
+import { canRolePerformWorkflowAction } from '@/lib/access-control'
+
+export type GlobalStatus =
   | 'draft'
   | 'medical_review'
   | 'medical_more_info'
@@ -40,7 +42,9 @@ export interface WorkflowStatus {
   key?: string
 }
 
-export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | undefined): GlobalStatus {
+export function globalStatusFromWorkflowStatus(
+  status: WorkflowStatus | null | undefined
+): GlobalStatus {
   if (!status) {
     console.log('⚠️ [STATUS MAPPING] No status provided, defaulting to draft')
     return 'draft'
@@ -70,20 +74,26 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     if (code === 'surgery_scheduled' || code === 'scheduled' || code === 'confirmed') {
       return 'scheduled'
     }
-    if (code === 'validated_medical' || code === 'approved_medical' || code === 'commercial' || code === 'quote_pending' || code === 'awaiting_quote') {
+    if (
+      code === 'validated_medical' ||
+      code === 'approved_medical' ||
+      code === 'commercial' ||
+      code === 'quote_pending' ||
+      code === 'awaiting_quote'
+    ) {
       return 'commercial_in_progress'
     }
   }
 
   // PRIORITÉ 2: Fallback sur label/name (keywords)
-  const text = (
-    status.label ||
-    status.name ||
-    status.key ||
-    ''
-  ).toLowerCase()
+  const text = (status.label || status.name || status.key || '').toLowerCase()
 
-  if (text.includes('créé') || text.includes('brouillon') || text.includes('dossier') || text.includes('prospect')) {
+  if (
+    text.includes('créé') ||
+    text.includes('brouillon') ||
+    text.includes('dossier') ||
+    text.includes('prospect')
+  ) {
     return 'draft'
   }
 
@@ -104,11 +114,7 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     return 'rejected'
   }
 
-  if (
-    text.includes('programmé') ||
-    text.includes('confirmé') ||
-    text.includes('acompte')
-  ) {
+  if (text.includes('programmé') || text.includes('confirmé') || text.includes('acompte')) {
     return 'scheduled'
   }
 
@@ -156,7 +162,7 @@ export function getGuidance(globalStatus: GlobalStatus, role: UserRole): string 
       return 'Examinez le dossier et prenez une décision médicale.'
     }
     if (globalStatus === 'medical_more_info') {
-      return 'En attente de compléments d\'information de Marcel.'
+      return "En attente de compléments d'information de Marcel."
     }
     return 'Aucune action médicale requise pour le moment.'
   }
@@ -165,14 +171,14 @@ export function getGuidance(globalStatus: GlobalStatus, role: UserRole): string 
     if (globalStatus === 'commercial_in_progress') {
       return 'Gérez le devis et proposez des dates de chirurgie.'
     }
-    return 'Suivez l\'évolution du dossier.'
+    return "Suivez l'évolution du dossier."
   }
 
   if (role === 'admin') {
     return 'Vous avez accès complet à toutes les actions.'
   }
 
-  return 'Suivez l\'évolution du dossier.'
+  return "Suivez l'évolution du dossier."
 }
 
 export interface Action {
@@ -210,7 +216,12 @@ export function getAvailableActions({
   quoteAccepted?: boolean
   dateAccepted?: boolean
 }): AvailableActions {
-  console.log('🔍 [getAvailableActions] Called with:', { globalStatus, role, quoteAccepted, dateAccepted })
+  console.log('🔍 [getAvailableActions] Called with:', {
+    globalStatus,
+    role,
+    quoteAccepted,
+    dateAccepted,
+  })
 
   const result: AvailableActions = {
     secondaryActions: [],
@@ -299,7 +310,9 @@ export function getAvailableActions({
   if (role === 'gilles' || role === 'admin') {
     console.log('🔍 [getAvailableActions] Role is gilles or admin, checking status...')
     if (globalStatus === 'medical_review') {
-      console.log('🔍 [getAvailableActions] Status is medical_review, adding actions for gilles/admin')
+      console.log(
+        '🔍 [getAvailableActions] Status is medical_review, adding actions for gilles/admin'
+      )
       result.primaryAction = {
         id: 'approve_medical',
         label: 'Valider médicalement',
@@ -348,14 +361,19 @@ export function getAvailableActions({
         },
       ]
     } else {
-      console.log('🔍 [getAvailableActions] Role is gilles or admin but status is not medical_review:', globalStatus)
+      console.log(
+        '🔍 [getAvailableActions] Role is gilles or admin but status is not medical_review:',
+        globalStatus
+      )
     }
   }
 
   if (role === 'franchir' || role === 'admin') {
     console.log('🔍 [getAvailableActions] Role is franchir or admin, checking status...')
     if (globalStatus === 'commercial_in_progress') {
-      console.log('🔍 [getAvailableActions] Status is commercial_in_progress, adding franchir/admin actions')
+      console.log(
+        '🔍 [getAvailableActions] Status is commercial_in_progress, adding franchir/admin actions'
+      )
       result.secondaryActions.push(
         {
           id: 'add_budget',
@@ -386,6 +404,21 @@ export function getAvailableActions({
       )
     }
   }
+
+  const canShowAction = (action: Action) =>
+    canRolePerformWorkflowAction({
+      role,
+      actionId: action.id,
+      globalStatus,
+      quoteAccepted,
+      dateAccepted,
+    })
+
+  if (result.primaryAction && !canShowAction(result.primaryAction)) {
+    result.primaryAction = undefined
+  }
+
+  result.secondaryActions = result.secondaryActions.filter(canShowAction)
 
   console.log('🔍 [getAvailableActions] Returning result:', result)
   return result

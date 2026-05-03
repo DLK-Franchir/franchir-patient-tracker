@@ -1,28 +1,26 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { Logger } from '@/lib/logger'
+import { apiError, createRouteHandler, RouteContext } from '@/lib/api/route-handler'
 import { canUseWorkflow } from '@/lib/access-control'
 import { sendNewMessageNotifications } from '@/lib/notifications'
 
-const log = new Logger('api/patients/messages')
-
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
+export const POST = createRouteHandler(
+  'api/patients/messages',
+  async (req: Request, { params }: RouteContext<{ id: string }>) => {
     const { id: patientId } = await params
     const { message } = await req.json()
 
     if (!message || !message.trim()) {
-      return NextResponse.json({ error: 'Message vide' }, { status: 400 })
+      apiError(400, 'Message vide')
     }
 
     const supabase = await createServerClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      apiError(401, 'Unauthorized')
     }
 
     const [{ data: profile }, { data: patient }] = await Promise.all([
@@ -31,11 +29,11 @@ export async function POST(
     ])
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+      apiError(404, 'Profile not found')
     }
 
     if (!canUseWorkflow(profile)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      apiError(403, 'Forbidden')
     }
 
     const { error: insertError } = await supabase.from('patient_messages').insert({
@@ -50,7 +48,7 @@ export async function POST(
     })
 
     if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 })
+      apiError(500, insertError.message)
     }
 
     const patientName = patient?.patient_name || 'un patient'
@@ -63,8 +61,5 @@ export async function POST(
     )
 
     return NextResponse.json({ success: true })
-  } catch (error) {
-    log.error('Erreur envoi message', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
-}
+)

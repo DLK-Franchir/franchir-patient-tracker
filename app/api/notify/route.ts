@@ -3,60 +3,57 @@ import { Resend } from 'resend'
 import { EMAIL_FROM } from '@/lib/email-config'
 import { isStaffEmail, isStaffProfile } from '@/lib/access-control'
 import { createServerClient } from '@/lib/supabase/server'
+import { apiError, createRouteHandler } from '@/lib/api/route-handler'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, role')
-      .eq('id', user.id)
-      .single()
-
-    if (!isStaffProfile(profile)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const body = await request.json()
-    const { to, subject, html } = body
-
-    if (!to || !subject || !html) {
-      return NextResponse.json(
-        { error: 'Missing required fields: to, subject, html' },
-        { status: 400 }
-      )
-    }
-
-    if (!isStaffEmail(to) || !process.env.RESEND_API_KEY) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const { data, error } = await resend.emails.send({
-      from: EMAIL_FROM,
-      to,
-      subject,
-      html
-    })
-
-    if (error) {
-      console.error('Resend error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('Email notification error:', error)
-    return NextResponse.json(
-      { error: 'Failed to send email' },
-      { status: 500 }
-    )
-  }
+function getResend(): Resend | null {
+  return process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 }
+
+export const POST = createRouteHandler('api/notify', async (request: NextRequest) => {
+  const supabase = await createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    apiError(401, 'Unauthorized')
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('email, role')
+    .eq('id', user.id)
+    .single()
+
+  if (!isStaffProfile(profile)) {
+    apiError(403, 'Forbidden')
+  }
+
+  const { to, subject, html } = await request.json()
+
+  if (!to || !subject || !html) {
+    apiError(400, 'Missing required fields: to, subject, html')
+  }
+
+  if (!isStaffEmail(to)) {
+    apiError(403, 'Forbidden')
+  }
+
+  const emailClient = getResend()
+  if (!emailClient) {
+    apiError(503, 'Email service disabled')
+  }
+
+  const { data, error } = await emailClient.emails.send({
+    from: EMAIL_FROM,
+    to,
+    subject,
+    html,
+  })
+
+  if (error) {
+    apiError(500, error.message)
+  }
+
+  return NextResponse.json({ success: true, data })
+})
