@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { isStaffProfile } from '@/lib/access-control'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_PATHS = ['/login', '/auth']
@@ -53,12 +54,35 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
+    if (user && !isPublicPath) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, role')
+        .eq('id', user.id)
+        .single()
+
+      if (!isStaffProfile(profile)) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/login'
+        url.searchParams.set('error', 'unauthorized')
+        return NextResponse.redirect(url)
+      }
+    }
+
     if (user && request.nextUrl.pathname === '/login') {
-      const redirect = request.nextUrl.searchParams.get('redirect')
-      const url = request.nextUrl.clone()
-      url.pathname = redirect || '/dashboard'
-      url.searchParams.delete('redirect')
-      return NextResponse.redirect(url)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, role')
+        .eq('id', user.id)
+        .single()
+
+      if (isStaffProfile(profile)) {
+        const redirect = request.nextUrl.searchParams.get('redirect')
+        const url = request.nextUrl.clone()
+        url.pathname = redirect || '/dashboard'
+        url.searchParams.delete('redirect')
+        return NextResponse.redirect(url)
+      }
     }
 
     if (user && request.nextUrl.pathname === '/') {

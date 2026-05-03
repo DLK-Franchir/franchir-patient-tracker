@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { Logger } from '@/lib/logger'
+import { canCreatePatient } from '@/lib/access-control'
 import { sendNewPatientNotifications } from '@/lib/notifications'
 
 const log = new Logger('api/patients')
@@ -21,12 +22,16 @@ export async function POST(req: Request) {
     }
 
     const [{ data: profile }, { data: status }] = await Promise.all([
-      supabase.from('profiles').select('role, full_name').eq('id', user.id).single(),
+      supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single(),
       supabase.from('workflow_statuses').select('id').eq('code', 'prospect_created').single(),
     ])
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    }
+
+    if (!canCreatePatient(profile)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { data: patient, error: insertError } = await supabase

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { canEditCommercialData } from '@/lib/access-control'
 
 export async function PATCH(
   request: NextRequest,
@@ -16,11 +17,11 @@ export async function PATCH(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, email')
       .eq('id', user.id)
       .single()
 
-    if (!profile || (profile.role !== 'marcel' && profile.role !== 'franchir' && profile.role !== 'admin')) {
+    if (!canEditCommercialData(profile)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

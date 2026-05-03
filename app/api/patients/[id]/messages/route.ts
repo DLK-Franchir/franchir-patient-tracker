@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { Logger } from '@/lib/logger'
+import { canUseWorkflow } from '@/lib/access-control'
 import { sendNewMessageNotifications } from '@/lib/notifications'
 
 const log = new Logger('api/patients/messages')
@@ -25,12 +26,16 @@ export async function POST(
     }
 
     const [{ data: profile }, { data: patient }] = await Promise.all([
-      supabase.from('profiles').select('role, full_name').eq('id', user.id).single(),
+      supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single(),
       supabase.from('patients').select('patient_name').eq('id', patientId).single(),
     ])
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    }
+
+    if (!canUseWorkflow(profile)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { error: insertError } = await supabase.from('patient_messages').insert({

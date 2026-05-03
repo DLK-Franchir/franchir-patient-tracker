@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { staffRecipients } from '@/lib/access-control'
 import { EMAIL_FROM, getEmailForProfile } from '@/lib/email-config'
 import { Logger } from '@/lib/logger'
 import {
@@ -20,6 +21,10 @@ export type ProfileRow = {
 
 type SupabaseClient = Awaited<ReturnType<typeof import('@/lib/supabase/server').createServerClient>>
 
+function canSendEmails(): boolean {
+  return Boolean(process.env.RESEND_API_KEY)
+}
+
 export function patientLink(patientId: string): string {
   return `${APP_URL}/dashboard/patient/${patientId}`
 }
@@ -29,17 +34,18 @@ export async function sendNewPatientNotifications(
   actor: { id: string; full_name: string },
   patient: { id: string; patient_name: string }
 ): Promise<void> {
-  const { data: otherProfiles } = await supabase
+  const { data: profiles } = await supabase
     .from('profiles')
     .select('id, role, email, full_name')
-    .neq('id', actor.id)
 
-  if (!otherProfiles || otherProfiles.length === 0) return
+  const targetProfiles = staffRecipients(profiles as ProfileRow[] | null, actor.id)
+
+  if (targetProfiles.length === 0) return
 
   const link = patientLink(patient.id)
 
-  await supabase.from('notifications').insert(
-    otherProfiles.map((p: ProfileRow) => ({
+  const { error: insertError } = await supabase.from('notifications').insert(
+    targetProfiles.map((p) => ({
       user_id: p.id,
       patient_id: patient.id,
       type: 'info',
@@ -48,8 +54,11 @@ export async function sendNewPatientNotifications(
     }))
   )
 
-  const emailPromises = otherProfiles
-    .map((p: ProfileRow) => ({ ...p, realEmail: getEmailForProfile(p) }))
+  if (insertError) log.error('Failed to insert new patient notifications', insertError)
+  if (!canSendEmails()) return
+
+  const emailPromises = targetProfiles
+    .map((p) => ({ ...p, realEmail: getEmailForProfile(p) }))
     .filter((p) => p.realEmail)
     .map((p) =>
       resend.emails.send({
@@ -72,28 +81,31 @@ export async function sendNewMessageNotifications(
   patient: { id: string; patient_name: string },
   message: string
 ): Promise<void> {
-  const { data: otherProfiles } = await supabase
+  const { data: profiles } = await supabase
     .from('profiles')
     .select('id, role, email, full_name')
-    .neq('id', actor.id)
 
-  if (!otherProfiles || otherProfiles.length === 0) return
+  const targetProfiles = staffRecipients(profiles as ProfileRow[] | null, actor.id)
+
+  if (targetProfiles.length === 0) return
 
   const link = patientLink(patient.id)
 
-  await supabase.from('notifications').insert(
-    otherProfiles.map((p: ProfileRow) => ({
+  const { error: insertError } = await supabase.from('notifications').insert(
+    targetProfiles.map((p) => ({
       user_id: p.id,
+      patient_id: patient.id,
       type: 'message',
       title: 'Nouveau message',
       message: `${actor.full_name} a écrit un message`,
-      link: `/dashboard/patient/${patient.id}`,
-      read: false,
     }))
   )
 
-  const emailPromises = otherProfiles
-    .map((p: ProfileRow) => ({ ...p, realEmail: getEmailForProfile(p) }))
+  if (insertError) log.error('Failed to insert message notifications', insertError)
+  if (!canSendEmails()) return
+
+  const emailPromises = targetProfiles
+    .map((p) => ({ ...p, realEmail: getEmailForProfile(p) }))
     .filter((p) => p.realEmail)
     .map((p) =>
       resend.emails.send({
@@ -149,21 +161,22 @@ export async function sendStatusChangeNotifications(
   const statusMessage = rule.message(patient.patient_name)
   const link = patientLink(patient.id)
 
-  const { data: targetUsers, error } = await supabase
+  const { data: profiles, error } = await supabase
     .from('profiles')
     .select('id, role, full_name, email')
     .in('role', rule.roles)
-    .neq('id', actor.id)
 
   if (error) {
     log.error('Failed to fetch target users for status notification', error)
     return
   }
 
-  if (!targetUsers || targetUsers.length === 0) return
+  const targetUsers = staffRecipients(profiles as ProfileRow[] | null, actor.id)
+
+  if (targetUsers.length === 0) return
 
   const { error: insertError } = await supabase.from('notifications').insert(
-    targetUsers.map((u: ProfileRow) => ({
+    targetUsers.map((u) => ({
       user_id: u.id,
       patient_id: patient.id,
       title: 'Nouveau statut patient',
@@ -173,9 +186,10 @@ export async function sendStatusChangeNotifications(
   )
 
   if (insertError) log.error('Failed to insert status notifications', insertError)
+  if (!canSendEmails()) return
 
   const emailPromises = targetUsers
-    .map((u: ProfileRow) => ({ ...u, realEmail: getEmailForProfile(u) }))
+    .map((u) => ({ ...u, realEmail: getEmailForProfile(u) }))
     .filter((u) => u.realEmail)
     .map((u) =>
       resend.emails.send({

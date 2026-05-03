@@ -80,6 +80,15 @@ export default function PatientDetailClient({
         throw new Error('Failed to execute action')
       }
 
+      const result = await response.json()
+
+      if (result.patient && Object.keys(result.patient).length > 0) {
+        setPatient(currentPatient => ({
+          ...currentPatient,
+          ...result.patient,
+        }))
+      }
+
       router.refresh()
     } catch (error) {
       console.error('Action failed:', error)

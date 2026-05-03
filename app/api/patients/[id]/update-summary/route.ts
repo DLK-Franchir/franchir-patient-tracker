@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
+import { canEditPatientSummary } from '@/lib/access-control'
 import { NextResponse } from 'next/server'
 
 export async function PATCH(
@@ -18,6 +19,16 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, email')
+    .eq('id', user.id)
+    .single()
+
+  if (!canEditPatientSummary(profile)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const { error } = await supabase
     .from('patients')
     .update({
@@ -27,7 +38,7 @@ export async function PATCH(
     .eq('id', patientId)
 
   if (error) {
-    console.error('❌ Erreur mise à jour patient:', error)
+    console.error('Erreur mise à jour patient:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

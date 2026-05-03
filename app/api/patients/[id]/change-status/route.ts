@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { type ActionId } from '@/lib/workflow-v2'
 import { Logger } from '@/lib/logger'
+import { canUseWorkflow } from '@/lib/access-control'
 import { sendStatusChangeNotifications } from '@/lib/notifications'
 
 const log = new Logger('api/change-status')
@@ -23,7 +24,7 @@ export async function POST(
     }
 
     const [{ data: profile }, { data: patient }] = await Promise.all([
-      supabase.from('profiles').select('role, full_name').eq('id', user.id).single(),
+      supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single(),
       supabase.from('patients').select(`
         patient_name,
         quote_accepted,
@@ -34,6 +35,10 @@ export async function POST(
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    }
+
+    if (!canUseWorkflow(profile)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     if (!patient) {
@@ -47,6 +52,11 @@ export async function POST(
   let messageBody = ''
   let newStatusCode = ''
   let messageTitle = ''
+  const updatedPatient: {
+    current_status?: { id: string; code: string; label: string; color: string }
+    quote_accepted?: boolean
+    date_accepted?: boolean
+  } = {}
 
   switch (actionId as ActionId) {
     case 'submit_to_medical':
@@ -85,7 +95,12 @@ export async function POST(
     case 'confirm_quote':
       messageTitle = 'Devis confirmé'
       messageBody = 'Le devis a été confirmé par Marcel.'
-      await supabase.from('patients').update({ quote_accepted: true }).eq('id', patientId)
+      const { error: quoteUpdateError } = await supabase.from('patients').update({ quote_accepted: true }).eq('id', patientId)
+      if (quoteUpdateError) {
+        log.error('Erreur confirmation devis', quoteUpdateError)
+        return NextResponse.json({ error: quoteUpdateError.message }, { status: 500 })
+      }
+      updatedPatient.quote_accepted = true
       if (patient.date_accepted) {
         newStatusCode = 'surgery_scheduled'
         messageTitle = 'Devis confirmé - Dossier programmé'
@@ -96,7 +111,12 @@ export async function POST(
     case 'confirm_date':
       messageTitle = 'Date confirmée'
       messageBody = 'La date de chirurgie a été confirmée par Marcel.'
-      await supabase.from('patients').update({ date_accepted: true }).eq('id', patientId)
+      const { error: dateUpdateError } = await supabase.from('patients').update({ date_accepted: true }).eq('id', patientId)
+      if (dateUpdateError) {
+        log.error('Erreur confirmation date', dateUpdateError)
+        return NextResponse.json({ error: dateUpdateError.message }, { status: 500 })
+      }
+      updatedPatient.date_accepted = true
       if (patient.quote_accepted) {
         newStatusCode = 'surgery_scheduled'
         messageTitle = 'Date confirmée - Dossier programmé'
@@ -127,7 +147,7 @@ export async function POST(
   if (newStatusCode) {
     const { data: newStatus } = await supabase
       .from('workflow_statuses')
-      .select('id, code, label')
+      .select('id, code, label, color')
       .eq('code', newStatusCode)
       .single()
 
@@ -144,6 +164,8 @@ export async function POST(
       log.error('Erreur mise à jour patient', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
+
+    updatedPatient.current_status = newStatus
   }
 
     await supabase.from('patient_messages').insert({
@@ -174,7 +196,7 @@ export async function POST(
 
     log.info('Action completed', { actionId, newStatusCode: newStatusCode || 'no change' })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, patient: updatedPatient })
   } catch (error) {
     log.error('Erreur change-status', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

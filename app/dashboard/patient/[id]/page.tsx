@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
+import { isStaffProfile, requireStaffProfile } from '@/lib/access-control'
 import { redirect } from 'next/navigation'
 import PatientDetailClient from './client-page'
 import AppHeader from '@/components/app-header'
@@ -16,15 +17,16 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, full_name')
+    .select('role, full_name, email')
     .eq('id', user.id)
     .single()
 
-  if (!profile) {
-    redirect('/login')
+  if (!isStaffProfile(profile)) {
+    redirect('/login?error=unauthorized')
   }
 
-  const userRole = profile.role as UserRole
+  const staffProfile = requireStaffProfile(profile)
+  const userRole = staffProfile.role as UserRole
 
   const { data: patient } = await supabase
     .from('patients')
@@ -56,7 +58,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <AppHeader userRole={userRole} userName={profile.full_name} showActions={true} />
+      <AppHeader userRole={userRole} userName={staffProfile.full_name ?? undefined} showActions={true} />
       <PatientDetailClient
         initialPatient={patient}
         initialMessages={allMessages || []}

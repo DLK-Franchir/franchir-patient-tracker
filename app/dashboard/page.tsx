@@ -1,5 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server'
+import { isStaffProfile } from '@/lib/access-control'
 import { type Role } from '@/lib/permissions'
+import { redirect } from 'next/navigation'
 import NotificationBell from '@/components/notifications/notification-bell'
 import AppHeader from '@/components/app-header'
 import PatientList from '@/components/dashboard/patient-list'
@@ -43,11 +45,19 @@ export default async function DashboardPage({
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  if (!user) {
+    redirect('/login')
+  }
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('role, full_name, email')
-    .eq('id', user?.id)
+    .eq('id', user.id)
     .single()
+
+  if (!isStaffProfile(profile)) {
+    redirect('/login?error=unauthorized')
+  }
 
   const userRole = profile?.role as Role
 
