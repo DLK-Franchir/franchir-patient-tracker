@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ExternalLink, Edit2, Save, X } from 'lucide-react'
 import { type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
+import { useNotification } from '@/lib/contexts/notification-context'
 
 interface PatientSummaryCardProps {
   patientName: string
@@ -25,6 +26,7 @@ export default function PatientSummaryCard({
   const [editSummary, setEditSummary] = useState(clinicalSummary || '')
   const [editLink, setEditLink] = useState(sharepointLink || '')
   const [loading, setLoading] = useState(false)
+  const { addNotification } = useNotification()
 
   const canEdit = userRole === 'marcel' && globalStatus === 'medical_more_info'
 
@@ -33,9 +35,10 @@ export default function PatientSummaryCard({
     try {
       await onUpdate(editSummary, editLink)
       setIsEditing(false)
+      addNotification({ type: 'success', message: 'Fiche patient mise à jour' })
     } catch (error) {
       console.error('Failed to update:', error)
-      alert('Erreur lors de la mise à jour')
+      addNotification({ type: 'error', message: 'Erreur lors de la mise à jour' })
     } finally {
       setLoading(false)
     }
@@ -73,7 +76,7 @@ export default function PatientSummaryCard({
           {isEditing ? (
             <textarea
               value={editSummary}
-              onChange={(e) => setEditSummary(e.target.value)}
+              onChange={e => setEditSummary(e.target.value)}
               rows={6}
               className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
               placeholder="Saisissez le résumé clinique..."
@@ -93,7 +96,7 @@ export default function PatientSummaryCard({
             <input
               type="url"
               value={editLink}
-              onChange={(e) => setEditLink(e.target.value)}
+              onChange={e => setEditLink(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
               placeholder="https://..."
             />

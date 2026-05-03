@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useNotification } from '@/lib/contexts/notification-context'
 
 interface CommercialDataProps {
   patientId: string
@@ -22,6 +24,8 @@ export default function CommercialData({
     initialProposedDate ? new Date(initialProposedDate).toISOString().split('T')[0] : ''
   )
   const [isSaving, setIsSaving] = useState(false)
+  const router = useRouter()
+  const { addNotification } = useNotification()
 
   const handleSaveQuote = async () => {
     setIsSaving(true)
@@ -35,10 +39,11 @@ export default function CommercialData({
       if (!response.ok) throw new Error('Failed to save quote')
 
       setIsEditingQuote(false)
-      window.location.reload()
+      addNotification({ type: 'success', message: 'Devis sauvegardé' })
+      router.refresh()
     } catch (error) {
       console.error('Error saving quote:', error)
-      alert('Erreur lors de la sauvegarde du devis')
+      addNotification({ type: 'error', message: 'Erreur lors de la sauvegarde du devis' })
     } finally {
       setIsSaving(false)
     }
@@ -50,16 +55,19 @@ export default function CommercialData({
       const response = await fetch(`/api/patients/${patientId}/commercial-data`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proposedDate: proposedDate ? new Date(proposedDate).toISOString() : null }),
+        body: JSON.stringify({
+          proposedDate: proposedDate ? new Date(proposedDate).toISOString() : null,
+        }),
       })
 
       if (!response.ok) throw new Error('Failed to save date')
 
       setIsEditingDate(false)
-      window.location.reload()
+      addNotification({ type: 'success', message: 'Date proposée sauvegardée' })
+      router.refresh()
     } catch (error) {
       console.error('Error saving date:', error)
-      alert('Erreur lors de la sauvegarde de la date')
+      addNotification({ type: 'error', message: 'Erreur lors de la sauvegarde de la date' })
     } finally {
       setIsSaving(false)
     }
@@ -67,11 +75,11 @@ export default function CommercialData({
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
-    return date.toLocaleDateString('fr-FR', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     })
   }
 
@@ -160,7 +168,11 @@ export default function CommercialData({
               <button
                 onClick={() => {
                   setIsEditingDate(false)
-                  setProposedDate(initialProposedDate ? new Date(initialProposedDate).toISOString().split('T')[0] : '')
+                  setProposedDate(
+                    initialProposedDate
+                      ? new Date(initialProposedDate).toISOString().split('T')[0]
+                      : ''
+                  )
                 }}
                 disabled={isSaving}
                 className="px-4 py-3 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg min-h-[48px]"

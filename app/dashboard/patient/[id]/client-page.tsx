@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, lazy, Suspense } from 'react'
+import Link from 'next/link'
 import { WorkflowGuidance } from '@/components/workflow-guidance'
 import { WorkflowActions } from '@/components/workflow-actions'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
@@ -8,6 +9,7 @@ import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import { useRouter } from 'next/navigation'
+import { useNotification } from '@/lib/contexts/notification-context'
 
 const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
 const CommercialData = lazy(() => import('@/components/patient/commercial-data'))
@@ -52,23 +54,22 @@ export default function PatientDetailClient({
   userRole: UserRole
 }) {
   const router = useRouter()
+  const { addNotification } = useNotification()
   const [patient, setPatient] = useState(initialPatient)
   const [activeTab, setActiveTab] = useState<'medical' | 'commercial'>('medical')
 
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
 
-  const medicalMessages = initialMessages.filter(m =>
-    m.topic === 'medical' || m.topic === 'system' || !m.topic
+  const medicalMessages = initialMessages.filter(
+    m => m.topic === 'medical' || m.topic === 'system' || !m.topic
   )
 
-  const commercialMessages = initialMessages.filter(m =>
-    m.topic === 'commercial'
-  )
+  const commercialMessages = initialMessages.filter(m => m.topic === 'commercial')
 
   const showCommercialTab = userRole !== 'gilles'
   const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
 
-  const handleAction = async (actionId: string, data?: any) => {
+  const handleAction = async (actionId: string, data?: unknown) => {
     try {
       const response = await fetch(`/api/patients/${patient.id}/change-status`, {
         method: 'POST',
@@ -90,9 +91,13 @@ export default function PatientDetailClient({
       }
 
       router.refresh()
+      addNotification({ type: 'success', message: 'Action exécutée avec succès' })
     } catch (error) {
       console.error('Action failed:', error)
-      alert('Une erreur est survenue lors de l\'exécution de l\'action')
+      addNotification({
+        type: 'error',
+        message: "Une erreur est survenue lors de l'exécution de l'action",
+      })
     }
   }
 
@@ -119,12 +124,23 @@ export default function PatientDetailClient({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+      <nav className="mb-4 flex items-center gap-2 text-sm text-gray-500" aria-label="Fil d'Ariane">
+        <Link href="/dashboard" className="font-medium text-[#2563EB] hover:text-[#1d4ed8]">
+          Tableau de bord
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="font-medium text-gray-700" aria-current="page">
+          {patient.patient_name}
+        </span>
+      </nav>
+
       <WorkflowTimeline currentStatus={globalStatus} />
 
       {isReadOnly && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
           <p className="text-xs sm:text-sm text-yellow-800">
-            ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.
+            ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des
+            modifications.
           </p>
         </div>
       )}
@@ -187,10 +203,7 @@ export default function PatientDetailClient({
             <div className="p-4 sm:p-6">
               {activeTab === 'medical' && (
                 <div className="space-y-4">
-                  <MessageThread
-                    patientId={patient.id}
-                    initialMessages={medicalMessages}
-                  />
+                  <MessageThread patientId={patient.id} initialMessages={medicalMessages} />
                   {!isReadOnly && (
                     <div className="pt-4 border-t border-gray-200">
                       <h3 className="text-sm font-medium text-gray-900 mb-3">Ajouter un message</h3>
@@ -209,7 +222,9 @@ export default function PatientDetailClient({
                       patientId={patient.id}
                       initialQuoteAmount={patient.quote_amount}
                       initialProposedDate={patient.proposed_date}
-                      canEdit={userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'}
+                      canEdit={
+                        userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'
+                      }
                     />
                   </Suspense>
 
