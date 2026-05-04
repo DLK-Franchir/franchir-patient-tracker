@@ -1,28 +1,11 @@
-import { canRolePerformWorkflowAction } from '@/lib/access-control'
+import { canPerformAction } from '@/lib/domain/patients/workflow'
+import type { ActionId, GlobalStatus, PatientRole } from '@/lib/domain/patients/types'
 
-export type GlobalStatus =
-  | 'draft'
-  | 'medical_review'
-  | 'medical_more_info'
-  | 'rejected'
-  | 'commercial_in_progress'
-  | 'scheduled'
+export type { ActionId, GlobalStatus } from '@/lib/domain/patients/types'
 
-export type UserRole = 'marcel' | 'franchir' | 'gilles' | 'admin'
+export type UserRole = PatientRole
 
 export type MessageTopic = 'medical' | 'commercial' | 'system'
-
-export type ActionId =
-  | 'submit_to_medical'
-  | 'resubmit_to_medical'
-  | 'approve_medical'
-  | 'request_more_info'
-  | 'reject_medical'
-  | 'confirm_quote'
-  | 'confirm_date'
-  | 'reopen_case'
-  | 'add_budget'
-  | 'propose_dates'
 
 export type ActionStatus = 'urgent' | 'available' | 'in_progress' | 'completed'
 
@@ -406,13 +389,13 @@ export function getAvailableActions({
   }
 
   const canShowAction = (action: Action) =>
-    canRolePerformWorkflowAction({
+    canPerformAction({
       role,
       actionId: action.id,
       globalStatus,
       quoteAccepted,
       dateAccepted,
-    })
+    }).allowed
 
   if (result.primaryAction && !canShowAction(result.primaryAction)) {
     result.primaryAction = undefined

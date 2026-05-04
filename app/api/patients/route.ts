@@ -1,15 +1,17 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { apiError, createRouteHandler } from '@/lib/api/route-handler'
-import { canCreatePatient } from '@/lib/access-control'
+import { canCreatePatientResult } from '@/lib/access-control'
 import { sendNewPatientNotifications } from '@/lib/notifications'
+import { PatientCreateSchema } from '@/lib/validations'
 
 export const POST = createRouteHandler('api/patients', async (req: Request) => {
-  const { patient_name, clinical_summary, sharepoint_link } = await req.json()
-
-  if (!patient_name || !sharepoint_link) {
-    apiError(400, 'Champs requis manquants')
+  const payloadResult = PatientCreateSchema.safeParse(await req.json())
+  if (!payloadResult.success) {
+    apiError(400, payloadResult.error.issues[0]?.message ?? 'Payload invalide')
   }
+
+  const { patient_name, clinical_summary, sharepoint_link } = payloadResult.data
 
   const supabase = await createServerClient()
 
@@ -29,8 +31,9 @@ export const POST = createRouteHandler('api/patients', async (req: Request) => {
     apiError(404, 'Profile not found')
   }
 
-  if (!canCreatePatient(profile)) {
-    apiError(403, 'Forbidden')
+  const createPermission = canCreatePatientResult(profile)
+  if (!createPermission.allowed) {
+    apiError(403, createPermission.reason ?? 'Forbidden')
   }
 
   const { data: patient, error: insertError } = await supabase
@@ -51,7 +54,7 @@ export const POST = createRouteHandler('api/patients', async (req: Request) => {
 
   await sendNewPatientNotifications(
     supabase,
-    { id: user.id, full_name: profile.full_name },
+    { id: user.id, full_name: profile.full_name, role: profile.role },
     { id: patient.id, patient_name }
   )
 

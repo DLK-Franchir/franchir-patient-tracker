@@ -1,17 +1,24 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { type ActionId, globalStatusFromWorkflowStatus } from '@/lib/workflow-v2'
+import type { DbStatusCode } from '@/lib/constants'
+import { globalStatusFromWorkflowStatus } from '@/lib/workflow-v2'
 import { apiError, createRouteHandler, RouteContext } from '@/lib/api/route-handler'
-import { canPerformWorkflowAction, canUseWorkflow } from '@/lib/access-control'
+import { canPerformWorkflowActionResult, canUseWorkflowResult } from '@/lib/access-control'
 import { sendStatusChangeNotifications } from '@/lib/notifications'
+import { StatusChangeSchema } from '@/lib/validations'
 
 export const POST = createRouteHandler(
   'api/change-status',
   async (req: Request, { params }: RouteContext<{ id: string }>) => {
     const { id: patientId } = await params
-    const { actionId, data } = await req.json()
-    const workflowActionId = actionId as ActionId
+    const payloadResult = StatusChangeSchema.safeParse(await req.json())
+    if (!payloadResult.success) {
+      apiError(400, payloadResult.error.issues[0]?.message ?? 'Payload invalide')
+    }
+
+    const { actionId, data } = payloadResult.data
+    const workflowActionId = actionId
 
     const supabase = await createServerClient()
 
@@ -42,8 +49,9 @@ export const POST = createRouteHandler(
       apiError(404, 'Profile not found')
     }
 
-    if (!canUseWorkflow(profile)) {
-      apiError(403, 'Forbidden')
+    const workflowAccess = canUseWorkflowResult(profile)
+    if (!workflowAccess.allowed) {
+      apiError(403, workflowAccess.reason ?? 'Forbidden')
     }
 
     if (!patient) {
@@ -55,20 +63,20 @@ export const POST = createRouteHandler(
       : patient.current_status
     const globalStatus = globalStatusFromWorkflowStatus(currentStatus)
 
-    if (
-      !canPerformWorkflowAction({
-        profile,
-        actionId: workflowActionId,
-        globalStatus,
-        quoteAccepted: patient.quote_accepted,
-        dateAccepted: patient.date_accepted,
-      })
-    ) {
-      apiError(403, 'Forbidden')
+    const actionAccess = canPerformWorkflowActionResult({
+      profile,
+      actionId: workflowActionId,
+      globalStatus,
+      quoteAccepted: patient.quote_accepted,
+      dateAccepted: patient.date_accepted,
+    })
+
+    if (!actionAccess.allowed) {
+      apiError(403, actionAccess.reason ?? 'Forbidden')
     }
 
     let messageBody = ''
-    let newStatusCode = ''
+    let newStatusCode: DbStatusCode | '' = ''
     let messageTitle = ''
     const updatedPatient: {
       current_status?: { id: string; code: string; label: string; color: string }
@@ -226,7 +234,7 @@ export const POST = createRouteHandler(
     if (newStatusCode) {
       await sendStatusChangeNotifications(
         supabase,
-        { id: user.id },
+        { id: user.id, role: profile.role },
         { id: patientId, patient_name: patient.patient_name },
         newStatusCode
       )

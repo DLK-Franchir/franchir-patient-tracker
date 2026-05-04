@@ -1,4 +1,6 @@
-export type UserRole = 'marcel' | 'franchir' | 'gilles' | 'admin'
+import type { Role } from '@/lib/constants'
+
+export type UserRole = Role
 
 export interface Profile {
   id: string

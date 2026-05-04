@@ -2,7 +2,6 @@ const BASE_STYLE = 'font-family: Arial, sans-serif; max-width: 600px; margin: 0 
 const HEADING_STYLE = 'color: #2563EB;'
 const BUTTON_STYLE = 'display: inline-block; background-color: #2563EB; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 8px;'
 const FOOTER_STYLE = 'color: #6B7280; font-size: 12px; margin-top: 24px;'
-const QUOTE_STYLE = 'border-left: 4px solid #2563EB; padding-left: 16px; margin: 16px 0; color: #374151;'
 
 function escapeHtml(value: string): string {
   return value
@@ -25,20 +24,17 @@ function emailWrapper(recipientName: string, heading: string, body: string, link
   `
 }
 
-export function newPatientEmailHtml(recipientName: string, actorName: string, patientName: string, link: string): string {
-  const body = `<p><strong>${escapeHtml(actorName)}</strong> vient de créer le dossier de <strong>${escapeHtml(patientName)}</strong>.</p>`
+export function newPatientEmailHtml(recipientName: string, actorName: string, patientReference: string, link: string): string {
+  const body = `<p><strong>${escapeHtml(actorName)}</strong> vient de créer un nouveau dossier patient.</p><p>Référence dossier : <strong>${escapeHtml(patientReference)}</strong></p>`
   return emailWrapper(recipientName, 'Nouveau dossier patient', body, link)
 }
 
-export function newMessageEmailHtml(recipientName: string, actorName: string, patientName: string, message: string, link: string): string {
-  const body = `
-    <p><strong>${escapeHtml(actorName)}</strong> a posté un nouveau message concernant le dossier de <strong>${escapeHtml(patientName)}</strong> :</p>
-    <blockquote style="${QUOTE_STYLE}">${escapeHtml(message).replace(/\n/g, '<br>')}</blockquote>
-  `
+export function newMessageEmailHtml(recipientName: string, actorName: string, patientReference: string, link: string): string {
+  const body = `<p><strong>${escapeHtml(actorName)}</strong> a posté un nouveau message sur le dossier <strong>${escapeHtml(patientReference)}</strong>.</p><p>Pour consulter le contenu, ouvrez le dossier via le lien sécurisé ci-dessous.</p>`
   return emailWrapper(recipientName, 'Nouveau message sur le dossier', body, link)
 }
 
-export function statusChangeEmailHtml(recipientName: string, statusMessage: string, link: string): string {
-  const body = `<p>${escapeHtml(statusMessage)}</p>`
+export function statusChangeEmailHtml(recipientName: string, statusMessage: string, patientReference: string, link: string): string {
+  const body = `<p>${escapeHtml(statusMessage)}</p><p>Référence dossier : <strong>${escapeHtml(patientReference)}</strong></p>`
   return emailWrapper(recipientName, 'Mise à jour du dossier patient', body, link)
 }

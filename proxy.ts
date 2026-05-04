@@ -3,6 +3,12 @@ import { isStaffProfile } from '@/lib/access-control'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_PATHS = ['/login', '/auth']
+const SUPABASE_COOKIE_SECURITY_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict' as const,
+  path: '/',
+}
 
 export async function updateSession(request: NextRequest) {
   try {
@@ -24,12 +30,17 @@ export async function updateSession(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            )
             supabaseResponse = NextResponse.next({
               request,
             })
             cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
+              supabaseResponse.cookies.set(name, value, {
+                ...options,
+                ...SUPABASE_COOKIE_SECURITY_OPTIONS,
+              })
             )
           },
         },

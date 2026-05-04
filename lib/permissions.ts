@@ -1,4 +1,6 @@
-export type Role = 'marcel' | 'franchir' | 'gilles' | 'admin'
+import type { Role } from '@/lib/constants'
+
+export type { Role }
 
 export type Permission =
   | 'CREATE_PATIENT'

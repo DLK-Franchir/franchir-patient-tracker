@@ -3,12 +3,16 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNotification } from '@/lib/contexts/notification-context'
+import { type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
+import { canPerformAction } from '@/lib/domain/patients/workflow'
 
 interface CommercialDataProps {
   patientId: string
   initialQuoteAmount?: number | null
   initialProposedDate?: string | null
   canEdit: boolean
+  userRole: UserRole
+  globalStatus: GlobalStatus
 }
 
 export default function CommercialData({
@@ -16,6 +20,8 @@ export default function CommercialData({
   initialQuoteAmount,
   initialProposedDate,
   canEdit,
+  userRole,
+  globalStatus,
 }: CommercialDataProps) {
   const [isEditingQuote, setIsEditingQuote] = useState(false)
   const [isEditingDate, setIsEditingDate] = useState(false)
@@ -26,6 +32,14 @@ export default function CommercialData({
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const { addNotification } = useNotification()
+
+  const canEditCommercial =
+    canEdit &&
+    canPerformAction({
+      role: userRole,
+      actionId: 'edit_commercial_data',
+      globalStatus,
+    }).allowed
 
   const handleSaveQuote = async () => {
     setIsSaving(true)
@@ -88,7 +102,7 @@ export default function CommercialData({
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-gray-900">Budget indicatif</label>
-          {canEdit && !isEditingQuote && (
+          {canEditCommercial && !isEditingQuote && (
             <button
               onClick={() => setIsEditingQuote(true)}
               className="text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium py-1 px-2 min-h-[36px]"
@@ -138,7 +152,7 @@ export default function CommercialData({
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-gray-900">Date proposée</label>
-          {canEdit && !isEditingDate && (
+          {canEditCommercial && !isEditingDate && (
             <button
               onClick={() => setIsEditingDate(true)}
               className="text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium py-1 px-2 min-h-[36px]"

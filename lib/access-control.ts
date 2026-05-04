@@ -1,6 +1,9 @@
-import type { ActionId, GlobalStatus } from '@/lib/workflow-v2'
+import { ROLES } from '@/lib/constants'
+import type { Role } from '@/lib/constants'
+import { canPerformAction, canRolePerformWorkflowAction } from '@/lib/domain/patients/workflow'
+import type { ActionAuthorizationResult, ActionId, GlobalStatus } from '@/lib/domain/patients/types'
 
-export type StaffRole = 'marcel' | 'franchir' | 'gilles' | 'admin'
+export type StaffRole = Role
 
 export type ProfileAccess = {
   id?: string
@@ -18,7 +21,7 @@ export const ACTIVE_STAFF_EMAILS = [
 ] as const
 
 const ACTIVE_STAFF_EMAIL_SET = new Set<string>(ACTIVE_STAFF_EMAILS)
-const STAFF_ROLES = new Set<string>(['marcel', 'franchir', 'gilles', 'admin'])
+const STAFF_ROLES = new Set<string>(ROLES)
 
 export function normalizeEmail(email?: string | null): string {
   return email?.trim().toLowerCase() ?? ''
@@ -40,24 +43,67 @@ export function isStaffProfile(profile?: ProfileAccess | null): boolean {
   return assertStaffProfile(profile)
 }
 
+function unauthorizedProfileResult(): ActionAuthorizationResult {
+  return { allowed: false, reason: 'Profil non autorisé.' }
+}
+
+function evaluateProfileAction(
+  profile: ProfileAccess | null | undefined,
+  actionId: 'create_patient' | 'edit_patient_summary' | 'edit_commercial_data' | 'post_message',
+  options?: { globalStatus?: GlobalStatus; quoteAccepted?: boolean; dateAccepted?: boolean }
+): ActionAuthorizationResult {
+  if (!assertStaffProfile(profile)) {
+    return unauthorizedProfileResult()
+  }
+
+  return canPerformAction({
+    role: profile.role,
+    actionId,
+    globalStatus: options?.globalStatus,
+    quoteAccepted: options?.quoteAccepted,
+    dateAccepted: options?.dateAccepted,
+  })
+}
+
+export function canCreatePatientResult(profile?: ProfileAccess | null): ActionAuthorizationResult {
+  return evaluateProfileAction(profile, 'create_patient')
+}
+
 export function canCreatePatient(profile?: ProfileAccess | null): boolean {
-  if (!assertStaffProfile(profile)) {
-    return false
-  }
-
-  return profile.role === 'marcel' || profile.role === 'franchir' || profile.role === 'admin'
+  return canCreatePatientResult(profile).allowed
 }
 
-export function canEditCommercialData(profile?: ProfileAccess | null): boolean {
-  return canCreatePatient(profile)
+export function canEditCommercialDataResult(
+  profile?: ProfileAccess | null,
+  globalStatus?: GlobalStatus
+): ActionAuthorizationResult {
+  return evaluateProfileAction(profile, 'edit_commercial_data', { globalStatus })
 }
 
-export function canEditPatientSummary(profile?: ProfileAccess | null): boolean {
-  if (!assertStaffProfile(profile)) {
-    return false
-  }
+export function canEditCommercialData(profile?: ProfileAccess | null, globalStatus?: GlobalStatus): boolean {
+  return canEditCommercialDataResult(profile, globalStatus).allowed
+}
 
-  return profile.role === 'marcel' || profile.role === 'admin'
+export function canEditPatientSummaryResult(
+  profile?: ProfileAccess | null,
+  globalStatus?: GlobalStatus
+): ActionAuthorizationResult {
+  return evaluateProfileAction(profile, 'edit_patient_summary', { globalStatus })
+}
+
+export function canEditPatientSummary(profile?: ProfileAccess | null, globalStatus?: GlobalStatus): boolean {
+  return canEditPatientSummaryResult(profile, globalStatus).allowed
+}
+
+export function canPostPatientMessageResult(
+  profile?: ProfileAccess | null,
+  globalStatus?: GlobalStatus
+): ActionAuthorizationResult {
+  return evaluateProfileAction(profile, 'post_message', { globalStatus })
+}
+
+export function canPostPatientMessage(profile?: ProfileAccess | null, globalStatus?: GlobalStatus): boolean {
+  return canPostPatientMessageResult(profile, globalStatus).allowed
 }
 
 export function requireStaffProfile(
@@ -70,61 +116,17 @@ export function requireStaffProfile(
   return profile
 }
 
+export function canUseWorkflowResult(profile?: ProfileAccess | null): ActionAuthorizationResult {
+  return assertStaffProfile(profile) ? { allowed: true } : unauthorizedProfileResult()
+}
+
 export function canUseWorkflow(profile?: ProfileAccess | null): boolean {
-  return isStaffProfile(profile)
+  return canUseWorkflowResult(profile).allowed
 }
 
-export function canRolePerformWorkflowAction({
-  role,
-  actionId,
-  globalStatus,
-  quoteAccepted = false,
-  dateAccepted = false,
-}: {
-  role: StaffRole
-  actionId: ActionId
-  globalStatus: GlobalStatus
-  quoteAccepted?: boolean
-  dateAccepted?: boolean
-}): boolean {
-  if (actionId === 'reopen_case') {
-    return role === 'admin' && globalStatus === 'rejected'
-  }
+export { canRolePerformWorkflowAction }
 
-  if (globalStatus === 'draft') {
-    return actionId === 'submit_to_medical' && (role === 'marcel' || role === 'admin')
-  }
-
-  if (globalStatus === 'medical_more_info') {
-    return actionId === 'resubmit_to_medical' && (role === 'marcel' || role === 'admin')
-  }
-
-  if (globalStatus === 'medical_review') {
-    return (
-      ['approve_medical', 'request_more_info', 'reject_medical'].includes(actionId) &&
-      (role === 'gilles' || role === 'admin')
-    )
-  }
-
-  if (globalStatus === 'commercial_in_progress') {
-    if (actionId === 'confirm_quote') {
-      return !quoteAccepted && (role === 'marcel' || role === 'admin')
-    }
-
-    if (actionId === 'confirm_date') {
-      return !dateAccepted && (role === 'marcel' || role === 'admin')
-    }
-
-    return (
-      ['add_budget', 'propose_dates'].includes(actionId) &&
-      (role === 'franchir' || role === 'admin')
-    )
-  }
-
-  return false
-}
-
-export function canPerformWorkflowAction({
+export function canPerformWorkflowActionResult({
   profile,
   actionId,
   globalStatus,
@@ -136,18 +138,28 @@ export function canPerformWorkflowAction({
   globalStatus: GlobalStatus
   quoteAccepted?: boolean
   dateAccepted?: boolean
-}): boolean {
+}): ActionAuthorizationResult {
   if (!assertStaffProfile(profile)) {
-    return false
+    return unauthorizedProfileResult()
   }
 
-  return canRolePerformWorkflowAction({
+  return canPerformAction({
     role: profile.role,
     actionId,
     globalStatus,
     quoteAccepted,
     dateAccepted,
   })
+}
+
+export function canPerformWorkflowAction(params: {
+  profile?: ProfileAccess | null
+  actionId: ActionId
+  globalStatus: GlobalStatus
+  quoteAccepted?: boolean
+  dateAccepted?: boolean
+}): boolean {
+  return canPerformWorkflowActionResult(params).allowed
 }
 
 export function staffRecipients<T extends ProfileAccess>(

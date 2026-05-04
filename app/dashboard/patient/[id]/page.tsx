@@ -50,11 +50,18 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     redirect('/dashboard')
   }
 
-  const { data: allMessages } = await supabase
-    .from('patient_messages')
-    .select('*')
-    .eq('patient_id', id)
-    .order('created_at', { ascending: true })
+  const [{ data: allMessages }, { data: calendarEvents }] = await Promise.all([
+    supabase
+      .from('patient_messages')
+      .select('*')
+      .eq('patient_id', id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('calendar_events')
+      .select('id, event_type, event_date, notes, created_at')
+      .eq('patient_id', id)
+      .order('event_date', { ascending: true }),
+  ])
 
   return (
     <>
@@ -62,6 +69,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
       <PatientDetailClient
         initialPatient={patient}
         initialMessages={allMessages || []}
+        initialCalendarEvents={calendarEvents || []}
         userRole={userRole}
       />
     </>

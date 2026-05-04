@@ -1,6 +1,13 @@
 import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+const SUPABASE_COOKIE_SECURITY_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict' as const,
+  path: '/',
+}
+
 export const createServerClient = async () => {
   const cookieStore = await cookies()
 
@@ -22,7 +29,10 @@ export const createServerClient = async () => {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, {
+                ...options,
+                ...SUPABASE_COOKIE_SECURITY_OPTIONS,
+              })
             )
           } catch {
           }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ExternalLink, Edit2, Save, X } from 'lucide-react'
 import { type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import { useNotification } from '@/lib/contexts/notification-context'
+import { canPerformAction } from '@/lib/domain/patients/workflow'
 
 interface PatientSummaryCardProps {
   patientName: string
@@ -28,7 +29,11 @@ export default function PatientSummaryCard({
   const [loading, setLoading] = useState(false)
   const { addNotification } = useNotification()
 
-  const canEdit = userRole === 'marcel' && globalStatus === 'medical_more_info'
+  const canEdit = canPerformAction({
+    role: userRole,
+    actionId: 'edit_patient_summary',
+    globalStatus,
+  }).allowed
 
   const handleSave = async () => {
     setLoading(true)

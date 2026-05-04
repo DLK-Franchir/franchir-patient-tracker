@@ -1,18 +1,62 @@
-# FRANCHIR Patient Tracker
+# FRANCHIR Patient Tracker — V2 Preprod
 
-Application web sécurisée de gestion de parcours patients pour le réseau FRANCHIR.
+Application web de suivi de parcours patient pour FRANCHIR.
 
-## Stack Technique
+## Snapshot actuel
 
-- **Frontend**: Next.js 16 (App Router) + Tailwind CSS
-- **Backend & DB**: Supabase (Postgres + Auth + Realtime + RLS)
-- **Emails**: Resend
-- **Déploiement**: Vercel
-- **URL de production**: https://app.franchir.eu
+Date de référence : 2026-05-04 (préprod V2)
 
-## Variables d'environnement
+- Frontend : Next.js 16.1.1 (App Router), React 19.2.3, Tailwind CSS 4
+- Backend : Supabase (Postgres, Auth, Realtime, RLS)
+- Emails : Resend
+- Types : TypeScript strict
+- Rôles métier : `marcel`, `gilles`, `franchir`, `admin`
 
-Créer un fichier `.env.local` à la racine du projet :
+## Avancement validé
+
+### Travaux réalisés
+
+- Cadrage documentaire : `README.md` + `DEV_V2_PREPROD_PLAN.md`
+- Stabilisation technique : corrections TS UI + typage `Message.meta`
+- Correctif bloquant : `lib/email-templates.ts`
+- Étape 6 livrée (durcissement sécurité) :
+  - cookies SSR forcés en `httpOnly`, `secure`, `sameSite: 'strict'`
+  - migration RLS renforcée `supabase/migrations/20260506_step6_security_hardening.sql`
+  - suppression des PII dans emails externes (référence opaque dossier)
+  - logger enrichi (`user_id`, `role`, `patient_id`) + masquage champs sensibles
+- Exécution locale validée : `http://localhost:3000`
+
+### État qualité
+
+- `npm run type-check` : OK
+- `npm run lint` : OK (warnings historiques, 0 erreur)
+- `npm run build` : OK
+- `npm run format:check` : KO (drift de formatage historique)
+
+### Prochain lot
+
+1. Étape 7 : UX workflow ciblée
+2. Étape 8 : préparation évolutivité
+
+## Démarrage rapide
+
+```bash
+npm install
+npm run dev
+```
+
+Scripts qualité/build :
+
+```bash
+npm run type-check
+npm run lint
+npm run format:check
+npm run build
+```
+
+## Variables d’environnement
+
+Créer `.env.local` :
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -22,131 +66,32 @@ RESEND_API_KEY=your_resend_api_key
 NEXT_PUBLIC_APP_URL=https://app.franchir.eu
 ```
 
-## Installation
+## Architecture actuelle
 
-```bash
-npm install
-npm run dev
-```
+- `app/api/patients/route.ts` : création dossier patient
+- `app/api/patients/[id]/change-status/route.ts` : transitions workflow
+- `app/api/patients/[id]/messages/route.ts` : messagerie patient
+- `app/api/patients/[id]/commercial-data/route.ts` : données commerciales
+- `app/api/patients/[id]/update-summary/route.ts` : résumé clinique
+- `app/api/notify/route.ts` : envoi email staff contrôlé
+- `lib/access-control.ts` : autorisations par rôle/action
+- `lib/workflow-v2.ts` : statuts + actions disponibles
+- `lib/notifications.ts` : notifications in-app + emails
+- `proxy.ts` : contrôle session et accès staff
 
-Ouvrir [http://localhost:3000](http://localhost:3000)
+## Sécurité en place
 
-## Structure du Projet
+- Session Supabase vérifiée côté serveur et via `proxy.ts`
+- Client service role isolé serveur (`lib/supabase/service-role.ts`)
+- Policies RLS renforcées :
+  - `supabase/migrations/20260503_guard_staff_access.sql`
+  - `supabase/migrations/20260506_step6_security_hardening.sql`
+- Cookies SSR durcis (`httpOnly`, `secure`, `sameSite: 'strict'`)
+- Emails externes assainis (pas de PII patient)
+- Logger enrichi audit + masquage champs sensibles
 
-```
-franchir-patient-tracker/
-├── app/
-│   ├── api/
-│   │   ├── notify/route.ts              # Route email générique
-│   │   ├── patients/
-│   │   │   ├── route.ts                 # Création de patient + notifications
-│   │   │   └── [id]/
-│   │   │       ├── change-status/       # Actions workflow + notifications
-│   │   │       ├── commercial-data/     # Mise à jour données commerciales
-│   │   │       ├── messages/            # Envoi de messages + notifications
-│   │   │       └── update-summary/      # Mise à jour résumé clinique
-│   │   └── vitals/route.ts              # Web vitals logging
-│   ├── auth/signout/                    # Déconnexion
-│   ├── dashboard/
-│   │   ├── page.tsx                     # Tableau des patients
-│   │   ├── new/page.tsx                 # Formulaire nouveau patient
-│   │   └── patient/[id]/page.tsx        # Détail patient
-│   ├── login/page.tsx                   # Connexion
-│   └── layout.tsx                       # Layout racine + Analytics
-├── components/
-│   ├── ui/                              # Composants UI réutilisables
-│   └── workflow-actions.tsx             # Panel d'actions workflow
-├── lib/
-│   ├── email-config.ts                  # Mapping rôles → emails réels
-│   ├── email-templates.ts               # Templates HTML des emails
-│   ├── logger.ts                        # Logger structuré
-│   ├── notifications.ts                 # Utilitaires notifications + emails
-│   ├── permissions.ts                   # Règles d'autorisation par rôle
-│   ├── validations.ts                   # Schémas Zod
-│   ├── workflow-v2.ts                   # Moteur de workflow
-│   └── supabase/
-│       ├── client.ts                    # Client Supabase (navigateur)
-│       └── server.ts                    # Client Supabase (serveur)
-├── middleware.ts                        # Protection des routes
-└── supabase-schema.sql                  # Schéma de base de données
-```
+## Référence plan Dev
 
-## Utilisateurs et Rôles
+Le plan d’exécution détaillé est dans :
 
-| Rôle | Utilisateur | Email |
-|------|-------------|-------|
-| `marcel` | Marcel Mazaltarim | marcel.mazaltarim@gmail.com |
-| `gilles` | Dr Gilles Dubois | duboisgilles31@gmail.com |
-| `admin` / `franchir` | Erik Boulard | erik.boulard@franchir.eu |
-
-L'expéditeur des emails est `yves.merillon@franchir.eu` (domaine vérifié sur Resend).
-
-## Système de Notifications
-
-Chaque action déclenche automatiquement :
-1. Une **notification in-app** (temps réel via Supabase Realtime)
-2. Un **email Resend** aux utilisateurs concernés
-
-### Événements notifiés
-
-| Événement | Destinataires |
-|-----------|---------------|
-| Nouveau dossier créé | Tous les autres utilisateurs |
-| Nouveau message | Tous les autres utilisateurs |
-| Soumis à revue médicale | `gilles` |
-| Validé médicalement | `marcel`, `franchir`, `admin` |
-| Refusé médicalement | `marcel`, `franchir`, `admin` |
-| Informations demandées | `marcel`, `franchir`, `admin` |
-| Chirurgie programmée | Tous |
-| Dossier réouvert | `marcel`, `franchir`, `admin` |
-
-### Architecture des notifications (`lib/notifications.ts`)
-
-```
-sendNewPatientNotifications()    → création de dossier
-sendNewMessageNotifications()    → nouveau message
-sendStatusChangeNotifications()  → changement de statut workflow
-```
-
-## Workflow des Statuts
-
-```
-prospect_created      Prospect créé (Marcel)
-       ↓
-medical_review        En revue médicale
-       ↓
-validated_medical     Validé médicalement  →  need_info (À compléter)
-rejected_medical      Refusé médicalement [TERMINAL]
-       ↓
-surgery_scheduled     Chirurgie programmée (devis + date confirmés)
-```
-
-### Actions disponibles par rôle
-
-| Action | Rôle requis |
-|--------|-------------|
-| Soumettre à validation médicale | `marcel`, `franchir`, `admin` |
-| Valider / Refuser médicalement | `gilles` |
-| Demander des infos complémentaires | `gilles` |
-| Confirmer le devis | `marcel`, `franchir`, `admin` |
-| Confirmer la date | `marcel`, `franchir`, `admin` |
-| Proposer des dates / budget | `gilles` |
-| Réouvrir le dossier | `admin`, `franchir` |
-
-## Déploiement
-
-Le projet est déployé sur Vercel avec déploiement automatique depuis la branche `main`.
-
-```bash
-git push origin main
-```
-
-Les variables d'environnement sont configurées dans le dashboard Vercel.
-
-## Développement
-
-```bash
-npm run dev      # Serveur de développement
-npm run build    # Build de production
-npm run lint     # Linting ESLint
-```
+- `DEV_V2_PREPROD_PLAN.md`

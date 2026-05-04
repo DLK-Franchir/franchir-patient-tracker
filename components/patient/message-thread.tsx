@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+type MessageMeta = {
+  old_status?: string
+  new_status?: string
+  [key: string]: unknown
+}
 
 export type Message = {
   id: string
@@ -12,7 +15,7 @@ export type Message = {
   author_role: string | null
   created_at: string
   topic?: string | null
-  meta?: any
+  meta?: MessageMeta
 }
 
 const kindIcons: Record<string, string> = {
@@ -25,42 +28,16 @@ const kindColors: Record<string, string> = {
   message: 'bg-blue-50 border-blue-200',
   status_change: 'bg-green-50 border-green-200',
   system: 'bg-gray-50 border-gray-200',
+  action: 'bg-purple-50 border-purple-200',
 }
 
 export default function MessageThread({
-  patientId,
   initialMessages,
 }: {
   patientId: string
   initialMessages: Message[]
 }) {
-  const [messages, setMessages] = useState<Message[]>(initialMessages)
-
-  const supabase = useMemo(() => createClient(), [])
-
-  useEffect(() => {
-    const channel = supabase
-      .channel(`patient_messages:${patientId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'patient_messages',
-          filter: `patient_id=eq.${patientId}`,
-        },
-        (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message])
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [patientId, supabase])
-
-  if (messages.length === 0) {
+  if (initialMessages.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
         Aucun message pour l'instant
@@ -70,7 +47,7 @@ export default function MessageThread({
 
   return (
     <div className="space-y-3">
-      {messages.map((msg) => (
+      {initialMessages.map((msg) => (
         <div
           key={msg.id}
           className={`p-4 rounded-lg border ${kindColors[msg.kind] || kindColors.system}`}
