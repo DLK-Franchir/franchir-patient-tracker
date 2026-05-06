@@ -32,6 +32,9 @@ type PatientQueryRow = {
   id: string
   patient_name: string
   created_at: string
+  proposed_date: string | null
+  confirmed_surgery_date: string | null
+  confirmed_surgeon_name: string | null
   workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
   profiles: { full_name: string } | { full_name: string }[] | null
 }
@@ -93,36 +96,49 @@ async function getPatients({
     .filter(status => statuses.includes(status.code))
     .map(status => status.id)
 
-  let patientQuery = supabase.from('patients').select(
-    `
-      id,
-      patient_name,
-      created_at,
-      workflow_statuses!current_status_id (id, code, label, color),
-      profiles!created_by (full_name)
-    `,
-    { count: 'exact' }
-  )
-
-  if (query) {
-    patientQuery = patientQuery.ilike('patient_name', `%${query}%`)
-  }
-
-  if (selectedStatusIds.length > 0) {
-    patientQuery = patientQuery.in('current_status_id', selectedStatusIds)
-  }
-
   const from = (page - 1) * ITEMS_PER_PAGE
   const to = from + ITEMS_PER_PAGE - 1
 
-  const { data: patients, count } = await patientQuery
+  const fullQuery = supabase
+    .from('patients')
+    .select(
+      'id, patient_name, created_at, proposed_date, confirmed_surgery_date, confirmed_surgeon_name, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
+      { count: 'exact' }
+    )
+
+  const baseQuery = supabase
+    .from('patients')
+    .select(
+      'id, patient_name, created_at, proposed_date, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
+      { count: 'exact' }
+    )
+
+  if (query) {
+    fullQuery.ilike('patient_name', `%${query}%`)
+    baseQuery.ilike('patient_name', `%${query}%`)
+  }
+  if (selectedStatusIds.length > 0) {
+    fullQuery.in('current_status_id', selectedStatusIds)
+    baseQuery.in('current_status_id', selectedStatusIds)
+  }
+
+  const fullResult = await fullQuery
     .order(sort, { ascending: direction === 'asc' })
     .range(from, to)
 
-  const formattedPatients = ((patients || []) as PatientQueryRow[]).map(patient => ({
+  const { data: rawPatients, count, error: queryError } = fullResult.error
+    ? await baseQuery.order(sort, { ascending: direction === 'asc' }).range(from, to)
+    : fullResult
+
+  void queryError
+
+  const formattedPatients = ((rawPatients || []) as PatientQueryRow[]).map(patient => ({
     id: patient.id,
     patient_name: patient.patient_name,
     created_at: patient.created_at,
+    proposed_date: patient.proposed_date,
+    confirmed_surgery_date: patient.confirmed_surgery_date ?? null,
+    confirmed_surgeon_name: patient.confirmed_surgeon_name ?? null,
     workflow_statuses: firstRelation(patient.workflow_statuses),
     profiles: firstRelation(patient.profiles),
   }))
@@ -209,6 +225,7 @@ export default async function DashboardPage({
             statusOptions={statusOptions}
             sort={sort}
             direction={direction}
+            userRole={userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'}
           />
         </div>
       </div>

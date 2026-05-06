@@ -18,14 +18,16 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
     setLoading(true)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
       await supabase.from('calendar_events').insert({
         patient_id: patientId,
         event_date: eventDate,
         event_type: eventType,
         notes,
-        created_by: session?.user.id
+        created_by: session?.user.id,
       })
 
       setEventDate('')
@@ -51,11 +53,12 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200"
+    >
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Date de chirurgie
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Date de chirurgie</label>
         <input
           type="date"
           required
@@ -66,9 +69,7 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Type
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
         <select
           value={eventType}
           onChange={e => setEventType(e.target.value)}
@@ -80,9 +81,7 @@ export default function CalendarEventForm({ patientId }: { patientId: string }) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Notes (optionnel)
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}

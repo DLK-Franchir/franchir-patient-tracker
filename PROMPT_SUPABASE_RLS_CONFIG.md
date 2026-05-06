@@ -9,89 +9,98 @@ L'application **Franchir Patient Tracker** est un système de gestion de patient
 ## 1. TABLES ET LEUR FONCTION
 
 ### `profiles` - Gestion des utilisateurs
-| Colonne | Type | Description |
-|---------|------|-------------|
-| `id` | UUID | Clé primaire, référence `auth.users(id)` |
-| `role` | TEXT | Rôle de l'utilisateur (`marcel`, `franchir`, `gilles`, `admin`) |
-| `full_name` | TEXT | Nom complet |
-| `created_at` | TIMESTAMPTZ | Date de création |
+
+| Colonne      | Type        | Description                                                     |
+| ------------ | ----------- | --------------------------------------------------------------- |
+| `id`         | UUID        | Clé primaire, référence `auth.users(id)`                        |
+| `role`       | TEXT        | Rôle de l'utilisateur (`marcel`, `franchir`, `gilles`, `admin`) |
+| `full_name`  | TEXT        | Nom complet                                                     |
+| `created_at` | TIMESTAMPTZ | Date de création                                                |
 
 **Rôles définis :**
+
 - `marcel` : Secrétaire/Assistant - Crée les dossiers patients, gère les devis et le calendrier
 - `franchir` : Gestionnaire principal - Mêmes droits que marcel
 - `gilles` : Médecin/Docteur - Prend les décisions médicales, reçoit les notifications de nouveaux patients
 - `admin` : Administrateur - Tous les droits
 
 ### `patients` - Dossiers patients
-| Colonne | Type | Description |
-|---------|------|-------------|
-| `id` | UUID | Clé primaire |
-| `patient_name` | TEXT | Nom du patient |
-| `status` | TEXT | Statut du workflow |
-| `created_at` | TIMESTAMPTZ | Date de création |
-| ... | ... | Autres champs métier |
+
+| Colonne        | Type        | Description          |
+| -------------- | ----------- | -------------------- |
+| `id`           | UUID        | Clé primaire         |
+| `patient_name` | TEXT        | Nom du patient       |
+| `status`       | TEXT        | Statut du workflow   |
+| `created_at`   | TIMESTAMPTZ | Date de création     |
+| ...            | ...         | Autres champs métier |
 
 **Ownership :** Pas de colonne `user_id` - les patients sont partagés entre tous les utilisateurs authentifiés.
 
 ### `medical_decisions` - Décisions médicales
-| Colonne | Type | Description |
-|---------|------|-------------|
-| `id` | UUID | Clé primaire |
-| `patient_id` | UUID | Référence au patient |
-| `decision` | TEXT | Décision prise |
-| `created_at` | TIMESTAMPTZ | Date de création |
+
+| Colonne      | Type        | Description          |
+| ------------ | ----------- | -------------------- |
+| `id`         | UUID        | Clé primaire         |
+| `patient_id` | UUID        | Référence au patient |
+| `decision`   | TEXT        | Décision prise       |
+| `created_at` | TIMESTAMPTZ | Date de création     |
 
 **Ownership :** Pas de colonne `user_id` - seul le rôle `gilles` peut créer des décisions.
 
 ### `quotes` - Devis
-| Colonne | Type | Description |
-|---------|------|-------------|
-| `id` | UUID | Clé primaire |
-| `patient_id` | UUID | Référence au patient |
-| `amount` | NUMERIC | Montant |
-| `status` | TEXT | Statut du devis |
+
+| Colonne      | Type    | Description          |
+| ------------ | ------- | -------------------- |
+| `id`         | UUID    | Clé primaire         |
+| `patient_id` | UUID    | Référence au patient |
+| `amount`     | NUMERIC | Montant              |
+| `status`     | TEXT    | Statut du devis      |
 
 ### `calendar_events` - Événements calendrier
-| Colonne | Type | Description |
-|---------|------|-------------|
-| `id` | UUID | Clé primaire |
-| `patient_id` | UUID | Référence au patient (optionnel) |
-| `title` | TEXT | Titre de l'événement |
-| `start_date` | TIMESTAMPTZ | Date de début |
-| `end_date` | TIMESTAMPTZ | Date de fin |
+
+| Colonne      | Type        | Description                      |
+| ------------ | ----------- | -------------------------------- |
+| `id`         | UUID        | Clé primaire                     |
+| `patient_id` | UUID        | Référence au patient (optionnel) |
+| `title`      | TEXT        | Titre de l'événement             |
+| `start_date` | TIMESTAMPTZ | Date de début                    |
+| `end_date`   | TIMESTAMPTZ | Date de fin                      |
 
 ### `notifications` - Notifications utilisateurs
-| Colonne | Type | Description |
-|---------|------|-------------|
-| `id` | UUID | Clé primaire |
-| `user_id` | UUID | **Propriétaire** - Référence `auth.users(id)` |
-| `patient_id` | UUID | Référence au patient (optionnel) |
-| `title` | TEXT | Titre |
-| `message` | TEXT | Message |
-| `type` | TEXT | Type (`info`, `warning`, `success`) |
-| `is_read` | BOOLEAN | Lu ou non |
+
+| Colonne      | Type    | Description                                   |
+| ------------ | ------- | --------------------------------------------- |
+| `id`         | UUID    | Clé primaire                                  |
+| `user_id`    | UUID    | **Propriétaire** - Référence `auth.users(id)` |
+| `patient_id` | UUID    | Référence au patient (optionnel)              |
+| `title`      | TEXT    | Titre                                         |
+| `message`    | TEXT    | Message                                       |
+| `type`       | TEXT    | Type (`info`, `warning`, `success`)           |
+| `is_read`    | BOOLEAN | Lu ou non                                     |
 
 **Ownership :** Colonne `user_id` = chaque utilisateur ne voit que SES notifications.
 
 ### `workflow_statuses` - Statuts de workflow (lecture seule)
+
 ### `surgeons` - Liste des chirurgiens (lecture seule)
+
 ### `audit_logs` - Logs d'audit (lecture seule)
 
 ---
 
 ## 2. MATRICE DES PERMISSIONS PAR RÔLE
 
-| Table | SELECT | INSERT | UPDATE | DELETE |
-|-------|--------|--------|--------|--------|
-| **profiles** | Tous auth | - | Soi-même | - |
-| **patients** | Tous auth | marcel, franchir, admin | marcel, franchir, admin | - |
-| **medical_decisions** | Tous auth | gilles uniquement | gilles uniquement | - |
-| **quotes** | Tous auth | marcel, franchir, admin | marcel, franchir, admin | - |
-| **calendar_events** | Tous auth | marcel, franchir, admin | marcel, franchir, admin | - |
-| **notifications** | Propriétaire (user_id) | Tous auth (via trigger) | Propriétaire | - |
-| **workflow_statuses** | Tous auth | - | - | - |
-| **surgeons** | Tous auth | - | - | - |
-| **audit_logs** | Tous auth | - | - | - |
+| Table                 | SELECT                 | INSERT                  | UPDATE                  | DELETE |
+| --------------------- | ---------------------- | ----------------------- | ----------------------- | ------ |
+| **profiles**          | Tous auth              | -                       | Soi-même                | -      |
+| **patients**          | Tous auth              | marcel, franchir, admin | marcel, franchir, admin | -      |
+| **medical_decisions** | Tous auth              | gilles uniquement       | gilles uniquement       | -      |
+| **quotes**            | Tous auth              | marcel, franchir, admin | marcel, franchir, admin | -      |
+| **calendar_events**   | Tous auth              | marcel, franchir, admin | marcel, franchir, admin | -      |
+| **notifications**     | Propriétaire (user_id) | Tous auth (via trigger) | Propriétaire            | -      |
+| **workflow_statuses** | Tous auth              | -                       | -                       | -      |
+| **surgeons**          | Tous auth              | -                       | -                       | -      |
+| **audit_logs**        | Tous auth              | -                       | -                       | -      |
 
 ---
 
@@ -104,7 +113,7 @@ L'application **Franchir Patient Tracker** est un système de gestion de patient
 -- PROFILES
 -- =====================================================
 DROP POLICY IF EXISTS "Authenticated users can view all profiles" ON profiles;
-CREATE POLICY "Authenticated users can view all profiles" ON profiles 
+CREATE POLICY "Authenticated users can view all profiles" ON profiles
   FOR SELECT TO authenticated USING (true);
 
 -- =====================================================
@@ -114,11 +123,11 @@ DROP POLICY IF EXISTS "Authenticated users can view all patients" ON patients;
 DROP POLICY IF EXISTS "Marcel Franchir Admin can insert patients" ON patients;
 DROP POLICY IF EXISTS "Marcel Franchir Admin can update patients" ON patients;
 
-CREATE POLICY "Authenticated users can view all patients" ON patients 
+CREATE POLICY "Authenticated users can view all patients" ON patients
   FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Marcel Franchir Admin can insert patients" ON patients 
-  FOR INSERT TO authenticated 
+CREATE POLICY "Marcel Franchir Admin can insert patients" ON patients
+  FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
@@ -127,8 +136,8 @@ CREATE POLICY "Marcel Franchir Admin can insert patients" ON patients
     )
   );
 
-CREATE POLICY "Marcel Franchir Admin can update patients" ON patients 
-  FOR UPDATE TO authenticated 
+CREATE POLICY "Marcel Franchir Admin can update patients" ON patients
+  FOR UPDATE TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM profiles
@@ -144,11 +153,11 @@ DROP POLICY IF EXISTS "Authenticated users can view all decisions" ON medical_de
 DROP POLICY IF EXISTS "Gilles can insert medical decisions" ON medical_decisions;
 DROP POLICY IF EXISTS "Gilles can update medical decisions" ON medical_decisions;
 
-CREATE POLICY "Authenticated users can view all decisions" ON medical_decisions 
+CREATE POLICY "Authenticated users can view all decisions" ON medical_decisions
   FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Gilles can insert medical decisions" ON medical_decisions 
-  FOR INSERT TO authenticated 
+CREATE POLICY "Gilles can insert medical decisions" ON medical_decisions
+  FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
@@ -157,8 +166,8 @@ CREATE POLICY "Gilles can insert medical decisions" ON medical_decisions
     )
   );
 
-CREATE POLICY "Gilles can update medical decisions" ON medical_decisions 
-  FOR UPDATE TO authenticated 
+CREATE POLICY "Gilles can update medical decisions" ON medical_decisions
+  FOR UPDATE TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM profiles
@@ -174,11 +183,11 @@ DROP POLICY IF EXISTS "Authenticated users can view all quotes" ON quotes;
 DROP POLICY IF EXISTS "Marcel Franchir Admin can insert quotes" ON quotes;
 DROP POLICY IF EXISTS "Marcel Franchir Admin can update quotes" ON quotes;
 
-CREATE POLICY "Authenticated users can view all quotes" ON quotes 
+CREATE POLICY "Authenticated users can view all quotes" ON quotes
   FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Marcel Franchir Admin can insert quotes" ON quotes 
-  FOR INSERT TO authenticated 
+CREATE POLICY "Marcel Franchir Admin can insert quotes" ON quotes
+  FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
@@ -187,8 +196,8 @@ CREATE POLICY "Marcel Franchir Admin can insert quotes" ON quotes
     )
   );
 
-CREATE POLICY "Marcel Franchir Admin can update quotes" ON quotes 
-  FOR UPDATE TO authenticated 
+CREATE POLICY "Marcel Franchir Admin can update quotes" ON quotes
+  FOR UPDATE TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM profiles
@@ -204,11 +213,11 @@ DROP POLICY IF EXISTS "Authenticated users can view all events" ON calendar_even
 DROP POLICY IF EXISTS "Marcel Franchir Admin can insert events" ON calendar_events;
 DROP POLICY IF EXISTS "Marcel Franchir Admin can update events" ON calendar_events;
 
-CREATE POLICY "Authenticated users can view all events" ON calendar_events 
+CREATE POLICY "Authenticated users can view all events" ON calendar_events
   FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Marcel Franchir Admin can insert events" ON calendar_events 
-  FOR INSERT TO authenticated 
+CREATE POLICY "Marcel Franchir Admin can insert events" ON calendar_events
+  FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
@@ -217,8 +226,8 @@ CREATE POLICY "Marcel Franchir Admin can insert events" ON calendar_events
     )
   );
 
-CREATE POLICY "Marcel Franchir Admin can update events" ON calendar_events 
-  FOR UPDATE TO authenticated 
+CREATE POLICY "Marcel Franchir Admin can update events" ON calendar_events
+  FOR UPDATE TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM profiles
@@ -234,32 +243,32 @@ DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
 DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
 DROP POLICY IF EXISTS "System can insert notifications" ON notifications;
 
-CREATE POLICY "Users can view their own notifications" ON notifications 
-  FOR SELECT TO authenticated 
+CREATE POLICY "Users can view their own notifications" ON notifications
+  FOR SELECT TO authenticated
   USING ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can update their own notifications" ON notifications 
-  FOR UPDATE TO authenticated 
+CREATE POLICY "Users can update their own notifications" ON notifications
+  FOR UPDATE TO authenticated
   USING ((SELECT auth.uid()) = user_id);
 
 -- Permet aux triggers SECURITY DEFINER de créer des notifications
-CREATE POLICY "System can insert notifications" ON notifications 
-  FOR INSERT TO authenticated 
+CREATE POLICY "System can insert notifications" ON notifications
+  FOR INSERT TO authenticated
   WITH CHECK (true);
 
 -- =====================================================
 -- TABLES EN LECTURE SEULE
 -- =====================================================
 DROP POLICY IF EXISTS "Authenticated users can view all statuses" ON workflow_statuses;
-CREATE POLICY "Authenticated users can view all statuses" ON workflow_statuses 
+CREATE POLICY "Authenticated users can view all statuses" ON workflow_statuses
   FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Authenticated users can view all surgeons" ON surgeons;
-CREATE POLICY "Authenticated users can view all surgeons" ON surgeons 
+CREATE POLICY "Authenticated users can view all surgeons" ON surgeons
   FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Authenticated users can view all logs" ON audit_logs;
-CREATE POLICY "Authenticated users can view all logs" ON audit_logs 
+CREATE POLICY "Authenticated users can view all logs" ON audit_logs
   FOR SELECT TO authenticated USING (true);
 ```
 
@@ -293,7 +302,7 @@ BEGIN
     'info'
   FROM public.profiles
   WHERE profiles.role = 'gilles';
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
@@ -312,18 +321,21 @@ EXECUTE FUNCTION notify_doctor_on_new_patient();
 ## 5. WORKFLOWS ET CAS D'USAGE
 
 ### Workflow 1 : Création d'un patient
+
 1. **Marcel/Franchir** se connecte
 2. Crée un nouveau patient → Policy `Marcel Franchir Admin can insert patients` autorise
 3. Trigger `notify_doctor_on_new_patient` s'exécute (SECURITY DEFINER)
 4. Notification créée pour **Gilles**
 
 ### Workflow 2 : Décision médicale
+
 1. **Gilles** reçoit notification, se connecte
 2. Consulte le patient → Policy SELECT autorise (tous auth)
 3. Crée une décision médicale → Policy `Gilles can insert medical decisions` autorise
 4. Marcel/Franchir peuvent voir la décision mais pas la modifier
 
 ### Workflow 3 : Admin crée pour un autre utilisateur
+
 Si un admin doit créer des enregistrements pour un autre compte :
 
 ```sql
@@ -339,16 +351,16 @@ DECLARE
 BEGIN
   -- Vérifier que l'appelant est admin
   IF NOT EXISTS (
-    SELECT 1 FROM profiles 
+    SELECT 1 FROM profiles
     WHERE id = auth.uid() AND role = 'admin'
   ) THEN
     RAISE EXCEPTION 'Accès refusé : rôle admin requis';
   END IF;
-  
+
   INSERT INTO patients (patient_name, status)
   VALUES (p_patient_name, p_status)
   RETURNING id INTO v_patient_id;
-  
+
   RETURN v_patient_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
@@ -414,13 +426,13 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```sql
 -- Lister toutes les policies actives
 SELECT tablename, policyname, cmd, qual, with_check
-FROM pg_policies 
+FROM pg_policies
 WHERE schemaname = 'public'
 ORDER BY tablename, cmd;
 
 -- Vérifier RLS activé
-SELECT tablename, rowsecurity 
-FROM pg_tables 
+SELECT tablename, rowsecurity
+FROM pg_tables
 WHERE schemaname = 'public';
 ```
 
@@ -428,11 +440,11 @@ WHERE schemaname = 'public';
 
 ## 10. RÉSUMÉ DES RÔLES
 
-| Rôle | Peut créer patients | Peut créer décisions | Peut créer devis | Peut créer événements |
-|------|---------------------|----------------------|------------------|----------------------|
-| `marcel` | ✅ | ❌ | ✅ | ✅ |
-| `franchir` | ✅ | ❌ | ✅ | ✅ |
-| `gilles` | ❌ | ✅ | ❌ | ❌ |
-| `admin` | ✅ | ❌* | ✅ | ✅ |
+| Rôle       | Peut créer patients | Peut créer décisions | Peut créer devis | Peut créer événements |
+| ---------- | ------------------- | -------------------- | ---------------- | --------------------- |
+| `marcel`   | ✅                  | ❌                   | ✅               | ✅                    |
+| `franchir` | ✅                  | ❌                   | ✅               | ✅                    |
+| `gilles`   | ❌                  | ✅                   | ❌               | ❌                    |
+| `admin`    | ✅                  | ❌\*                 | ✅               | ✅                    |
 
-*L'admin peut être ajouté aux policies de décisions médicales si nécessaire.
+\*L'admin peut être ajouté aux policies de décisions médicales si nécessaire.

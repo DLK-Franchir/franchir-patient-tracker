@@ -37,7 +37,9 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
     setLoading(true)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
       if (quote) {
         await supabase
@@ -45,7 +47,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
           .update({
             amount: parseFloat(amount),
             conditions,
-            status: 'pending'
+            status: 'pending',
           })
           .eq('id', quote.id)
       } else {
@@ -54,7 +56,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
           amount: parseFloat(amount),
           conditions,
           status: 'pending',
-          created_by: session?.user.id
+          created_by: session?.user.id,
         })
       }
 
@@ -67,16 +69,16 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
     }
   }, [quote, amount, conditions, patientId, supabase, loadQuote])
 
-  const updateQuoteStatus = useCallback(async (status: string) => {
-    if (!quote) return
+  const updateQuoteStatus = useCallback(
+    async (status: string) => {
+      if (!quote) return
 
-    await supabase
-      .from('quotes')
-      .update({ status })
-      .eq('id', quote.id)
+      await supabase.from('quotes').update({ status }).eq('id', quote.id)
 
-    await loadQuote()
-  }, [quote, supabase, loadQuote])
+      await loadQuote()
+    },
+    [quote, supabase, loadQuote]
+  )
 
   return (
     <div className="bg-white p-6 rounded-lg shadow">
@@ -95,9 +97,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
       {editing ? (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Montant (€)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Montant (€)</label>
             <input
               type="number"
               placeholder="Ex: 15000"
@@ -108,9 +108,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Conditions
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Conditions</label>
             <textarea
               placeholder="Conditions du devis, modalités de paiement..."
               value={conditions}
@@ -121,7 +119,7 @@ export default function QuoteCard({ patientId }: { patientId: string }) {
           </div>
 
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={saveQuote}
               disabled={loading || !amount}
               className="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"

@@ -24,7 +24,9 @@ export default function NotificationBell() {
 
   useEffect(() => {
     const initUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (user) {
         setUserId(user.id)
       }
@@ -74,30 +76,33 @@ export default function NotificationBell() {
     }
   }, [userId, supabase, loadNotifications])
 
-  const markAsRead = useCallback(async (id: string) => {
-    // Optimistic update: remove notification immediately from UI
-    setNotifications(prev => prev.filter(n => n.id !== id))
+  const markAsRead = useCallback(
+    async (id: string) => {
+      // Optimistic update: remove notification immediately from UI
+      setNotifications(prev => prev.filter(n => n.id !== id))
 
-    // Then confirm with server
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', id)
+      // Then confirm with server
+      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id)
 
-    // If server update fails, reload notifications to restore state
-    if (error) {
-      console.error('Failed to mark notification as read:', error)
-      loadNotifications()
-    }
-  }, [supabase, loadNotifications])
+      // If server update fails, reload notifications to restore state
+      if (error) {
+        console.error('Failed to mark notification as read:', error)
+        loadNotifications()
+      }
+    },
+    [supabase, loadNotifications]
+  )
 
-  const handleNotificationClick = useCallback((notification: Notification) => {
-    markAsRead(notification.id)
-    if (notification.patient_id) {
-      router.push(`/dashboard/patient/${notification.patient_id}`)
-      setIsOpen(false)
-    }
-  }, [markAsRead, router])
+  const handleNotificationClick = useCallback(
+    (notification: Notification) => {
+      markAsRead(notification.id)
+      if (notification.patient_id) {
+        router.push(`/dashboard/patient/${notification.patient_id}`)
+        setIsOpen(false)
+      }
+    },
+    [markAsRead, router]
+  )
 
   const unreadCount = notifications.length
 
@@ -107,12 +112,7 @@ export default function NotificationBell() {
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-gray-900 transition min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -149,7 +149,7 @@ export default function NotificationBell() {
                   <p className="text-sm text-gray-500">Aucune notification</p>
                 </div>
               ) : (
-                notifications.map((notif) => (
+                notifications.map(notif => (
                   <div
                     key={notif.id}
                     className="p-4 border-b border-gray-100 hover:bg-gray-50 active:bg-gray-100 cursor-pointer transition"
@@ -161,17 +161,13 @@ export default function NotificationBell() {
                           notif.type === 'urgent'
                             ? 'bg-red-500'
                             : notif.type === 'success'
-                            ? 'bg-green-500'
-                            : 'bg-blue-500'
+                              ? 'bg-green-500'
+                              : 'bg-blue-500'
                         }`}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 mb-1">
-                          {notif.title}
-                        </p>
-                        <p className="text-xs text-gray-600 mb-2">
-                          {notif.message}
-                        </p>
+                        <p className="text-sm font-semibold text-gray-900 mb-1">{notif.title}</p>
+                        <p className="text-xs text-gray-600 mb-2">{notif.message}</p>
                         <p className="text-xs text-gray-400">
                           {new Date(notif.created_at).toLocaleString('fr-FR')}
                         </p>

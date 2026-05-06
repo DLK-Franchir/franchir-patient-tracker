@@ -22,12 +22,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = createClient()
 
   const loadProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+
     if (data) {
       setProfile(data)
     }
@@ -41,29 +37,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser()
       setUser(currentUser)
-      
+
       if (currentUser) {
         await loadProfile(currentUser.id)
       }
-      
+
       setLoading(false)
     }
 
     initAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUser(session?.user ?? null)
 
-        if (session?.user) {
-          await loadProfile(session.user.id)
-        } else {
-          setProfile(null)
-        }
+      if (session?.user) {
+        await loadProfile(session.user.id)
+      } else {
+        setProfile(null)
       }
-    )
+    })
 
     return () => {
       subscription.unsubscribe()

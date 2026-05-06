@@ -2,7 +2,13 @@
 
 import { useState } from 'react'
 
-export default function MessageComposer({ patientId, topic = 'medical' }: { patientId: string; topic?: string }) {
+export default function MessageComposer({
+  patientId,
+  topic = 'medical',
+}: {
+  patientId: string
+  topic?: string
+}) {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +34,7 @@ export default function MessageComposer({ patientId, topic = 'medical' }: { pati
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de l\'envoi du message')
+        throw new Error(data.error || "Erreur lors de l'envoi du message")
       }
 
       setMessage('')
@@ -43,7 +49,7 @@ export default function MessageComposer({ patientId, topic = 'medical' }: { pati
     <form onSubmit={handleSubmit} className="space-y-3">
       <textarea
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={e => setMessage(e.target.value)}
         disabled={loading}
         rows={3}
         placeholder="Écrire un message..."

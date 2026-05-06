@@ -107,8 +107,8 @@ SELECT * FROM workflow_statuses ORDER BY order_position;
 SELECT * FROM profiles;
 
 -- Vérifier les tables
-SELECT table_name 
-FROM information_schema.tables 
+SELECT table_name
+FROM information_schema.tables
 WHERE table_schema = 'public'
 ORDER BY table_name;
 ```
@@ -120,21 +120,25 @@ npm run dev
 ```
 
 Ouvrir [http://localhost:3000](http://localhost:3000) et se connecter avec:
+
 - Email: `test@franchir.com`
 - Password: `Test123456!`
 
 ## Troubleshooting
 
 ### Erreur "Invalid supabaseUrl"
+
 - Vérifier que les variables d'environnement sont bien définies dans `.env.local`
 - Redémarrer le serveur de développement après modification
 
 ### Erreur de connexion
+
 - Vérifier que l'utilisateur existe dans Authentication > Users
 - Vérifier que le profil existe dans la table `profiles`
 - Vérifier que l'email est confirmé (email_confirmed_at non null)
 
 ### Erreur RLS (Row Level Security)
+
 - Vérifier que les policies sont bien créées
 - Vérifier que l'utilisateur est authentifié
 - Consulter les logs dans Supabase Dashboard

@@ -164,7 +164,8 @@ export const STATUS_NOTIFICATION_RULES: Record<
 > = {
   medical_review: {
     roles: ['gilles'],
-    message: patientReference => `Le dossier ${patientReference} est prêt pour votre revue médicale.`,
+    message: patientReference =>
+      `Le dossier ${patientReference} est prêt pour votre revue médicale.`,
     emailMessage: 'Le dossier est prêt pour votre revue médicale.',
   },
   validated_medical: {
@@ -186,8 +187,10 @@ export const STATUS_NOTIFICATION_RULES: Record<
   },
   surgery_scheduled: {
     roles: ['gilles', 'marcel', 'franchir', 'admin'],
-    message: patientReference => `La chirurgie du dossier ${patientReference} a été programmée.`,
-    emailMessage: 'La chirurgie a été programmée.',
+    message: patientReference =>
+      `La date de chirurgie du dossier ${patientReference} a été confirmée. Vérifiez le calendrier du dossier.`,
+    emailMessage:
+      'La date de chirurgie a été confirmée. Consultez le calendrier du dossier pour les détails.',
   },
   draft: {
     roles: ['marcel', 'franchir', 'admin'],

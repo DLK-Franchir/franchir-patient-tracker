@@ -38,16 +38,12 @@ export default function MessageThread({
   initialMessages: Message[]
 }) {
   if (initialMessages.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        Aucun message pour l'instant
-      </div>
-    )
+    return <div className="text-center py-8 text-gray-500">Aucun message pour l'instant</div>
   }
 
   return (
     <div className="space-y-3">
-      {initialMessages.map((msg) => (
+      {initialMessages.map(msg => (
         <div
           key={msg.id}
           className={`p-4 rounded-lg border ${kindColors[msg.kind] || kindColors.system}`}
@@ -55,9 +51,7 @@ export default function MessageThread({
           <div className="flex items-start gap-3">
             <span className="text-2xl">{kindIcons[msg.kind] || '📝'}</span>
             <div className="flex-1">
-              {msg.title && (
-                <h4 className="font-semibold text-gray-900 mb-1">{msg.title}</h4>
-              )}
+              {msg.title && <h4 className="font-semibold text-gray-900 mb-1">{msg.title}</h4>}
               <p className="text-gray-700 text-sm whitespace-pre-wrap">{msg.body}</p>
               <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
                 {msg.author_name && (

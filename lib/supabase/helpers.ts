@@ -68,10 +68,7 @@ export async function fetchWithPagination<T>(
   }
 }
 
-export async function fetchById<T>(
-  table: keyof Database,
-  id: string
-): Promise<T | null> {
+export async function fetchById<T>(table: keyof Database, id: string): Promise<T | null> {
   const supabase = createClient()
 
   try {
@@ -93,10 +90,7 @@ export async function fetchById<T>(
   }
 }
 
-export async function insertRecord<T>(
-  table: keyof Database,
-  record: Partial<T>
-): Promise<T> {
+export async function insertRecord<T>(table: keyof Database, record: Partial<T>): Promise<T> {
   const supabase = createClient()
 
   try {
@@ -145,10 +139,7 @@ export async function updateRecord<T>(
   }
 }
 
-export async function deleteRecord(
-  table: keyof Database,
-  id: string
-): Promise<void> {
+export async function deleteRecord(table: keyof Database, id: string): Promise<void> {
   const supabase = createClient()
 
   try {
@@ -224,10 +215,7 @@ export async function countRecords(
   }
 }
 
-export async function batchInsert<T>(
-  table: keyof Database,
-  records: Partial<T>[]
-): Promise<T[]> {
+export async function batchInsert<T>(table: keyof Database, records: Partial<T>[]): Promise<T[]> {
   const supabase = createClient()
 
   try {

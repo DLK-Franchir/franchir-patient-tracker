@@ -19,8 +19,8 @@ export const quoteSchema = z.object({
 })
 
 export const calendarEventSchema = z.object({
-  event_type: z.string().min(1, 'Le type d\'événement est requis'),
-  event_date: z.string().refine((date) => !isNaN(Date.parse(date)), {
+  event_type: z.string().min(1, "Le type d'événement est requis"),
+  event_date: z.string().refine(date => !isNaN(Date.parse(date)), {
     message: 'Date invalide',
   }),
   surgeon_id: z.string().uuid().optional(),
@@ -82,7 +82,10 @@ export const CommercialDataUpdateSchema = z
     quoteAmount: z.number().nullable().optional(),
     proposedDate: z
       .union([
-        z.string().trim().refine((value) => !Number.isNaN(Date.parse(value)), 'Date proposée invalide'),
+        z
+          .string()
+          .trim()
+          .refine(value => !Number.isNaN(Date.parse(value)), 'Date proposée invalide'),
         z.null(),
       ])
       .optional(),

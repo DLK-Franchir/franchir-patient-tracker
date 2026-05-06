@@ -3,14 +3,19 @@
 import { FormEvent, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { globalStatusFromWorkflowStatus, type GlobalStatus } from '@/lib/workflow-v2'
 
 type SortColumn = 'created_at' | 'patient_name' | 'current_status_id'
 type SortDirection = 'asc' | 'desc'
+type UserRole = 'marcel' | 'gilles' | 'franchir' | 'admin'
 
 type Patient = {
   id: string
   patient_name: string
   created_at: string
+  proposed_date?: string | null
+  confirmed_surgery_date?: string | null
+  confirmed_surgeon_name?: string | null
   workflow_statuses: { id: string; code: string; label: string; color: string } | null
   profiles: { full_name: string } | null
 }
@@ -33,6 +38,39 @@ type PatientListProps = {
   statusOptions: StatusOption[]
   sort: SortColumn
   direction: SortDirection
+  userRole?: UserRole
+}
+
+function pendingActionLabel(globalStatus: GlobalStatus, role: UserRole): string | null {
+  if (globalStatus === 'draft') {
+    if (role === 'marcel' || role === 'admin') return 'Soumettre à Gilles'
+    return null
+  }
+  if (globalStatus === 'medical_review') {
+    if (role === 'gilles' || role === 'admin') return 'Décision médicale'
+    return null
+  }
+  if (globalStatus === 'medical_more_info') {
+    if (role === 'marcel' || role === 'admin') return 'Compléter le dossier'
+    return null
+  }
+  if (globalStatus === 'commercial_in_progress') {
+    if (role === 'franchir' || role === 'admin') return 'Gérer devis / dates'
+    if (role === 'marcel') return 'Confirmer devis & date'
+    return null
+  }
+  if (globalStatus === 'scheduled') return null
+  if (globalStatus === 'rejected') return null
+  return null
+}
+
+function formatDateShort(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  return new Date(dateStr).toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 export default function PatientList({
@@ -46,6 +84,7 @@ export default function PatientList({
   statusOptions,
   sort,
   direction,
+  userRole = 'admin',
 }: PatientListProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -205,11 +244,11 @@ export default function PatientList({
         {isPending && <p className="font-medium text-[#2563EB]">Chargement des résultats...</p>}
       </div>
 
-      <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm md:block">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
                 <button
                   type="button"
                   onClick={() => sortBy('patient_name')}
@@ -218,7 +257,7 @@ export default function PatientList({
                   Patient {sortIndicator('patient_name')}
                 </button>
               </th>
-              <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
                 <button
                   type="button"
                   onClick={() => sortBy('current_status_id')}
@@ -227,56 +266,99 @@ export default function PatientList({
                   Statut {sortIndicator('current_status_id')}
                 </button>
               </th>
-              <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
-                Créé par
+              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+                Action en attente
               </th>
-              <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
-                <button
-                  type="button"
-                  onClick={() => sortBy('created_at')}
-                  className="inline-flex items-center gap-1 hover:text-[#2563EB]"
-                >
-                  Date {sortIndicator('created_at')}
-                </button>
+              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+                Chirurgien
               </th>
-              <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700">
-                Action
+              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+                Date prévue
+              </th>
+              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+                Date validée
+              </th>
+              <th className="px-4 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700">
+                Dossier
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
-            {initialPatients.map(patient => (
-              <tr key={patient.id} className="transition-colors hover:bg-gray-50">
-                <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                  {patient.patient_name}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4">
-                  <span
-                    className="rounded-full px-3 py-1 text-xs font-bold text-white"
-                    style={{ backgroundColor: patient.workflow_statuses?.color || '#6B7280' }}
-                  >
-                    {patient.workflow_statuses?.label || 'Sans statut'}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">
-                  {patient.profiles?.full_name || 'Non renseigné'}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                  {new Date(patient.created_at).toLocaleDateString('fr-FR')}
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                  <Link
-                    href={`/dashboard/patient/${patient.id}`}
-                    className="rounded-md bg-blue-50 px-3 py-2 font-medium text-[#2563EB] transition hover:text-[#1d4ed8]"
-                  >
-                    Voir dossier →
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {initialPatients.map(patient => {
+              const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
+              const pendingAction = pendingActionLabel(globalStatus, userRole)
+              return (
+                <tr key={patient.id} className="transition-colors hover:bg-gray-50">
+                  <td className="whitespace-nowrap px-4 py-4 font-semibold text-gray-900">
+                    {patient.patient_name}
+                    <p className="text-xs font-normal text-gray-400 mt-0.5">
+                      {patient.profiles?.full_name || '—'}
+                    </p>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    <span
+                      className="rounded-full px-3 py-1 text-xs font-bold text-white"
+                      style={{ backgroundColor: patient.workflow_statuses?.color || '#6B7280' }}
+                    >
+                      {patient.workflow_statuses?.label || 'Sans statut'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 text-sm">
+                    {pendingAction ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        {pendingAction}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 text-sm">
+                    {patient.confirmed_surgeon_name ? (
+                      <span className="inline-flex items-center rounded-full bg-purple-50 border border-purple-200 px-2.5 py-1 text-xs font-semibold text-purple-800">
+                        {patient.confirmed_surgeon_name}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700">
+                    {patient.proposed_date ? (
+                      <span className="text-blue-700 font-medium">
+                        {formatDateShort(patient.proposed_date)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 text-sm">
+                    {patient.confirmed_surgery_date ? (
+                      <div>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2.5 py-1 text-xs font-bold text-green-800">
+                          ✓ {formatDateShort(patient.confirmed_surgery_date)}
+                        </span>
+                        {patient.confirmed_surgeon_name && (
+                          <p className="mt-0.5 text-xs text-gray-500">{patient.confirmed_surgeon_name}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 text-right text-sm font-medium">
+                    <Link
+                      href={`/dashboard/patient/${patient.id}`}
+                      className="rounded-md bg-blue-50 px-3 py-2 font-medium text-[#2563EB] transition hover:text-[#1d4ed8]"
+                    >
+                      Voir →
+                    </Link>
+                  </td>
+                </tr>
+              )
+            })}
             {initialPatients.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-500 italic">
                   Aucun dossier patient ne correspond aux critères.
                 </td>
               </tr>
@@ -286,29 +368,50 @@ export default function PatientList({
       </div>
 
       <div className="space-y-3 md:hidden">
-        {initialPatients.map(patient => (
-          <Link
-            key={patient.id}
-            href={`/dashboard/patient/${patient.id}`}
-            className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md active:bg-gray-50"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate font-semibold text-gray-900">{patient.patient_name}</h3>
-                <p className="mt-1 text-xs text-gray-500">
-                  {patient.profiles?.full_name || 'Non renseigné'} •{' '}
-                  {new Date(patient.created_at).toLocaleDateString('fr-FR')}
-                </p>
+        {initialPatients.map(patient => {
+          const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
+          const pendingAction = pendingActionLabel(globalStatus, userRole)
+          return (
+            <Link
+              key={patient.id}
+              href={`/dashboard/patient/${patient.id}`}
+              className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md active:bg-gray-50"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-semibold text-gray-900">{patient.patient_name}</h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {patient.profiles?.full_name || '—'} •{' '}
+                    {new Date(patient.created_at).toLocaleDateString('fr-FR')}
+                  </p>
+                  {pendingAction && (
+                    <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      {pendingAction}
+                    </span>
+                  )}
+                  {patient.confirmed_surgery_date && (
+                    <p className="mt-1 text-xs font-medium text-green-700">
+                      ✓ {formatDateShort(patient.confirmed_surgery_date)}
+                      {patient.confirmed_surgeon_name && ` — ${patient.confirmed_surgeon_name}`}
+                    </p>
+                  )}
+                  {!patient.confirmed_surgery_date && patient.proposed_date && (
+                    <p className="mt-1 text-xs text-blue-600">
+                      Prévu : {formatDateShort(patient.proposed_date)}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold text-white"
+                  style={{ backgroundColor: patient.workflow_statuses?.color || '#6B7280' }}
+                >
+                  {patient.workflow_statuses?.label || 'Sans statut'}
+                </span>
               </div>
-              <span
-                className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold text-white"
-                style={{ backgroundColor: patient.workflow_statuses?.color || '#6B7280' }}
-              >
-                {patient.workflow_statuses?.label || 'Sans statut'}
-              </span>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          )
+        })}
         {initialPatients.length === 0 && (
           <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 italic shadow-sm">
             Aucun dossier patient ne correspond aux critères.

@@ -30,7 +30,9 @@ export const POST = createRouteHandler(
       supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single(),
       supabase
         .from('patients')
-        .select('patient_name, current_status:workflow_statuses!current_status_id (id, code, label)')
+        .select(
+          'patient_name, current_status:workflow_statuses!current_status_id (id, code, label)'
+        )
         .eq('id', patientId)
         .single(),
     ])

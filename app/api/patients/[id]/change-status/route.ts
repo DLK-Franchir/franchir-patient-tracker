@@ -36,6 +36,7 @@ export const POST = createRouteHandler(
         .select(
           `
         patient_name,
+        proposed_date,
         quote_accepted,
         date_accepted,
         current_status:workflow_statuses!current_status_id (id, code, label)
@@ -143,9 +144,22 @@ export const POST = createRouteHandler(
       case 'confirm_date': {
         messageTitle = 'Date confirmée'
         messageBody = 'La date de chirurgie a été confirmée par Marcel.'
+        const surgeonName: string | undefined =
+          typeof data?.surgeon_name === 'string' ? data.surgeon_name : undefined
+        const updatePayload: Record<string, unknown> = { date_accepted: true }
+        if (surgeonName) {
+          updatePayload.confirmed_surgeon_name = surgeonName
+        }
+        const proposedDate = patient.proposed_date as string | null | undefined
+        if (proposedDate) {
+          updatePayload.confirmed_surgery_date = proposedDate
+        }
+        if (surgeonName) {
+          messageBody += ` Chirurgien : ${surgeonName}.`
+        }
         const { error: dateUpdateError } = await supabase
           .from('patients')
-          .update({ date_accepted: true })
+          .update(updatePayload)
           .eq('id', patientId)
         if (dateUpdateError) {
           apiError(500, dateUpdateError.message)
@@ -156,6 +170,9 @@ export const POST = createRouteHandler(
           messageTitle = 'Date confirmée - Dossier programmé'
           messageBody =
             'La date a été confirmée. Le dossier est maintenant programmé (devis et date confirmés).'
+          if (surgeonName) {
+            messageBody += ` Chirurgien : ${surgeonName}.`
+          }
         }
         break
       }

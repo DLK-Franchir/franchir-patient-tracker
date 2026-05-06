@@ -4,6 +4,7 @@ import { apiError, createRouteHandler } from '@/lib/api/route-handler'
 import { canCreatePatientResult } from '@/lib/access-control'
 import { sendNewPatientNotifications } from '@/lib/notifications'
 import { PatientCreateSchema } from '@/lib/validations'
+import { revalidatePath } from 'next/cache'
 
 export const POST = createRouteHandler('api/patients', async (req: Request) => {
   const payloadResult = PatientCreateSchema.safeParse(await req.json())
@@ -57,6 +58,8 @@ export const POST = createRouteHandler('api/patients', async (req: Request) => {
     { id: user.id, full_name: profile.full_name, role: profile.role },
     { id: patient.id, patient_name }
   )
+
+  revalidatePath('/dashboard')
 
   return NextResponse.json({ success: true, patientId: patient.id })
 })

@@ -41,6 +41,12 @@ export interface Patient {
   created_by: string
   created_at: string
   updated_at: string
+  quote_amount: number | null
+  proposed_date: string | null
+  quote_accepted: boolean
+  date_accepted: boolean
+  confirmed_surgery_date: string | null
+  confirmed_surgeon_name: string | null
   workflow_statuses?: WorkflowStatus
   profiles?: Profile
   surgeons?: Surgeon
@@ -96,6 +102,7 @@ export interface Notification {
   title: string
   message: string
   type: string
+  severity: 'info' | 'action_required'
   is_read: boolean
   created_at: string
 }

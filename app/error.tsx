@@ -17,11 +17,9 @@ export default function Error({
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Une erreur est survenue
-          </h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Une erreur est survenue</h2>
           <p className="text-gray-600 mb-6">
-            {error.message || 'Une erreur inattendue s\'est produite.'}
+            {error.message || "Une erreur inattendue s'est produite."}
           </p>
           <button
             onClick={reset}

@@ -12,7 +12,7 @@ export function PerformanceMonitor() {
 
     const reportMetric = (metric: any) => {
       const body = JSON.stringify(metric)
-      
+
       if (navigator.sendBeacon) {
         navigator.sendBeacon(vitalsUrl, body)
       } else {
@@ -26,7 +26,7 @@ export function PerformanceMonitor() {
     }
 
     try {
-      const observer = new PerformanceObserver((list) => {
+      const observer = new PerformanceObserver(list => {
         for (const entry of list.getEntries()) {
           if (entry.entryType === 'navigation') {
             const navEntry = entry as PerformanceNavigationTiming
@@ -42,7 +42,12 @@ export function PerformanceMonitor() {
             reportMetric({
               name: 'LCP',
               value: lcpEntry.startTime,
-              rating: lcpEntry.startTime < 2500 ? 'good' : lcpEntry.startTime < 4000 ? 'needs-improvement' : 'poor',
+              rating:
+                lcpEntry.startTime < 2500
+                  ? 'good'
+                  : lcpEntry.startTime < 4000
+                    ? 'needs-improvement'
+                    : 'poor',
             })
           }
 
@@ -51,7 +56,7 @@ export function PerformanceMonitor() {
             reportMetric({
               name: 'FID',
               value: fidEntry.processingStart - fidEntry.startTime,
-              rating: (fidEntry.processingStart - fidEntry.startTime) < 100 ? 'good' : 'poor',
+              rating: fidEntry.processingStart - fidEntry.startTime < 100 ? 'good' : 'poor',
             })
           }
 
@@ -60,14 +65,19 @@ export function PerformanceMonitor() {
             reportMetric({
               name: 'CLS',
               value: clsEntry.value,
-              rating: clsEntry.value < 0.1 ? 'good' : clsEntry.value < 0.25 ? 'needs-improvement' : 'poor',
+              rating:
+                clsEntry.value < 0.1
+                  ? 'good'
+                  : clsEntry.value < 0.25
+                    ? 'needs-improvement'
+                    : 'poor',
             })
           }
         }
       })
 
-      observer.observe({ 
-        entryTypes: ['navigation', 'largest-contentful-paint', 'first-input', 'layout-shift'] 
+      observer.observe({
+        entryTypes: ['navigation', 'largest-contentful-paint', 'first-input', 'layout-shift'],
       })
 
       return () => observer.disconnect()

@@ -103,8 +103,9 @@ class CacheManager {
       keys.forEach(key => this.memoryCache.delete(key))
       logger.debug('Cache pattern invalidated (memory)', { pattern, count: keys.length })
     } else if (storage === 'localStorage' && typeof window !== 'undefined') {
-      const keys = Object.keys(localStorage)
-        .filter(k => k.startsWith('cache_') && k.includes(pattern))
+      const keys = Object.keys(localStorage).filter(
+        k => k.startsWith('cache_') && k.includes(pattern)
+      )
       keys.forEach(key => localStorage.removeItem(key))
       logger.debug('Cache pattern invalidated (localStorage)', { pattern, count: keys.length })
     }

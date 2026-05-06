@@ -80,7 +80,10 @@ export function canEditCommercialDataResult(
   return evaluateProfileAction(profile, 'edit_commercial_data', { globalStatus })
 }
 
-export function canEditCommercialData(profile?: ProfileAccess | null, globalStatus?: GlobalStatus): boolean {
+export function canEditCommercialData(
+  profile?: ProfileAccess | null,
+  globalStatus?: GlobalStatus
+): boolean {
   return canEditCommercialDataResult(profile, globalStatus).allowed
 }
 
@@ -91,7 +94,10 @@ export function canEditPatientSummaryResult(
   return evaluateProfileAction(profile, 'edit_patient_summary', { globalStatus })
 }
 
-export function canEditPatientSummary(profile?: ProfileAccess | null, globalStatus?: GlobalStatus): boolean {
+export function canEditPatientSummary(
+  profile?: ProfileAccess | null,
+  globalStatus?: GlobalStatus
+): boolean {
   return canEditPatientSummaryResult(profile, globalStatus).allowed
 }
 
@@ -102,7 +108,10 @@ export function canPostPatientMessageResult(
   return evaluateProfileAction(profile, 'post_message', { globalStatus })
 }
 
-export function canPostPatientMessage(profile?: ProfileAccess | null, globalStatus?: GlobalStatus): boolean {
+export function canPostPatientMessage(
+  profile?: ProfileAccess | null,
+  globalStatus?: GlobalStatus
+): boolean {
   return canPostPatientMessageResult(profile, globalStatus).allowed
 }
 

@@ -26,15 +26,15 @@ export function usePagination<T>(
 
   const totalPages = Math.ceil(data.length / pageSize)
 
-  const paginatedData = data.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  )
+  const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
-  const goToPage = useCallback((page: number) => {
-    const pageNumber = Math.max(1, Math.min(page, totalPages))
-    setCurrentPage(pageNumber)
-  }, [totalPages])
+  const goToPage = useCallback(
+    (page: number) => {
+      const pageNumber = Math.max(1, Math.min(page, totalPages))
+      setCurrentPage(pageNumber)
+    },
+    [totalPages]
+  )
 
   const nextPage = useCallback(() => {
     goToPage(currentPage + 1)

@@ -50,11 +50,7 @@ interface CardHeaderProps {
 }
 
 export function CardHeader({ children, className = '' }: CardHeaderProps) {
-  return (
-    <div className={`border-b border-gray-200 pb-3 mb-3 ${className}`}>
-      {children}
-    </div>
-  )
+  return <div className={`border-b border-gray-200 pb-3 mb-3 ${className}`}>{children}</div>
 }
 
 interface CardTitleProps {
@@ -63,11 +59,7 @@ interface CardTitleProps {
 }
 
 export function CardTitle({ children, className = '' }: CardTitleProps) {
-  return (
-    <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>
-      {children}
-    </h3>
-  )
+  return <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>{children}</h3>
 }
 
 interface CardContentProps {
@@ -85,9 +77,5 @@ interface CardFooterProps {
 }
 
 export function CardFooter({ children, className = '' }: CardFooterProps) {
-  return (
-    <div className={`border-t border-gray-200 pt-3 mt-3 ${className}`}>
-      {children}
-    </div>
-  )
+  return <div className={`border-t border-gray-200 pt-3 mt-3 ${className}`}>{children}</div>
 }

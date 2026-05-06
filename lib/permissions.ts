@@ -11,22 +11,9 @@ export type Permission =
   | 'ADMIN'
 
 export const rolePermissions: Record<Role, Permission[]> = {
-  marcel: [
-    'CREATE_PATIENT',
-    'EDIT_QUOTE',
-    'SCHEDULE_SURGERY',
-    'VIEW_ALL',
-  ],
-  franchir: [
-    'CREATE_PATIENT',
-    'EDIT_QUOTE',
-    'SCHEDULE_SURGERY',
-    'VIEW_ALL',
-  ],
-  gilles: [
-    'VALIDATE_MEDICAL',
-    'VIEW_ALL',
-  ],
+  marcel: ['CREATE_PATIENT', 'EDIT_QUOTE', 'SCHEDULE_SURGERY', 'VIEW_ALL'],
+  franchir: ['CREATE_PATIENT', 'EDIT_QUOTE', 'SCHEDULE_SURGERY', 'VIEW_ALL'],
+  gilles: ['VALIDATE_MEDICAL', 'VIEW_ALL'],
   admin: [
     'CREATE_PATIENT',
     'VALIDATE_MEDICAL',

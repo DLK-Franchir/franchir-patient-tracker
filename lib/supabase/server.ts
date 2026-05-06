@@ -18,26 +18,21 @@ export const createServerClient = async () => {
     throw new Error('Missing Supabase environment variables')
   }
 
-  return createSupabaseServerClient(
-    supabaseUrl,
-    supabaseKey,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, {
-                ...options,
-                ...SUPABASE_COOKIE_SECURITY_OPTIONS,
-              })
-            )
-          } catch {
-          }
-        },
+  return createSupabaseServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
       },
-    }
-  )
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, {
+              ...options,
+              ...SUPABASE_COOKIE_SECURITY_OPTIONS,
+            })
+          )
+        } catch {}
+      },
+    },
+  })
 }

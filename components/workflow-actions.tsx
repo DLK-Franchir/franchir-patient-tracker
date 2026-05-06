@@ -42,7 +42,7 @@ export function WorkflowActions({
     dateAccepted,
     primaryAction: primaryAction?.label,
     secondaryActionsCount: secondaryActions.length,
-    futureStepsCount: futureSteps.length
+    futureStepsCount: futureSteps.length,
   })
 
   const handleActionClick = (action: Action) => {
@@ -75,12 +75,12 @@ export function WorkflowActions({
             {input.label} {input.required && <span className="text-red-500">*</span>}
           </label>
           <div className="space-y-1 max-h-40 overflow-y-auto">
-            {SURGEONS.map((surgeon) => (
+            {SURGEONS.map(surgeon => (
               <label key={surgeon} className="flex items-center space-x-2 py-1">
                 <input
                   type="checkbox"
                   checked={formData.surgeons?.includes(surgeon) || false}
-                  onChange={(e) => {
+                  onChange={e => {
                     const current = formData.surgeons || []
                     const updated = e.target.checked
                       ? [...current, surgeon]
@@ -105,7 +105,7 @@ export function WorkflowActions({
           </label>
           <textarea
             value={formData[input.type] || ''}
-            onChange={(e) => setFormData({ ...formData, [input.type]: e.target.value })}
+            onChange={e => setFormData({ ...formData, [input.type]: e.target.value })}
             rows={4}
             className="w-full border border-gray-300 rounded-lg p-3 text-base text-gray-900"
             placeholder={`Saisissez ${input.label.toLowerCase()}...`}
@@ -123,7 +123,7 @@ export function WorkflowActions({
           <input
             type="text"
             value={formData.budget || ''}
-            onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+            onChange={e => setFormData({ ...formData, budget: e.target.value })}
             className="w-full border border-gray-300 rounded-lg p-3 text-base text-gray-900"
             placeholder="Ex: 5000-7000€ TTC"
           />
@@ -139,7 +139,7 @@ export function WorkflowActions({
           </label>
           <textarea
             value={formData.dates || ''}
-            onChange={(e) => setFormData({ ...formData, dates: e.target.value })}
+            onChange={e => setFormData({ ...formData, dates: e.target.value })}
             rows={3}
             className="w-full border border-gray-300 rounded-lg p-3 text-base text-gray-900"
             placeholder="Ex: 15 mars 2024, 22 mars 2024"
@@ -178,7 +178,7 @@ export function WorkflowActions({
 
       {secondaryActions.length > 0 && (
         <div className="space-y-2">
-          {secondaryActions.map((action) => (
+          {secondaryActions.map(action => (
             <button
               key={action.id}
               onClick={() => handleActionClick(action)}
@@ -195,7 +195,9 @@ export function WorkflowActions({
 
       {futureSteps.length > 0 && (
         <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Prochaines étapes</div>
+          <div className="text-xs font-semibold text-gray-500 uppercase mb-2">
+            Prochaines étapes
+          </div>
           <div className="space-y-2">
             {futureSteps.map((step, idx) => (
               <div key={idx} className="flex items-start space-x-2 text-sm">
@@ -220,7 +222,7 @@ export function WorkflowActions({
               )}
             </div>
             <div className="p-4 sm:p-6 sm:pt-0 space-y-4">
-              {showModal.requiresInput?.map((input) => renderInput(input))}
+              {showModal.requiresInput?.map(input => renderInput(input))}
             </div>
             <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6 flex flex-col-reverse sm:flex-row gap-3 sm:gap-3">
               <button

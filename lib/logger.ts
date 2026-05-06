@@ -113,7 +113,11 @@ export class Logger {
     console.warn(this.formatMessage('warn', message, context))
   }
 
-  error(message: string, errorOrContext?: Error | unknown | LogContext, context?: LogContext): void {
+  error(
+    message: string,
+    errorOrContext?: Error | unknown | LogContext,
+    context?: LogContext
+  ): void {
     let resolvedContext: LogContext | undefined = context ? { ...context } : undefined
 
     if (errorOrContext !== undefined) {

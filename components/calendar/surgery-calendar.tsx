@@ -16,11 +16,13 @@ export default function SurgeryCalendar() {
     setLoading(true)
     const { data } = await supabase
       .from('calendar_events')
-      .select(`
+      .select(
+        `
         *,
         patients (patient_name),
         surgeons (full_name)
-      `)
+      `
+      )
       .order('event_date', { ascending: true })
 
     setEvents(data || [])
@@ -51,11 +53,11 @@ export default function SurgeryCalendar() {
 
   const groupEventsByMonth = () => {
     const grouped: { [key: string]: any[] } = {}
-    
+
     events.forEach(event => {
       const date = new Date(event.event_date)
       const monthKey = date.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' })
-      
+
       if (!grouped[monthKey]) {
         grouped[monthKey] = []
       }
@@ -79,26 +81,29 @@ export default function SurgeryCalendar() {
   return (
     <div className="bg-white p-6 rounded-lg shadow">
       <h2 className="font-bold text-lg mb-4">Calendrier des chirurgies</h2>
-      
+
       {events.length === 0 ? (
         <p className="text-gray-500 text-sm">Aucune date de chirurgie planifiée.</p>
       ) : (
         <div className="space-y-6">
           {Object.entries(groupedEvents).map(([month, monthEvents]) => (
             <div key={month}>
-              <h3 className="text-sm font-semibold text-gray-700 uppercase mb-3">
-                {month}
-              </h3>
+              <h3 className="text-sm font-semibold text-gray-700 uppercase mb-3">{month}</h3>
               <ul className="space-y-2">
                 {monthEvents.map(event => (
-                  <li key={event.id} className="border border-gray-200 p-3 rounded-md hover:bg-gray-50">
+                  <li
+                    key={event.id}
+                    className="border border-gray-200 p-3 rounded-md hover:bg-gray-50"
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium text-gray-900">
                             {event.patients?.patient_name || 'Patient inconnu'}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${getEventTypeColor(event.event_type)}`}>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${getEventTypeColor(event.event_type)}`}
+                          >
                             {getEventTypeLabel(event.event_type)}
                           </span>
                         </div>
@@ -107,7 +112,7 @@ export default function SurgeryCalendar() {
                             weekday: 'long',
                             day: 'numeric',
                             month: 'long',
-                            year: 'numeric'
+                            year: 'numeric',
                           })}
                         </p>
                         {event.surgeons && (
@@ -116,9 +121,7 @@ export default function SurgeryCalendar() {
                           </p>
                         )}
                         {event.notes && (
-                          <p className="text-xs text-gray-600 mt-1 italic">
-                            {event.notes}
-                          </p>
+                          <p className="text-xs text-gray-600 mt-1 italic">{event.notes}</p>
                         )}
                       </div>
                     </div>

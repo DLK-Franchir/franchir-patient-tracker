@@ -7,6 +7,8 @@ import { WorkflowActions } from '@/components/workflow-actions'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
+import SurgeryDateBanner from '@/components/patient/surgery-date-banner'
+import DraftReminderModal from '@/components/patient/draft-reminder-modal'
 import {
   getAvailableActions,
   globalStatusFromWorkflowStatus,
@@ -46,6 +48,8 @@ interface PatientData {
   created_at: string
   quote_amount?: number | null
   proposed_date?: string | null
+  confirmed_surgery_date?: string | null
+  confirmed_surgeon_name?: string | null
   quote_accepted?: boolean
   date_accepted?: boolean
   current_status: {
@@ -106,9 +110,9 @@ export default function PatientDetailClient({
 
   const isReadOnly = Boolean(
     !messagePermission.allowed &&
-      messagePermission.fieldsLocked?.includes('patient_summary') &&
-      messagePermission.fieldsLocked?.includes('commercial_data') &&
-      messagePermission.fieldsLocked?.includes('messages')
+    messagePermission.fieldsLocked?.includes('patient_summary') &&
+    messagePermission.fieldsLocked?.includes('commercial_data') &&
+    messagePermission.fieldsLocked?.includes('messages')
   )
 
   const readOnlyReason = !messagePermission.allowed ? messagePermission.reason : null
@@ -187,7 +191,7 @@ export default function PatientDetailClient({
     const startOfMonth = new Date(startOfToday)
     startOfMonth.setMonth(startOfMonth.getMonth() - 1)
 
-    return allMessages.filter((message) => {
+    return allMessages.filter(message => {
       if (messageKindFilter !== 'all' && message.kind !== messageKindFilter) {
         return false
       }
@@ -252,7 +256,8 @@ export default function PatientDetailClient({
   const historyMessages = useMemo(
     () =>
       allMessages.filter(
-        (message) => message.kind === 'status_change' || message.kind === 'action' || message.kind === 'system'
+        message =>
+          message.kind === 'status_change' || message.kind === 'action' || message.kind === 'system'
       ),
     [allMessages]
   )
@@ -282,7 +287,9 @@ export default function PatientDetailClient({
       {isReadOnly && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
           <p className="text-xs sm:text-sm text-yellow-800">
-            ⚠️ {readOnlyReason || 'Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.'}
+            ⚠️{' '}
+            {readOnlyReason ||
+              'Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.'}
           </p>
         </div>
       )}
@@ -307,10 +314,14 @@ export default function PatientDetailClient({
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="border-b border-gray-200 overflow-x-auto">
-              <nav className="flex -mb-px min-w-max" role="tablist" aria-label="Sections du dossier patient">
+              <nav
+                className="flex -mb-px min-w-max"
+                role="tablist"
+                aria-label="Sections du dossier patient"
+              >
                 {tabButtons
-                  .filter((tab) => tab.visible)
-                  .map((tab) => (
+                  .filter(tab => tab.visible)
+                  .map(tab => (
                     <button
                       key={tab.id}
                       role="tab"
@@ -345,14 +356,16 @@ export default function PatientDetailClient({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input
                       value={messageSearch}
-                      onChange={(event) => setMessageSearch(event.target.value)}
+                      onChange={event => setMessageSearch(event.target.value)}
                       type="search"
                       placeholder="Rechercher dans les messages"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                     />
                     <select
                       value={messageKindFilter}
-                      onChange={(event) => setMessageKindFilter(event.target.value as MessageKindFilter)}
+                      onChange={event =>
+                        setMessageKindFilter(event.target.value as MessageKindFilter)
+                      }
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                     >
                       <option value="all">Tous les types</option>
@@ -363,7 +376,9 @@ export default function PatientDetailClient({
                     </select>
                     <select
                       value={messageTopicFilter}
-                      onChange={(event) => setMessageTopicFilter(event.target.value as MessageTopicFilter)}
+                      onChange={event =>
+                        setMessageTopicFilter(event.target.value as MessageTopicFilter)
+                      }
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                     >
                       <option value="all">Tous les thèmes</option>
@@ -373,7 +388,9 @@ export default function PatientDetailClient({
                     </select>
                     <select
                       value={messageDateFilter}
-                      onChange={(event) => setMessageDateFilter(event.target.value as MessageDateFilter)}
+                      onChange={event =>
+                        setMessageDateFilter(event.target.value as MessageDateFilter)
+                      }
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                     >
                       <option value="all">Toutes les dates</option>
@@ -383,11 +400,11 @@ export default function PatientDetailClient({
                     </select>
                     <select
                       value={messageAuthorFilter}
-                      onChange={(event) => setMessageAuthorFilter(event.target.value)}
+                      onChange={event => setMessageAuthorFilter(event.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 md:col-span-2"
                     >
                       <option value="all">Tous les auteurs</option>
-                      {messageAuthors.map((author) => (
+                      {messageAuthors.map(author => (
                         <option key={author} value={author}>
                           {author}
                         </option>
@@ -403,13 +420,15 @@ export default function PatientDetailClient({
                         <h3 className="text-sm font-medium text-gray-900">Ajouter un message</h3>
                         <select
                           value={composerTopic}
-                          onChange={(event) =>
+                          onChange={event =>
                             setComposerTopic(event.target.value as 'medical' | 'commercial')
                           }
                           className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                         >
                           <option value="medical">Message médical</option>
-                          {showCommercialTab && <option value="commercial">Message commercial</option>}
+                          {showCommercialTab && (
+                            <option value="commercial">Message commercial</option>
+                          )}
                         </select>
                       </div>
                       <Suspense fallback={<LoadingSpinner />}>
@@ -422,6 +441,34 @@ export default function PatientDetailClient({
 
               {activeTab === 'calendar' && (
                 <div className="space-y-4">
+                  <SurgeryDateBanner
+                    confirmedDate={patient.confirmed_surgery_date ?? null}
+                    surgeonName={patient.confirmed_surgeon_name ?? null}
+                    proposedDate={patient.proposed_date ?? null}
+                    isAdmin={userRole === 'admin'}
+                    patientId={patient.id}
+                    onAdminUpdate={
+                      userRole === 'admin'
+                        ? async (date, surgeon) => {
+                            const res = await fetch(`/api/patients/${patient.id}/surgery-date`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                confirmed_surgery_date: date,
+                                confirmed_surgeon_name: surgeon,
+                              }),
+                            })
+                            if (!res.ok) throw new Error('Failed')
+                            setPatient(p => ({
+                              ...p,
+                              confirmed_surgery_date: date,
+                              confirmed_surgeon_name: surgeon,
+                            }))
+                          }
+                        : undefined
+                    }
+                  />
+
                   {messagePermission.allowed && (
                     <Suspense fallback={<LoadingSpinner />}>
                       <CalendarEventForm patientId={patient.id} />
@@ -434,7 +481,7 @@ export default function PatientDetailClient({
                     </div>
                   ) : (
                     <ul className="space-y-3">
-                      {initialCalendarEvents.map((event) => (
+                      {initialCalendarEvents.map(event => (
                         <li key={event.id} className="border border-gray-200 rounded-lg p-4">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-sm font-semibold text-gray-900">
@@ -490,20 +537,24 @@ export default function PatientDetailClient({
                           </div>
                         ))
                       ) : (
-                        <p className="text-gray-600">Aucune prochaine étape disponible pour ce rôle.</p>
+                        <p className="text-gray-600">
+                          Aucune prochaine étape disponible pour ce rôle.
+                        </p>
                       )}
                     </div>
                   </div>
 
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Historique des changements</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                      Historique des changements
+                    </h3>
                     {historyMessages.length === 0 ? (
                       <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-4">
                         Aucun changement enregistré.
                       </div>
                     ) : (
                       <ul className="space-y-3">
-                        {historyMessages.map((message) => (
+                        {historyMessages.map(message => (
                           <li key={message.id} className="border border-gray-200 rounded-lg p-4">
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-sm font-semibold text-gray-900">
@@ -513,7 +564,9 @@ export default function PatientDetailClient({
                                 {new Date(message.created_at).toLocaleString('fr-FR')}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{message.body}</p>
+                            <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">
+                              {message.body}
+                            </p>
                             {message.meta?.old_status && message.meta?.new_status && (
                               <div className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
                                 {message.meta.old_status} → {message.meta.new_status}
@@ -561,6 +614,12 @@ export default function PatientDetailClient({
           </div>
         </div>
       </div>
+
+      <DraftReminderModal
+        patientId={patient.id}
+        globalStatus={globalStatus}
+        onSubmit={() => handleAction('submit_to_medical')}
+      />
     </div>
   )
 }

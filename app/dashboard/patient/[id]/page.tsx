@@ -9,7 +9,9 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
   const { id } = await params
   const supabase = await createServerClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     redirect('/login')
@@ -30,7 +32,8 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
 
   const { data: patient } = await supabase
     .from('patients')
-    .select(`
+    .select(
+      `
       *,
       current_status:workflow_statuses!current_status_id (
         id,
@@ -42,7 +45,8 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
         full_name,
         role
       )
-    `)
+    `
+    )
     .eq('id', id)
     .single()
 
@@ -65,7 +69,11 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <AppHeader userRole={userRole} userName={staffProfile.full_name ?? undefined} showActions={true} />
+      <AppHeader
+        userRole={userRole}
+        userName={staffProfile.full_name ?? undefined}
+        showActions={true}
+      />
       <PatientDetailClient
         initialPatient={patient}
         initialMessages={allMessages || []}
