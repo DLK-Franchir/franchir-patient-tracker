@@ -40,7 +40,9 @@ function normalizeStatuses(status: string | string[] | undefined): string[] {
 }
 
 function normalizeSort(sort: string | undefined): SortColumn {
-  return SORT_COLUMNS.includes(sort as SortColumn) ? (sort as SortColumn) : 'updated_at' as SortColumn
+  return SORT_COLUMNS.includes(sort as SortColumn)
+    ? (sort as SortColumn)
+    : ('updated_at' as SortColumn)
 }
 
 function normalizeDirection(dir: string | undefined): SortDirection {
@@ -131,7 +133,9 @@ function Pagination({
     const params = new URLSearchParams()
     if (searchParams.q) params.set('q', searchParams.q)
     if (searchParams.status) {
-      const s = Array.isArray(searchParams.status) ? searchParams.status.join(',') : searchParams.status
+      const s = Array.isArray(searchParams.status)
+        ? searchParams.status.join(',')
+        : searchParams.status
       params.set('status', s)
     }
     if (searchParams.sort) params.set('sort', searchParams.sort)

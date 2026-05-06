@@ -42,7 +42,12 @@ export function globalStatusFromWorkflowStatus(
     }
 
     // Mapping strict par code
-    if (code === 'draft' || code === 'prospect' || code === 'created' || code === 'prospect_created') {
+    if (
+      code === 'draft' ||
+      code === 'prospect' ||
+      code === 'created' ||
+      code === 'prospect_created'
+    ) {
       return 'draft'
     }
     if (code === 'medical_review' || code === 'pending_medical' || code === 'awaiting_medical') {

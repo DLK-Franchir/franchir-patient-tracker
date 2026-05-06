@@ -27,7 +27,12 @@ export default function SurgeryDateBanner({
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr)
-    return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    return d.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
   }
 
   const handleSave = async () => {
@@ -66,7 +71,9 @@ export default function SurgeryDateBanner({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-purple-800 mb-1">Chirurgien</label>
+                <label className="block text-xs font-semibold text-purple-800 mb-1">
+                  Chirurgien
+                </label>
                 <input
                   type="text"
                   value={editSurgeon}
@@ -127,9 +134,7 @@ export default function SurgeryDateBanner({
         <span className="text-xl">🗓️</span>
         <div>
           <p className="text-sm font-semibold text-blue-900">Date d'intervention proposée</p>
-          <p className="mt-1 text-base font-bold text-blue-800">
-            {formatDate(proposedDate!)}
-          </p>
+          <p className="mt-1 text-base font-bold text-blue-800">{formatDate(proposedDate!)}</p>
           <p className="mt-1 text-xs text-blue-600">
             En attente de confirmation — non modifiable ici.
           </p>

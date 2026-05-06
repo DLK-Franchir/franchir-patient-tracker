@@ -104,10 +104,7 @@ export default function DraftReminderModal({
             <span className="text-2xl">📋</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h2
-              id="draft-reminder-title"
-              className="text-lg font-bold text-gray-900"
-            >
+            <h2 id="draft-reminder-title" className="text-lg font-bold text-gray-900">
               Dossier non soumis
             </h2>
             <p className="mt-2 text-sm text-gray-600">

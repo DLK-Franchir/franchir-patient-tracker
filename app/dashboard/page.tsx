@@ -122,11 +122,13 @@ async function getPatients({
     baseQuery.in('current_status_id', selectedStatusIds)
   }
 
-  const fullResult = await fullQuery
-    .order(sort, { ascending: direction === 'asc' })
-    .range(from, to)
+  const fullResult = await fullQuery.order(sort, { ascending: direction === 'asc' }).range(from, to)
 
-  const { data: rawPatients, count, error: queryError } = fullResult.error
+  const {
+    data: rawPatients,
+    count,
+    error: queryError,
+  } = fullResult.error
     ? await baseQuery.order(sort, { ascending: direction === 'asc' }).range(from, to)
     : fullResult
 

@@ -4,7 +4,10 @@ import {
   canRolePerformWorkflowActionResult,
   canPerformAction,
 } from '../lib/domain/patients/workflow'
-import type { WorkflowPermissionContext, PatientPermissionContext } from '../lib/domain/patients/types'
+import type {
+  WorkflowPermissionContext,
+  PatientPermissionContext,
+} from '../lib/domain/patients/types'
 
 describe('canRolePerformWorkflowAction', () => {
   it('allows marcel to submit_to_medical when draft', () => {

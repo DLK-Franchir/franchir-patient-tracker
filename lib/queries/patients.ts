@@ -214,9 +214,7 @@ export async function queryAdminPatients({
 }: AdminPatientListParams): Promise<{ patients: AdminPatientRow[]; total: number }> {
   const supabase = await createServerClient()
 
-  const selectedStatusIds = statusOptions
-    .filter(s => statuses.includes(s.code))
-    .map(s => s.id)
+  const selectedStatusIds = statusOptions.filter(s => statuses.includes(s.code)).map(s => s.id)
 
   let q = supabase.from('patients').select(
     `
@@ -248,10 +246,7 @@ export async function queryAdminPatients({
 
   type RawAdmin = Omit<AdminPatientRow, 'workflow_statuses' | 'profiles'> & {
     workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
-    profiles:
-      | { full_name: string; role: string }
-      | { full_name: string; role: string }[]
-      | null
+    profiles: { full_name: string; role: string } | { full_name: string; role: string }[] | null
   }
 
   const patients = ((data || []) as RawAdmin[]).map(row => ({

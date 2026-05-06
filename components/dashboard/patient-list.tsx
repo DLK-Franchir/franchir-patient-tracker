@@ -338,7 +338,9 @@ export default function PatientList({
                           ✓ {formatDateShort(patient.confirmed_surgery_date)}
                         </span>
                         {patient.confirmed_surgeon_name && (
-                          <p className="mt-0.5 text-xs text-gray-500">{patient.confirmed_surgeon_name}</p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {patient.confirmed_surgeon_name}
+                          </p>
                         )}
                       </div>
                     ) : (
