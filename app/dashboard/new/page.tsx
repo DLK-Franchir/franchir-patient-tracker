@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft } from 'lucide-react'
+import DocumentUpload from '@/components/patient/document-upload'
 
 export default function NewPatientPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [summary, setSummary] = useState('')
   const [link, setLink] = useState('')
+  const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
+  const [uploadStep, setUploadStep] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,12 +39,41 @@ export default function NewPatientPage() {
         throw new Error(data.error || 'Erreur lors de la création')
       }
 
+      const patientId: string = data.patientId
+
+      // Upload OPTIONNEL : le patient n'existe qu'après création, on uploade donc
+      // dans un second temps vers patients/{id}/. Un échec d'upload ne perd pas
+      // le dossier (déjà créé) : on redirige vers la fiche pour réessayer.
+      if (files.length > 0 && patientId) {
+        setUploadStep(true)
+        const formData = new FormData()
+        for (const file of files) {
+          formData.append('files', file)
+        }
+        const uploadRes = await fetch(`/api/patients/${patientId}/documents`, {
+          method: 'POST',
+          body: formData,
+        })
+        if (!uploadRes.ok) {
+          const uploadData = await uploadRes.json().catch(() => ({}))
+          alert(
+            'Le dossier a été créé, mais l\'envoi des fichiers a échoué : ' +
+              (uploadData.error || 'erreur inconnue') +
+              '. Vous pourrez les ajouter depuis la fiche patient.'
+          )
+        }
+        router.push(`/dashboard/patient/${patientId}`)
+        router.refresh()
+        return
+      }
+
       router.push('/dashboard')
       router.refresh()
     } catch (err: any) {
       alert('Erreur lors de la création : ' + err.message)
     } finally {
       setLoading(false)
+      setUploadStep(false)
     }
   }
 
@@ -114,6 +146,16 @@ export default function NewPatientPage() {
               placeholder="https://sharepoint.com/..."
             />
           </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Imagerie & documents <span className="font-normal text-gray-400">(optionnel)</span>
+            </label>
+            <DocumentUpload files={files} onChange={setFiles} disabled={loading} />
+            <p className="text-xs text-gray-500 mt-2">
+              DICOM (imagerie) et PDF / images (comptes rendus, documents). Vous pourrez aussi en
+              ajouter plus tard depuis la fiche patient.
+            </p>
+          </div>
           <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
             <Link 
               href="/dashboard" 
@@ -126,7 +168,11 @@ export default function NewPatientPage() {
               disabled={loading}
               className="w-full sm:flex-1 bg-[#2563EB] text-white py-3 rounded-lg font-bold hover:bg-[#1d4ed8] disabled:opacity-50 min-h-[48px]"
             >
-              {loading ? 'Création...' : 'Créer le dossier'}
+              {uploadStep
+                ? 'Envoi des fichiers...'
+                : loading
+                  ? 'Création...'
+                  : 'Créer le dossier'}
             </button>
           </div>
         </form>

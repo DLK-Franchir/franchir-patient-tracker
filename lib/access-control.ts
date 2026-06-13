@@ -46,6 +46,15 @@ export function canEditCommercialData(profile?: ProfileAccess | null): boolean {
   return canCreatePatient(profile)
 }
 
+/**
+ * Upload / suppression des fichiers patients (DICOM + documents) : réservé aux
+ * créateurs de dossier (marcel / franchir / admin). La simple consultation des
+ * fichiers reste ouverte à tout le staff actif (cf. isStaffProfile).
+ */
+export function canManagePatientDocuments(profile?: ProfileAccess | null): boolean {
+  return canCreatePatient(profile)
+}
+
 export function canEditPatientSummary(profile?: ProfileAccess | null): boolean {
   if (!assertStaffProfile(profile)) {
     return false

@@ -6,6 +6,7 @@ import { WorkflowActions, type SurgeonOption } from '@/components/workflow-actio
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
+import DocumentsSection from '@/components/patient/documents-section'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import { useRouter } from 'next/navigation'
 
@@ -158,6 +159,8 @@ export default function PatientDetailClient({
             userRole={userRole}
             onUpdate={handleUpdateSummary}
           />
+
+          <DocumentsSection patientId={patient.id} canManage={userRole !== 'gilles'} />
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="border-b border-gray-200">
