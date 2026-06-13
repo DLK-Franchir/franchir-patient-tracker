@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react'
 
 export default function NewPatientPage() {
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [summary, setSummary] = useState('')
   const [link, setLink] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,6 +23,7 @@ export default function NewPatientPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patient_name: name,
+          patient_email: email,
           clinical_summary: summary,
           sharepoint_link: link,
         }),
@@ -66,7 +68,19 @@ export default function NewPatientPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Résumé clinique minimal</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Email du patient *</label>
+            <input
+              type="email" required value={email} onChange={e => setEmail(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 text-base focus:ring-2 focus:ring-[#2563EB] outline-none"
+              placeholder="patient@example.com"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Le questionnaire est envoyé automatiquement à cette adresse dès la création du dossier
+              (revue médicale). Aucun chirurgien n&apos;est requis à ce stade.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Résumé pathologie / clinique</label>
             <textarea 
               value={summary} onChange={e => setSummary(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 text-base focus:ring-2 focus:ring-[#2563EB] outline-none" 

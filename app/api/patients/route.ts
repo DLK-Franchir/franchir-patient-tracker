@@ -8,10 +8,16 @@ const log = new Logger('api/patients')
 
 export async function POST(req: Request) {
   try {
-    const { patient_name, clinical_summary, sharepoint_link } = await req.json()
+    const { patient_name, patient_email, clinical_summary, sharepoint_link } = await req.json()
 
     if (!patient_name || !sharepoint_link) {
       return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
+    }
+
+    // Email patient (D1) : requis pour l'envoi automatique du questionnaire.
+    // Validation minimale (format) — la saisie complète est validée côté UI.
+    if (!patient_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patient_email)) {
+      return NextResponse.json({ error: 'Email patient invalide ou manquant' }, { status: 400 })
     }
 
     const supabase = await createServerClient()
@@ -38,6 +44,7 @@ export async function POST(req: Request) {
       .from('patients')
       .insert({
         patient_name,
+        patient_email,
         clinical_summary,
         sharepoint_link,
         current_status_id: status?.id,

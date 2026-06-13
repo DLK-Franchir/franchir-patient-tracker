@@ -32,10 +32,14 @@ export interface Surgeon {
 export interface Patient {
   id: string
   patient_name: string
+  patient_email: string | null
   clinical_summary: string | null
   sharepoint_link: string | null
   current_status_id: string | null
   assigned_surgeon_id: string | null
+  questionnaire_status: string | null
+  questionnaire_completed_at: string | null
+  questionnaire_summary: string | null
   created_by: string
   created_at: string
   updated_at: string

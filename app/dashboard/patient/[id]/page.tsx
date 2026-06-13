@@ -56,6 +56,13 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     .eq('patient_id', id)
     .order('created_at', { ascending: true })
 
+  // Annuaire chirurgiens actifs (id annuaire) pour l'assignation réelle — D6.
+  const { data: surgeons } = await supabase
+    .from('surgeons')
+    .select('id, full_name')
+    .eq('is_active', true)
+    .order('full_name', { ascending: true })
+
   return (
     <>
       <AppHeader userRole={userRole} userName={staffProfile.full_name ?? undefined} showActions={true} />
@@ -63,6 +70,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
         initialPatient={patient}
         initialMessages={allMessages || []}
         userRole={userRole}
+        surgeons={surgeons || []}
       />
     </>
   )

@@ -7,6 +7,8 @@ export const loginSchema = z.object({
 
 export const patientSchema = z.object({
   patient_name: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
+  // Email patient (D1) : requis pour l'envoi automatique du questionnaire.
+  patient_email: z.string().email('Email patient invalide'),
   clinical_summary: z.string().optional(),
   sharepoint_link: z.string().url('Lien SharePoint invalide').optional().or(z.literal('')),
 })

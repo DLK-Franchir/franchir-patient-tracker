@@ -9,11 +9,18 @@ import {
   SURGEONS,
 } from '@/lib/workflow-v2'
 
+export interface SurgeonOption {
+  id: string
+  full_name: string
+}
+
 interface WorkflowActionsProps {
   globalStatus: GlobalStatus
   userRole: UserRole
   quoteAccepted?: boolean
   dateAccepted?: boolean
+  /** Annuaire chirurgiens (id annuaire) pour l'assignation réelle — D6. */
+  surgeons?: SurgeonOption[]
   onAction: (actionId: string, data?: any) => Promise<void>
 }
 
@@ -22,6 +29,7 @@ export function WorkflowActions({
   userRole,
   quoteAccepted = false,
   dateAccepted = false,
+  surgeons = [],
   onAction,
 }: WorkflowActionsProps) {
   const [loading, setLoading] = useState(false)
@@ -93,6 +101,35 @@ export function WorkflowActions({
               </label>
             ))}
           </div>
+        </div>
+      )
+    }
+
+    if (input.type === 'surgeon_select') {
+      return (
+        <div key={input.type} className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            {input.label} {input.required && <span className="text-red-500">*</span>}
+          </label>
+          {surgeons.length === 0 ? (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              Aucun chirurgien dans l&apos;annuaire. Ajoutez des chirurgiens (avec leur email)
+              pour permettre l&apos;assignation et la visibilité côté questionnaires.
+            </p>
+          ) : (
+            <select
+              value={formData.surgeonId || ''}
+              onChange={(e) => setFormData({ ...formData, surgeonId: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg p-3 text-base text-gray-900 bg-white"
+            >
+              <option value="">— Sélectionner un chirurgien —</option>
+              {surgeons.map((surgeon) => (
+                <option key={surgeon.id} value={surgeon.id}>
+                  {surgeon.full_name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )
     }

@@ -78,7 +78,59 @@ export async function POST(
       if (data?.surgeons && data.surgeons.length > 0) {
         messageBody += `\n\nChirurgiens recommandés: ${data.surgeons.join(', ')}`
       }
+      // D6 : si un chirurgien réel (id annuaire) est fourni dès la validation,
+      // on l'assigne directement (écrit assigned_surgeon_id → enrichissement
+      // questionnaires via le webhook). L'assignation reste possible plus tard
+      // via l'action dédiée `assign_surgeon`.
+      if (data?.surgeonId) {
+        const { data: approveSurgeon } = await supabase
+          .from('surgeons')
+          .select('id, full_name')
+          .eq('id', data.surgeonId)
+          .single()
+        if (approveSurgeon) {
+          const { error: assignError } = await supabase
+            .from('patients')
+            .update({ assigned_surgeon_id: approveSurgeon.id })
+            .eq('id', patientId)
+          if (assignError) {
+            log.error('Erreur assignation chirurgien (approve_medical)', assignError)
+            return NextResponse.json({ error: assignError.message }, { status: 500 })
+          }
+          messageBody += `\n\nChirurgien assigné : ${approveSurgeon.full_name}`
+        }
+      }
       break
+
+    case 'assign_surgeon': {
+      // Étape 3 (D6) : écrit réellement assigned_surgeon_id. Le webhook UPDATE
+      // rejoue alors l'Edge Function qui enrichit surgeon_email côté
+      // questionnaires (le dossier devient visible du chirurgien assigné).
+      const surgeonId = data?.surgeonId
+      if (!surgeonId) {
+        return NextResponse.json({ error: 'Chirurgien manquant' }, { status: 400 })
+      }
+      const { data: assignSurgeon } = await supabase
+        .from('surgeons')
+        .select('id, full_name')
+        .eq('id', surgeonId)
+        .single()
+      if (!assignSurgeon) {
+        return NextResponse.json({ error: 'Chirurgien introuvable' }, { status: 400 })
+      }
+      const { error: surgeonUpdateError } = await supabase
+        .from('patients')
+        .update({ assigned_surgeon_id: assignSurgeon.id })
+        .eq('id', patientId)
+      if (surgeonUpdateError) {
+        log.error('Erreur assignation chirurgien', surgeonUpdateError)
+        return NextResponse.json({ error: surgeonUpdateError.message }, { status: 500 })
+      }
+      newStatusCode = 'sent_to_surgeon'
+      messageTitle = 'Chirurgien assigné'
+      messageBody = `Chirurgien assigné : ${assignSurgeon.full_name}. Le dossier est transmis au chirurgien.`
+      break
+    }
 
     case 'request_more_info':
       newStatusCode = 'need_info'

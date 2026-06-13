@@ -6,9 +6,16 @@
 //   - QUESTIONNAIRES_BRIDGE_URL : URL du récepteur questionnaires
 //   - TRACKER_SYNC_SERVICE_TOKEN : jeton partagé (même valeur que côté questionnaires)
 //
-// Adapté au schéma réel du tracker :
-//   patients(id, patient_name, clinical_summary, sharepoint_link,
-//            current_status_id, assigned_surgeon_id)
+// WORKFLOW RÉVISÉ (revue médicale d'abord, chirurgien plus tard) :
+//   - sync DÈS la création (INSERT), sans attendre un chirurgien ;
+//   - le chirurgien n'est joint QUE s'il existe (assigned_surgeon_id) → à
+//     l'UPDATE d'assignation, surgeon_email est enrichi côté questionnaires ;
+//   - l'email patient réel (patient_email, D1) est transmis pour l'envoi du
+//     lien de questionnaire.
+//
+// Schéma tracker utilisé :
+//   patients(id, patient_name, patient_email, clinical_summary,
+//            sharepoint_link, current_status_id, assigned_surgeon_id)
 //   surgeons(id, full_name, email)
 //   workflow_statuses(id, code)
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -29,18 +36,19 @@ Deno.serve(async (req) => {
     return new Response("Bad webhook payload", { status: 400 });
   }
 
-  // Chirurgien obligatoire côté questionnaires : on saute tant qu'il
-  // n'est pas assigné (le dossier partira au premier UPDATE d'assignation).
-  if (!record.assigned_surgeon_id) {
-    return new Response(null, { status: 204 });
-  }
+  // Le chirurgien est OPTIONNEL : on ne le joint que s'il est assigné. Un
+  // dossier sans chirurgien est créé en revue médicale côté questionnaires.
+  let surgeonEmail: string | null = null;
+  let surgeonName: string | null = null;
 
-  const [{ data: surgeon }, { data: status }] = await Promise.all([
-    supabase
-      .from("surgeons")
-      .select("full_name, email")
-      .eq("id", record.assigned_surgeon_id)
-      .single(),
+  const [surgeonResult, statusResult] = await Promise.all([
+    record.assigned_surgeon_id
+      ? supabase
+          .from("surgeons")
+          .select("full_name, email")
+          .eq("id", record.assigned_surgeon_id)
+          .single()
+      : Promise.resolve({ data: null }),
     record.current_status_id
       ? supabase
           .from("workflow_statuses")
@@ -50,9 +58,17 @@ Deno.serve(async (req) => {
       : Promise.resolve({ data: null }),
   ]);
 
-  if (!surgeon?.email) {
-    console.error("Surgeon without email, skipping sync", record.id);
-    return new Response(null, { status: 204 });
+  const surgeon = surgeonResult.data as { full_name: string | null; email: string | null } | null;
+  const status = statusResult.data as { code: string } | null;
+
+  if (record.assigned_surgeon_id && !surgeon?.email) {
+    // Chirurgien assigné mais sans email en annuaire : on logue et on
+    // synchronise quand même le dossier (sans surgeon_email) — l'enrichissement
+    // partira une fois l'email chirurgien renseigné dans l'annuaire.
+    console.error("Assigned surgeon without email, syncing without enrichment", record.id);
+  } else if (surgeon?.email) {
+    surgeonEmail = surgeon.email;
+    surgeonName = surgeon.full_name ?? null;
   }
 
   const response = await fetch(BRIDGE_URL, {
@@ -64,8 +80,11 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       trackerPatientId: record.id,
       patientName: record.patient_name,
-      assignedSurgeonEmail: surgeon.email,
-      assignedSurgeonName: surgeon.full_name ?? null,
+      patientEmail: record.patient_email ?? null,
+      // null tant qu'aucun chirurgien n'est assigné (revue médicale) ; posé à
+      // l'enrichissement (étape 3).
+      assignedSurgeonEmail: surgeonEmail,
+      assignedSurgeonName: surgeonName,
       clinicalSummary: record.clinical_summary ?? null,
       sharepointLink: record.sharepoint_link ?? null,
       workflowStatus: status?.code ?? null,

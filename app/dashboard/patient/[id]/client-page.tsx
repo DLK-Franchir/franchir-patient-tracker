@@ -2,7 +2,7 @@
 
 import { useState, lazy, Suspense } from 'react'
 import { WorkflowGuidance } from '@/components/workflow-guidance'
-import { WorkflowActions } from '@/components/workflow-actions'
+import { WorkflowActions, type SurgeonOption } from '@/components/workflow-actions'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
@@ -46,10 +46,12 @@ export default function PatientDetailClient({
   initialPatient,
   initialMessages,
   userRole,
+  surgeons = [],
 }: {
   initialPatient: PatientData
   initialMessages: Message[]
   userRole: UserRole
+  surgeons?: SurgeonOption[]
 }) {
   const router = useRouter()
   const [patient, setPatient] = useState(initialPatient)
@@ -139,6 +141,7 @@ export default function PatientDetailClient({
               userRole={userRole}
               quoteAccepted={patient.quote_accepted || false}
               dateAccepted={patient.date_accepted || false}
+              surgeons={surgeons}
               onAction={handleAction}
             />
           </div>
@@ -261,6 +264,7 @@ export default function PatientDetailClient({
                   userRole={userRole}
                   quoteAccepted={patient.quote_accepted || false}
                   dateAccepted={patient.date_accepted || false}
+                  surgeons={surgeons}
                   onAction={handleAction}
                 />
               </div>

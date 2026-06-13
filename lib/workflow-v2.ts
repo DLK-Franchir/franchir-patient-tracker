@@ -14,6 +14,7 @@ export type ActionId =
   | 'submit_to_medical'
   | 'resubmit_to_medical'
   | 'approve_medical'
+  | 'assign_surgeon'
   | 'request_more_info'
   | 'reject_medical'
   | 'confirm_quote'
@@ -183,7 +184,7 @@ export interface Action {
   targetGlobalStatus: GlobalStatus | 'stay'
   actionStatus?: ActionStatus
   requiresInput?: {
-    type: 'surgeons' | 'message' | 'justification' | 'budget' | 'dates'
+    type: 'surgeons' | 'surgeon_select' | 'message' | 'justification' | 'budget' | 'dates'
     label: string
     required: boolean
   }[]
@@ -385,6 +386,30 @@ export function getAvailableActions({
         }
       )
     }
+  }
+
+  // Étape 3 (D6) — Assignation chirurgien réelle (écrit assigned_surgeon_id, ce
+  // qui déclenche l'enrichissement surgeon_email côté questionnaires via le
+  // webhook UPDATE). Disponible après validation médicale (commercial_in_progress)
+  // pour la revue médicale (gilles/admin) et la coordination (marcel/franchir).
+  if (
+    globalStatus === 'commercial_in_progress' &&
+    (role === 'gilles' || role === 'admin' || role === 'marcel' || role === 'franchir')
+  ) {
+    result.secondaryActions.push({
+      id: 'assign_surgeon',
+      label: 'Assigner un chirurgien',
+      description: 'Désigner le chirurgien qui prend en charge le dossier (transmet le dossier au chirurgien)',
+      variant: 'secondary',
+      targetGlobalStatus: 'stay',
+      requiresInput: [
+        {
+          type: 'surgeon_select',
+          label: 'Chirurgien assigné',
+          required: true,
+        },
+      ],
+    })
   }
 
   console.log('🔍 [getAvailableActions] Returning result:', result)
