@@ -8,7 +8,18 @@ Application web sécurisée de gestion de parcours patients pour le réseau FRAN
 - **Backend & DB**: Supabase (Postgres + Auth + Realtime + RLS)
 - **Emails**: Resend
 - **Déploiement**: Vercel
-- **URL de production**: https://app.franchir.eu
+- **URL de production**: https://patients.franchir.eu
+
+> ⚠️ L'ancienne adresse `app.franchir.eu` ne sert plus le tracker (migration du site Franchir). L'URL de production officielle est désormais **`https://patients.franchir.eu`**.
+
+## Intégration & fonctionnalités récentes (juin 2026)
+
+Le tracker est l'**outil unique de pilotage multi-rôle** du parcours patient.
+
+- **Email patient** à la création : déclenche l'envoi automatique du questionnaire (revue médicale d'abord, chirurgien assigné plus tard).
+- **Upload DICOM + documents** (PDF, comptes rendus) à la création et depuis la fiche patient — stockage privé Supabase (`patient-documents`), visionneuse DICOM (dwv) et PDF intégrées. Remplace le lien SharePoint.
+- **Pont vers l'app questionnaires** (`vsnjahkrsqxbvspwhaka`) : à la création/MAJ d'un patient avec email, le dossier est synchronisé (Edge Function `sync-patient-to-questionnaires` + Database Webhook). Le chirurgien (optionnel) enrichit le dossier lors de l'assignation.
+- **Statut du questionnaire** remonté en retour (`questionnaire_status`/`_completed_at`/`_summary`) : Marcel voit quand le questionnaire est complété.
 
 ## Variables d'environnement
 
@@ -19,7 +30,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 RESEND_API_KEY=your_resend_api_key
-NEXT_PUBLIC_APP_URL=https://app.franchir.eu
+NEXT_PUBLIC_APP_URL=https://patients.franchir.eu
 ```
 
 ## Installation
