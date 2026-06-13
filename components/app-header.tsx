@@ -30,10 +30,10 @@ export default function AppHeader({ userRole, showActions = false }: AppHeaderPr
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition">
               <Image
-                src="https://franchir.eu/wp-content/uploads/2025/06/Franchir_Logo_3@4x-scaled.png"
+                src="/franchir-logo.png"
                 alt="FRANCHIR"
-                width={140}
-                height={45}
+                width={44}
+                height={44}
                 className="h-8 sm:h-11 w-auto"
                 priority
               />

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowLeft } from 'lucide-react'
 
 export default function NewPatientPage() {
@@ -45,17 +46,33 @@ export default function NewPatientPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition">
+              <Image
+                src="/franchir-logo.png"
+                alt="FRANCHIR"
+                width={44}
+                height={44}
+                className="h-8 sm:h-11 w-auto"
+                priority
+              />
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm text-gray-700 hover:text-[#2563EB] transition flex items-center gap-2 font-medium px-3 py-2 rounded-lg hover:bg-gray-50"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Retour au tableau
+            </Link>
+          </div>
+        </div>
+      </header>
+      <div className="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8">
+        <div className="mb-6 sm:mb-8">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Nouveau Patient</h1>
-          <Link 
-            href="/dashboard" 
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Retour au tableau
-          </Link>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6 bg-white p-4 sm:p-6 lg:p-8 rounded-xl shadow-sm border border-gray-200">

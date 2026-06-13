@@ -37,11 +37,11 @@ export default function LoginPage() {
       <div className="bg-white p-6 sm:p-8 rounded-xl shadow-xl w-full max-w-md">
         <div className="text-center mb-6 sm:mb-8">
           <Image
-            src="https://franchir.eu/wp-content/uploads/2025/06/Franchir_Logo_3@4x-scaled.png"
+            src="/franchir-logo.png"
             alt="FRANCHIR"
-            width={180}
-            height={60}
-            className="h-12 sm:h-14 w-auto mx-auto mb-4"
+            width={64}
+            height={64}
+            className="h-14 sm:h-16 w-auto mx-auto mb-4"
             priority
           />
           <p className="text-gray-600 text-sm sm:text-base">Gestion des parcours patients</p>
