@@ -4,7 +4,7 @@ Application web sécurisée de gestion de parcours patients pour le réseau FRAN
 
 ## Stack Technique
 
-- **Frontend**: Next.js 16 (App Router) + Tailwind CSS
+- **Frontend**: Next.js 16 (App Router) + Tailwind CSS + **dwv 0.36.3**
 - **Backend & DB**: Supabase (Postgres + Auth + Realtime + RLS)
 - **Emails**: Resend
 - **Déploiement**: Vercel
@@ -17,9 +17,66 @@ Application web sécurisée de gestion de parcours patients pour le réseau FRAN
 Le tracker est l'**outil unique de pilotage multi-rôle** du parcours patient.
 
 - **Email patient** à la création : déclenche l'envoi automatique du questionnaire (revue médicale d'abord, chirurgien assigné plus tard).
-- **Upload DICOM + documents** (PDF, comptes rendus) à la création et depuis la fiche patient — stockage privé Supabase (`patient-documents`), visionneuse DICOM (dwv) et PDF intégrées. Remplace le lien SharePoint.
+- **Upload DICOM + documents** (PDF, comptes rendus) à la création et depuis la fiche patient — stockage privé Supabase (`patient-documents`), visionneuse DICOM et PDF intégrées. Remplace le lien SharePoint.
 - **Pont vers l'app questionnaires** (`vsnjahkrsqxbvspwhaka`) : à la création/MAJ d'un patient avec email, le dossier est synchronisé (Edge Function `sync-patient-to-questionnaires` + Database Webhook). Le chirurgien (optionnel) enrichit le dossier lors de l'assignation.
 - **Statut du questionnaire** remonté en retour (`questionnaire_status`/`_completed_at`/`_summary`) : Marcel voit quand le questionnaire est complété.
+
+## Imagerie & visionneuse DICOM
+
+### Stockage & upload
+
+| Bucket | Projet | Contenu |
+|--------|--------|---------|
+| `patient-documents` | Tracker (`zdmeidekszdrzmjuasee`) | DICOM + PDF/images uploadés par Marcel |
+| `patient-images` | Questionnaires (`vsnjahkrsqxbvspwhaka`) | Imagerie patient + forward depuis Marcel |
+
+- Upload depuis la fiche patient (`components/patient/document-upload.tsx`) :
+  fichiers isolés ou **import dossier CD DICOM** (`lib/imaging/dicom-folder-import.ts`).
+- Détection magic bytes, regroupement par dossier série (`SE00000x`), ignore
+  `DICOMDIR` / compagnons CD. Déduplication basename + taille à l'affichage
+  clinicien (fusion avec le forward).
+- Signed upload direct Storage (DICOM volumineux — pas de transit via Vercel).
+
+### Visionneuse DICOM (dwv 0.36.3)
+
+Orchestrateur : `components/patient/dicom-viewer.tsx` (~528 lignes).
+Modules sous `components/patient/dicom-viewer/` (**parité fonctionnelle** avec
+le portail clinicien questionnaires — pas de package partagé) :
+
+| Module | Rôle |
+|--------|------|
+| `dicom-viewer-types.ts` | Types, presets fenêtrage, erreurs codec (FR) |
+| `dicom-viewer-app.ts` | App dwv, outils WindowLevel / Zoom / Scroll |
+| `dicom-viewer-layout.ts` | Layout canvas (retries) |
+| `dicom-viewer-info.tsx` | Bulle d'état utilisateur |
+| `dicom-viewer-stack.ts` | Mode **stack** (volume homogène) |
+| `dicom-viewer-pool.ts` | Préchargement parallèle (concurrence max **4**) |
+| `dicom-viewer-sequential.ts` | Mode **séquentiel** (séries hétérogènes) |
+
+Intégration : `components/patient/documents-section.tsx` (grille + visionneuse
+plein écran, lazy-load SSR-off). UI française, états chargement/rendu, messages
+explicites transfer syntax non supportée.
+
+**Dev** : workers codec dans `public/dwv-workers/` ; rewrites `next.config.ts` +
+chemins publics `proxy.ts` (`/dwv-workers`, `/assets/workers`). Pool précharge
+avec `visibility:hidden` (pas `display:none`).
+
+### Pont imagerie Marcel ↔ cockpit chir
+
+```
+Marcel upload → patient-documents
+              → forward signed → patient-images (questionnaires)
+Clinicien     → patient-images + GET patient-documents (complément)
+Marcel fiche  → patient-documents + GET patient-images (questionnaire patient)
+```
+
+| Direction | Endpoint | Auth |
+|-----------|----------|------|
+| Tracker → questionnaires (forward) | `POST …/imaging-sign-upload` | `TRACKER_SYNC_SERVICE_TOKEN` |
+| Tracker → questionnaires (lecture) | `GET …/patient-images` | idem |
+| Questionnaires → tracker (complément clinicien) | `GET …/patient-documents` | `TRACKER_RETURN_TOKEN` |
+
+Corrélation : `patients.id` = `neuro_patients.external_tracker_id` (questionnaires).
 
 ## Variables d'environnement
 
@@ -32,6 +89,23 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 RESEND_API_KEY=your_resend_api_key
 NEXT_PUBLIC_APP_URL=https://patients.franchir.eu
 ```
+
+### Pont questionnaires (si activé)
+
+```env
+# Sortant tracker → questionnaires
+TRACKER_SYNC_SERVICE_TOKEN=          # même valeur côté questionnaires (entrant)
+QUESTIONNAIRES_API_BASE=https://franchir-questionnaires-patients.vercel.app/api/integrations/tracker
+QUESTIONNAIRES_IMAGING_SIGN_URL=     # optionnel — défaut {API_BASE}/imaging-sign-upload
+QUESTIONNAIRES_IMAGING_URL=          # legacy multipart (~4 Mo)
+QUESTIONNAIRES_PORTAL_URL=https://franchir-questionnaires-patients.vercel.app
+
+# Entrant questionnaires → tracker (callback + pont imagerie retour)
+TRACKER_RETURN_TOKEN=                # même valeur côté questionnaires (sortant)
+```
+
+Edge Function `sync-patient-to-questionnaires` : `QUESTIONNAIRES_BRIDGE_URL`,
+`TRACKER_SYNC_SERVICE_TOKEN`.
 
 ## Installation
 
@@ -48,38 +122,51 @@ Ouvrir [http://localhost:3000](http://localhost:3000)
 franchir-patient-tracker/
 ├── app/
 │   ├── api/
-│   │   ├── notify/route.ts              # Route email générique
+│   │   ├── integrations/
+│   │   │   └── questionnaires/        # callback session-status, patient-documents
+│   │   ├── notify/route.ts
 │   │   ├── patients/
-│   │   │   ├── route.ts                 # Création de patient + notifications
+│   │   │   ├── route.ts
 │   │   │   └── [id]/
-│   │   │       ├── change-status/       # Actions workflow + notifications
-│   │   │       ├── commercial-data/     # Mise à jour données commerciales
-│   │   │       ├── messages/            # Envoi de messages + notifications
-│   │   │       └── update-summary/      # Mise à jour résumé clinique
-│   │   └── vitals/route.ts              # Web vitals logging
-│   ├── auth/signout/                    # Déconnexion
+│   │   │       ├── change-status/
+│   │   │       ├── commercial-data/
+│   │   │       ├── documents/           # liste + signed upload DICOM/docs
+│   │   │       ├── messages/
+│   │   │       ├── questionnaires-imaging/  # lecture imagerie questionnaires
+│   │   │       └── update-summary/
+│   │   └── vitals/route.ts
+│   ├── auth/signout/
 │   ├── dashboard/
-│   │   ├── page.tsx                     # Tableau des patients
-│   │   ├── new/page.tsx                 # Formulaire nouveau patient
-│   │   └── patient/[id]/page.tsx        # Détail patient
-│   ├── login/page.tsx                   # Connexion
-│   └── layout.tsx                       # Layout racine + Analytics
+│   │   ├── page.tsx
+│   │   ├── new/page.tsx                 # création + upload DICOM initial
+│   │   └── patient/[id]/page.tsx        # fiche + documents + visionneuse
+│   ├── login/page.tsx
+│   └── layout.tsx
 ├── components/
-│   ├── ui/                              # Composants UI réutilisables
-│   └── workflow-actions.tsx             # Panel d'actions workflow
+│   ├── patient/
+│   │   ├── dicom-viewer.tsx             # orchestrateur visionneuse DICOM
+│   │   ├── dicom-viewer/                # modules dwv (stack, pool, sequential…)
+│   │   ├── documents-section.tsx        # grille + viewer plein écran
+│   │   └── document-upload.tsx          # upload + import dossier CD
+│   ├── ui/
+│   └── workflow-actions.tsx
 ├── lib/
-│   ├── email-config.ts                  # Mapping rôles → emails réels
-│   ├── email-templates.ts               # Templates HTML des emails
-│   ├── logger.ts                        # Logger structuré
-│   ├── notifications.ts                 # Utilitaires notifications + emails
-│   ├── permissions.ts                   # Règles d'autorisation par rôle
-│   ├── validations.ts                   # Schémas Zod
-│   ├── workflow-v2.ts                   # Moteur de workflow
+│   ├── documents/                       # règles patient-documents, upload client
+│   ├── imaging/                         # import CD, détection DICOM, séries
+│   ├── integrations/                    # forward-imaging, fetch questionnaires
+│   ├── email-config.ts
+│   ├── email-templates.ts
+│   ├── logger.ts
+│   ├── notifications.ts
+│   ├── permissions.ts
+│   ├── validations.ts
+│   ├── workflow-v2.ts
 │   └── supabase/
-│       ├── client.ts                    # Client Supabase (navigateur)
-│       └── server.ts                    # Client Supabase (serveur)
-├── middleware.ts                        # Protection des routes
-└── supabase-schema.sql                  # Schéma de base de données
+│       ├── client.ts
+│       └── server.ts
+├── proxy.ts                             # auth + workers dwv publics
+├── public/dwv-workers/                  # codecs JPEG-LS, J2K, etc.
+└── supabase-schema.sql
 ```
 
 ## Utilisateurs et Rôles
@@ -153,6 +240,9 @@ git push origin main
 ```
 
 Les variables d'environnement sont configurées dans le dashboard Vercel.
+
+**DICOM en production** : vérifier que `/dwv-workers/*` reste accessible sans
+session (`proxy.ts` — requis pour décoder JPEG Lossless / JPEG-LS).
 
 ## Développement
 
