@@ -34,7 +34,9 @@ type DwvLoadEvent = {
 
 type ViewerStatus = 'loading' | 'rendering' | 'ready' | 'error'
 
-type ViewerInfoKind = 'loading' | 'single' | 'stack' | 'partial' | 'error'
+type ViewerInfoKind = 'loading' | 'single' | 'stack' | 'partial' | 'sequential' | 'error'
+
+type NavMode = 'stack' | 'sequential'
 
 export type DicomViewerProps = {
   urls: string[]
@@ -110,6 +112,18 @@ function ViewerInfoBubble({
     )
   }
 
+  if (kind === 'sequential') {
+    return (
+      <span
+        className="inline-flex max-w-md items-center gap-2 rounded-lg border border-sky-400/40 bg-sky-950/70 px-3 py-1.5 text-xs font-medium text-sky-50 shadow-sm"
+        data-testid="dicom-info-bubble"
+      >
+        <Info className="size-3.5 shrink-0 text-sky-300" strokeWidth={1.75} aria-hidden="true" />
+        Série de {fileCount} fichiers — navigation fichier par fichier (← →)
+      </span>
+    )
+  }
+
   if (kind === 'single') {
     return (
       <span
@@ -161,6 +175,8 @@ export default function DicomViewer({
   const [activePreset, setActivePreset] = useState<WlPresetId | null>(null)
   const [sliceIndex, setSliceIndex] = useState(0)
   const [sliceCount, setSliceCount] = useState(1)
+  const [navMode, setNavMode] = useState<NavMode>('stack')
+  const [fileIndex, setFileIndex] = useState(0)
 
   const fileCount = urls.length
   const isBusy = status === 'loading' || status === 'rendering'
@@ -176,11 +192,13 @@ export default function DicomViewer({
     ? 'loading'
     : status === 'error'
       ? 'error'
-      : fileCount > 1 && sliceCount > 1 && fileCount > sliceCount
-        ? 'partial'
-        : sliceCount > 1
-          ? 'stack'
-          : 'single'
+      : navMode === 'sequential' && fileCount > 1
+        ? 'sequential'
+        : fileCount > 1 && sliceCount > 1 && fileCount > sliceCount
+          ? 'partial'
+          : sliceCount > 1
+            ? 'stack'
+            : 'single'
 
   const activateTool = useCallback((next: DicomTool) => {
     const app = appRef.current
@@ -224,6 +242,10 @@ export default function DicomViewer({
 
   const navigateSlice = useCallback(
     (delta: 1 | -1) => {
+      if (navMode === 'sequential' && fileCount > 1) {
+        setFileIndex((prev) => Math.max(0, Math.min(fileCount - 1, prev + delta)))
+        return
+      }
       const controller = getViewController()
       if (!controller) return
       try {
@@ -234,7 +256,7 @@ export default function DicomViewer({
         /* single-frame data has no scroll dimension */
       }
     },
-    [getViewController],
+    [navMode, fileCount, getViewController],
   )
 
   const handleKeyDown = useCallback(
@@ -269,6 +291,8 @@ export default function DicomViewer({
     setProgress(0)
     setSliceIndex(0)
     setSliceCount(1)
+    setNavMode('stack')
+    setFileIndex(0)
     setActivePreset(null)
     setErrorMessage(null)
   }
@@ -280,12 +304,20 @@ export default function DicomViewer({
     const seriesUrls = urlsKey.split('\n').filter(Boolean)
     if (seriesUrls.length === 0) return
 
+    setStatus('loading')
+    setProgress(0)
+    setErrorMessage(null)
+
+    const urlsToLoad =
+      navMode === 'sequential' ? [seriesUrls[fileIndex] ?? seriesUrls[0]!] : seriesUrls
+
     let disposed = false
     let loadSucceeded = false
     let readyFallbackId: number | null = null
     let renderReadyId: number | null = null
     let layoutTimerIds: number[] = []
     let resizeRaf: number | null = null
+    let pendingSequentialSwitch = false
 
     const app = new App()
     appRef.current = app
@@ -299,7 +331,21 @@ export default function DicomViewer({
     }
     app.init(options)
 
+    const hasRenderableImage = () => {
+      try {
+        const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer()
+        if (!viewLayer) return false
+        return Boolean(app.getData(viewLayer.getDataId())?.image)
+      } catch {
+        return false
+      }
+    }
+
     const readSlicePosition = () => {
+      if (navMode === 'sequential') {
+        setSliceIndex(fileIndex)
+        return
+      }
       try {
         const controller = app
           .getActiveLayerGroup()
@@ -327,27 +373,25 @@ export default function DicomViewer({
     }
 
     const publishSliceCount = (navCount: number) => {
-      setSliceCount(navCount)
-      onSliceCountResolvedRef.current?.(Math.max(navCount, seriesUrls.length))
+      const effective =
+        navMode === 'sequential' && seriesUrls.length > 1 ? seriesUrls.length : navCount
+      setSliceCount(effective)
+      onSliceCountResolvedRef.current?.(effective)
     }
 
-    const resolveNavSliceCount = () => {
-      const fromDwv = readSliceCount()
-      if (fromDwv <= 1 && seriesUrls.length > 1) {
-        return seriesUrls.length
-      }
-      return fromDwv
+    const needsSequentialFallback = () => {
+      if (seriesUrls.length <= 1) return false
+      const dwvCount = readSliceCount()
+      const hasImage = hasRenderableImage()
+      return !hasImage || dwvCount < seriesUrls.length
     }
 
     const publishResolvedSliceCount = () => {
-      publishSliceCount(resolveNavSliceCount())
-      if (seriesUrls.length > 1) {
-        requestAnimationFrame(() => {
-          if (disposed) return
-          const refined = readSliceCount()
-          if (refined >= 1) publishSliceCount(refined)
-        })
+      if (navMode === 'sequential') {
+        publishSliceCount(seriesUrls.length)
+        return
       }
+      publishSliceCount(readSliceCount())
     }
 
     const scheduleLayout = () => {
@@ -375,6 +419,14 @@ export default function DicomViewer({
 
     const finalizeLoad = () => {
       if (disposed || loadSucceeded) return
+
+      if (navMode === 'stack' && needsSequentialFallback()) {
+        pendingSequentialSwitch = true
+        setNavMode('sequential')
+        setFileIndex(0)
+        return
+      }
+
       loadSucceeded = true
       if (readyFallbackId !== null) {
         window.clearTimeout(readyFallbackId)
@@ -399,6 +451,12 @@ export default function DicomViewer({
       publishResolvedSliceCount()
       readSlicePosition()
       renderReadyId = window.setTimeout(() => {
+        if (navMode === 'stack' && !hasRenderableImage() && seriesUrls.length > 1) {
+          pendingSequentialSwitch = true
+          setNavMode('sequential')
+          setFileIndex(0)
+          return
+        }
         markReady()
       }, 550)
     }
@@ -411,7 +469,7 @@ export default function DicomViewer({
         setProgress(pct)
         if (pct >= 100 && readyFallbackId === null) {
           readyFallbackId = window.setTimeout(() => {
-            if (!disposed && !loadSucceeded) {
+            if (!disposed && !loadSucceeded && !pendingSequentialSwitch) {
               finalizeLoad()
             }
           }, 600)
@@ -433,12 +491,23 @@ export default function DicomViewer({
       if (disposed) return
       const message = typeof event.error === 'string' ? event.error : event.error?.message ?? null
       console.error('[DicomViewer] load error', message ?? event)
-      if (message) setErrorMessage(message)
+      const fileLabel =
+        navMode === 'sequential' && seriesUrls.length > 1
+          ? ` (fichier ${fileIndex + 1}/${seriesUrls.length})`
+          : ''
+      if (message) setErrorMessage(`${message}${fileLabel}`)
       if (!loadSucceeded) {
         const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer()
         const hasImage = Boolean(viewLayer && app.getData(viewLayer.getDataId())?.image)
         if (hasImage) {
           finalizeLoad()
+        } else if (navMode === 'sequential' && seriesUrls.length > 1 && fileIndex < seriesUrls.length - 1) {
+          setErrorMessage(
+            `Fichier ${fileIndex + 1} illisible — passez au suivant avec →${message ? ` (${message})` : ''}`,
+          )
+          setStatus('ready')
+          publishSliceCount(seriesUrls.length)
+          setSliceIndex(fileIndex)
         } else {
           setStatus('error')
         }
@@ -452,13 +521,18 @@ export default function DicomViewer({
     app.addEventListener('error', onError)
 
     const failTimer = window.setTimeout(() => {
-      if (!disposed && !loadSucceeded) {
-        setStatus('error')
-        setErrorMessage('délai de chargement dépassé')
+      if (!disposed && !loadSucceeded && !pendingSequentialSwitch) {
+        if (navMode === 'stack' && seriesUrls.length > 1) {
+          setNavMode('sequential')
+          setFileIndex(0)
+        } else {
+          setStatus('error')
+          setErrorMessage('délai de chargement dépassé')
+        }
       }
     }, 120_000)
 
-    app.loadURLs(seriesUrls)
+    app.loadURLs(urlsToLoad.filter(Boolean))
 
     const resizeObserver = new ResizeObserver((entries) => {
       if (disposed) return
@@ -502,7 +576,7 @@ export default function DicomViewer({
       if (node) node.replaceChildren()
       appRef.current = null
     }
-  }, [urlsKey, layerGroupId])
+  }, [urlsKey, layerGroupId, navMode, fileIndex])
 
   useEffect(() => {
     if (status === 'ready') {
@@ -542,12 +616,17 @@ export default function DicomViewer({
         ? `Chargement de la série (${fileCount} fichiers)…`
         : "Chargement de l'image…"
 
+  const displaySliceIndex = navMode === 'sequential' ? fileIndex : sliceIndex
+  const canNavigateSlices = isReady && sliceCount > 1
+
   const hint =
-    tool === 'Scroll' && sliceCount > 1
-      ? 'Molette ou ← → : changer de coupe'
-      : tool === 'ZoomAndPan'
-        ? 'Glisser : déplacer · molette : zoom'
-        : 'Glisser : ajuster le fenêtrage (activez Coupes pour naviguer)'
+    navMode === 'sequential' && sliceCount > 1
+      ? '← → : fichier précédent / suivant'
+      : tool === 'Scroll' && sliceCount > 1
+        ? 'Molette ou ← → : changer de coupe'
+        : tool === 'ZoomAndPan'
+          ? 'Glisser : déplacer · molette : zoom'
+          : 'Glisser : ajuster le fenêtrage (activez Coupes pour naviguer)'
 
   return (
     <div
@@ -670,13 +749,13 @@ export default function DicomViewer({
           Réinitialiser
         </button>
 
-        {isReady && sliceCount > 1 ? (
+        {canNavigateSlices ? (
           <div className="flex items-center gap-1 ml-2">
             <button
               type="button"
               onClick={() => navigateSlice(-1)}
-              disabled={sliceIndex <= 0}
-              aria-label="Coupe précédente"
+              disabled={displaySliceIndex <= 0}
+              aria-label={navMode === 'sequential' ? 'Fichier précédent' : 'Coupe précédente'}
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
@@ -687,13 +766,13 @@ export default function DicomViewer({
               aria-live="polite"
               data-testid="dicom-slice-indicator"
             >
-              {Math.min(sliceIndex + 1, sliceCount)} / {sliceCount}
+              {displaySliceIndex + 1} / {sliceCount}
             </span>
             <button
               type="button"
               onClick={() => navigateSlice(1)}
-              disabled={sliceIndex >= sliceCount - 1}
-              aria-label="Coupe suivante"
+              disabled={displaySliceIndex >= sliceCount - 1}
+              aria-label={navMode === 'sequential' ? 'Fichier suivant' : 'Coupe suivante'}
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
             >
               Suiv.
