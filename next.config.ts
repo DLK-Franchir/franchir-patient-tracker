@@ -1,6 +1,24 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // dwv (DICOM viewer) charge ses codec web workers depuis `./assets/workers/`.
+  // Fichiers vendored dans `public/dwv-workers/` (JPEG-LS, J2K, etc.).
+  async rewrites() {
+    return {
+      afterFiles: [
+        {
+          source: '/:prefix*/assets/workers/:file',
+          destination: '/dwv-workers/:file',
+        },
+        {
+          source: '/assets/workers/:file',
+          destination: '/dwv-workers/:file',
+        },
+      ],
+      beforeFiles: [],
+      fallback: [],
+    }
+  },
   images: {
     remotePatterns: [
       {
