@@ -36,6 +36,14 @@ type DocumentsSectionProps = {
 type ViewerItem =
   | { kind: 'file'; doc: PatientDocument }
   | { kind: 'dicom-series'; name: string; urls: string[]; firstUrl: string }
+  | { kind: 'questionnaire-file'; name: string; url: string; renderType: 'image' | 'pdf' | 'dicom' }
+  | { kind: 'questionnaire-dicom-series'; name: string; urls: string[]; firstUrl: string }
+
+type QuestionnaireImagingFile = {
+  name: string
+  url: string
+  type: 'image' | 'pdf' | 'dicom'
+}
 
 /**
  * Regroupe tous les DICOM en une seule entrée « série » (chargée d'un bloc dans
@@ -64,8 +72,37 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   return items
 }
 
+function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): ViewerItem[] {
+  const items: ViewerItem[] = []
+  const dicomFiles = files.filter((f) => f.type === 'dicom')
+  let seriesInserted = false
+
+  for (const file of files) {
+    if (file.type !== 'dicom') {
+      items.push({
+        kind: 'questionnaire-file',
+        name: file.name,
+        url: file.url,
+        renderType: file.type,
+      })
+      continue
+    }
+    if (seriesInserted) continue
+    seriesInserted = true
+    items.push({
+      kind: 'questionnaire-dicom-series',
+      name: dicomFiles.length > 1 ? `Série DICOM patient (${dicomFiles.length} coupes)` : file.name,
+      urls: dicomFiles.map((f) => f.url),
+      firstUrl: file.url,
+    })
+  }
+
+  return items
+}
+
 export default function DocumentsSection({ patientId, canManage }: DocumentsSectionProps) {
   const [documents, setDocuments] = useState<PatientDocument[]>([])
+  const [questionnaireFiles, setQuestionnaireFiles] = useState<QuestionnaireImagingFile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
@@ -74,16 +111,29 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const items = useMemo(() => buildViewerItems(documents), [documents])
+  const items = useMemo(
+    () => [...buildViewerItems(documents), ...buildQuestionnaireViewerItems(questionnaireFiles)],
+    [documents, questionnaireFiles],
+  )
 
   const fetchDocuments = useCallback(async () => {
     try {
-      const res = await fetch(`/api/patients/${patientId}/documents`, { cache: 'no-store' })
-      if (!res.ok) {
+      const [docsRes, qRes] = await Promise.all([
+        fetch(`/api/patients/${patientId}/documents`, { cache: 'no-store' }),
+        fetch(`/api/patients/${patientId}/questionnaires-imaging`, { cache: 'no-store' }),
+      ])
+      if (!docsRes.ok) {
         throw new Error('Échec du chargement des fichiers')
       }
-      const data = await res.json()
+      const data = await docsRes.json()
       setDocuments(data.documents ?? [])
+
+      if (qRes.ok) {
+        const qData = await qRes.json()
+        setQuestionnaireFiles(qData.files ?? [])
+      } else {
+        setQuestionnaireFiles([])
+      }
       setError(null)
     } catch {
       setError('Impossible de charger les fichiers du patient.')
@@ -140,7 +190,9 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       ? ''
       : selectedItem.kind === 'file'
         ? selectedItem.doc.fileName
-        : selectedItem.name
+        : selectedItem.kind === 'questionnaire-file' || selectedItem.kind === 'questionnaire-dicom-series'
+          ? selectedItem.name
+          : selectedItem.name
 
   return (
     <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -207,14 +259,23 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {items.map((item, index) => {
-            const isDicom = item.kind === 'dicom-series'
+            const isDicom = item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series'
             const doc = item.kind === 'file' ? item.doc : null
+            const qFile = item.kind === 'questionnaire-file' ? item : null
+            const itemKey =
+              item.kind === 'file'
+                ? item.doc.id
+                : item.kind === 'dicom-series'
+                  ? 'dicom-series'
+                  : item.kind === 'questionnaire-dicom-series'
+                    ? 'questionnaire-dicom-series'
+                    : `q-${item.name}-${index}`
             return (
-              <div key={isDicom ? 'dicom-series' : item.doc.id} className="group relative">
+              <div key={itemKey} className="group relative">
                 <button
                   type="button"
                   onClick={() => setSelectedIndex(index)}
-                  aria-label={`Voir ${isDicom ? item.name : item.doc.fileName}`}
+                  aria-label={`Voir ${isDicom ? item.name : doc ? doc.fileName : qFile!.name}`}
                   className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 >
                   {isDicom ? (
@@ -224,25 +285,35 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                         DICOM
                       </span>
                     </div>
-                  ) : doc!.renderType === 'image' ? (
+                  ) : doc && doc.renderType === 'image' ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={doc!.url}
-                      alt={doc!.fileName}
+                      src={doc.url}
+                      alt={doc.fileName}
+                      className="w-full h-28 object-cover group-hover:opacity-90 transition"
+                    />
+                  ) : qFile && qFile.renderType === 'image' ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qFile.url}
+                      alt={qFile.name}
                       className="w-full h-28 object-cover group-hover:opacity-90 transition"
                     />
                   ) : (
                     <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-blue-50">
                       <FileText className="w-7 h-7 text-[#2563EB]" strokeWidth={1.75} />
                       <span className="text-[10px] font-bold tracking-wide text-[#2563EB] uppercase">
-                        {doc!.renderType === 'pdf' ? 'PDF' : 'Fichier'}
+                        {doc?.renderType === 'pdf' || qFile?.renderType === 'pdf' ? 'PDF' : 'Fichier'}
                       </span>
                     </div>
                   )}
                   <div className="px-2 py-1.5 bg-white">
                     <p className="text-xs font-medium text-gray-700 truncate text-center">
-                      {isDicom ? item.name : doc!.fileName}
+                      {isDicom ? item.name : doc ? doc.fileName : qFile!.name}
                     </p>
+                    {(qFile || item.kind === 'questionnaire-dicom-series') && (
+                      <p className="text-[10px] text-emerald-700 truncate text-center">Via questionnaire patient</p>
+                    )}
                   </div>
                 </button>
                 {canManage && doc && (
@@ -289,6 +360,23 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     <span className="hidden sm:inline">Télécharger</span>
                   </a>
                 )}
+                {(selectedItem.kind === 'questionnaire-file' ||
+                  selectedItem.kind === 'questionnaire-dicom-series') && (
+                  <a
+                    href={
+                      selectedItem.kind === 'questionnaire-file'
+                        ? selectedItem.url
+                        : selectedItem.firstUrl
+                    }
+                    download={
+                      selectedItem.kind === 'questionnaire-file' ? selectedItem.name : undefined
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Télécharger</span>
+                  </a>
+                )}
                 {items.length > 1 && (
                   <>
                     <button
@@ -328,24 +416,44 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             </div>
 
             <div className="flex items-center justify-center min-h-[400px] max-h-[75vh] bg-[#0B1020]">
-              {selectedItem.kind === 'dicom-series' ? (
+              {selectedItem.kind === 'dicom-series' || selectedItem.kind === 'questionnaire-dicom-series' ? (
                 <div className="w-full h-[70vh]">
-                  <DicomViewer urls={selectedItem.urls} name={selectedItem.name} />
+                  <DicomViewer
+                    urls={
+                      selectedItem.kind === 'dicom-series'
+                        ? selectedItem.urls
+                        : selectedItem.urls
+                    }
+                    name={selectedItem.name}
+                  />
                 </div>
-              ) : selectedItem.doc.renderType === 'image' ? (
+              ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'image' ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={selectedItem.doc.url}
                   alt={selectedItem.doc.fileName}
                   className="max-w-full max-h-[70vh] object-contain"
                 />
-              ) : selectedItem.doc.renderType === 'pdf' ? (
+              ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'image' ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selectedItem.url}
+                  alt={selectedItem.name}
+                  className="max-w-full max-h-[70vh] object-contain"
+                />
+              ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'pdf' ? (
                 <iframe
                   src={selectedItem.doc.url}
                   title={selectedItem.doc.fileName}
                   className="w-full h-[70vh] bg-white"
                 />
-              ) : (
+              ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'pdf' ? (
+                <iframe
+                  src={selectedItem.url}
+                  title={selectedItem.name}
+                  className="w-full h-[70vh] bg-white"
+                />
+              ) : selectedItem.kind === 'file' ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
                   <FileText className="w-10 h-10 text-white/70" strokeWidth={1.5} />
                   <p className="text-sm text-white/80">
@@ -360,7 +468,22 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     Télécharger le fichier
                   </a>
                 </div>
-              )}
+              ) : selectedItem.kind === 'questionnaire-file' ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
+                  <FileText className="w-10 h-10 text-white/70" strokeWidth={1.5} />
+                  <p className="text-sm text-white/80">
+                    Aperçu non disponible pour ce type de fichier.
+                  </p>
+                  <a
+                    href={selectedItem.url}
+                    download={selectedItem.name}
+                    className="mt-1 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    Télécharger le fichier
+                  </a>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

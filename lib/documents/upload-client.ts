@@ -24,6 +24,9 @@ const SIGN_BATCH_SIZE = 50
 /** Uploads parallèles simultanés (évite de saturer le réseau du navigateur). */
 const UPLOAD_CONCURRENCY = 4
 
+/** Sous-lot pour les URLs signées côté portail questionnaires (Option A). */
+const QUESTIONNAIRES_SIGN_BATCH_SIZE = 20
+
 type SignedUpload = {
   fileName: string
   path: string
@@ -54,6 +57,44 @@ function chunk<T>(items: T[], size: number): T[][] {
 async function parseError(res: Response, fallback: string): Promise<string> {
   const data = await res.json().catch(() => ({}))
   return (data as { error?: string }).error || fallback
+}
+
+/**
+ * Best-effort : pousse les mêmes octets vers le bucket patient-images du portail
+ * questionnaires via URLs signées (sans limite serverless). N'interrompt jamais
+ * l'upload local tracker.
+ */
+async function forwardBatchToQuestionnaires(
+  patientId: string,
+  batch: File[],
+): Promise<void> {
+  try {
+    const signRes = await fetch(`/api/patients/${patientId}/questionnaires-imaging/sign-upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files: batch.map((f) => ({ name: f.name, size: f.size, type: f.type || null })),
+      }),
+    })
+    if (!signRes.ok) return
+
+    const { uploads } = (await signRes.json()) as { uploads?: SignedUpload[] }
+    if (!uploads?.length) return
+
+    await Promise.all(
+      uploads.map(async (upload, index) => {
+        const file = batch[index]
+        if (!file) return
+        await fetch(upload.signedUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        })
+      }),
+    )
+  } catch {
+    // Fire-and-forget : l'imagerie reste dans le tracker (source de vérité locale).
+  }
 }
 
 /**
@@ -112,6 +153,13 @@ export async function uploadPatientDocuments(
         }),
       )
     }
+
+    // Option A : remonte aussi vers le portail chirurgien (upload direct cross-projet).
+    await Promise.all(
+      chunk(batch, QUESTIONNAIRES_SIGN_BATCH_SIZE).map((qBatch) =>
+        forwardBatchToQuestionnaires(patientId, qBatch),
+      ),
+    )
   }
 
   // 3. Enregistre les métadonnées (route légère : aucun octet).
