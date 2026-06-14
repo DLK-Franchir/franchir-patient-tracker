@@ -32,7 +32,9 @@ type DwvLoadEvent = {
   error?: { message?: string } | string
 }
 
-type ViewerInfoKind = 'loading' | 'single' | 'stack' | 'error'
+type ViewerStatus = 'loading' | 'rendering' | 'ready' | 'error'
+
+type ViewerInfoKind = 'loading' | 'single' | 'stack' | 'partial' | 'error'
 
 export type DicomViewerProps = {
   urls: string[]
@@ -52,23 +54,29 @@ let layerGroupCounter = 0
 function ViewerInfoBubble({
   kind,
   sliceCount,
+  fileCount,
   errorMessage,
 }: {
   kind: ViewerInfoKind
   sliceCount: number
+  fileCount: number
   errorMessage?: string | null
 }) {
   if (kind === 'loading') {
+    const label =
+      fileCount > 1
+        ? `Chargement de la série (${fileCount} fichiers)…`
+        : "Chargement de l'image…"
     return (
       <span
-        className="inline-flex max-w-xs items-center gap-2 rounded-lg border border-white/25 bg-slate-950/90 px-3 py-1.5 text-xs font-medium text-white shadow-sm"
+        className="inline-flex max-w-sm items-center gap-2 rounded-lg border border-amber-400/35 bg-amber-950/80 px-3 py-1.5 text-xs font-medium text-amber-50 shadow-sm"
         data-testid="dicom-info-bubble"
       >
         <span
-          className="inline-block size-3 shrink-0 rounded-full border-2 border-white/20 border-t-white animate-spin"
+          className="inline-block size-3 shrink-0 rounded-full border-2 border-amber-200/30 border-t-amber-100 animate-spin"
           aria-hidden
         />
-        Chargement en cours…
+        {label}
       </span>
     )
   }
@@ -86,6 +94,18 @@ function ViewerInfoBubble({
             ? ` — ${errorMessage}`
             : ' — format non pris en charge, fichier corrompu ou lien expiré'}
         </span>
+      </span>
+    )
+  }
+
+  if (kind === 'partial') {
+    return (
+      <span
+        className="inline-flex max-w-md items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-950/70 px-3 py-1.5 text-xs font-medium text-amber-50 shadow-sm"
+        data-testid="dicom-info-bubble"
+      >
+        <Info className="size-3.5 shrink-0 text-amber-300" strokeWidth={1.75} aria-hidden="true" />
+        Série de {fileCount} fichiers — {sliceCount} coupe{sliceCount > 1 ? 's navigables' : ' navigable'}
       </span>
     )
   }
@@ -134,7 +154,7 @@ export default function DicomViewer({
 
   onSliceCountResolvedRef.current = onSliceCountResolved
 
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [status, setStatus] = useState<ViewerStatus>('loading')
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [tool, setTool] = useState<DicomTool>('WindowLevel')
@@ -142,14 +162,25 @@ export default function DicomViewer({
   const [sliceIndex, setSliceIndex] = useState(0)
   const [sliceCount, setSliceCount] = useState(1)
 
+  const fileCount = urls.length
+  const isBusy = status === 'loading' || status === 'rendering'
+  const isReady = status === 'ready'
+
   const seriesCount = series?.length ?? 0
   const hasSeriesNav = seriesCount > 1 && onNextSeries && onPrevSeries
   const showHeader = Boolean(fullscreen || onClose || hasSeriesNav)
   const atFirstSeries = activeSeriesIndex <= 0
   const atLastSeries = seriesCount > 0 ? activeSeriesIndex >= seriesCount - 1 : true
 
-  const infoKind: ViewerInfoKind =
-    status === 'loading' ? 'loading' : status === 'error' ? 'error' : sliceCount > 1 ? 'stack' : 'single'
+  const infoKind: ViewerInfoKind = isBusy
+    ? 'loading'
+    : status === 'error'
+      ? 'error'
+      : fileCount > 1 && sliceCount > 1 && fileCount > sliceCount
+        ? 'partial'
+        : sliceCount > 1
+          ? 'stack'
+          : 'single'
 
   const activateTool = useCallback((next: DicomTool) => {
     const app = appRef.current
@@ -252,6 +283,8 @@ export default function DicomViewer({
     let disposed = false
     let loadSucceeded = false
     let readyFallbackId: number | null = null
+    let renderReadyId: number | null = null
+    let layoutTimerIds: number[] = []
     let resizeRaf: number | null = null
 
     const app = new App()
@@ -293,12 +326,12 @@ export default function DicomViewer({
       }
     }
 
-    const publishSliceCount = (count: number) => {
-      setSliceCount(count)
-      onSliceCountResolvedRef.current?.(count)
+    const publishSliceCount = (navCount: number) => {
+      setSliceCount(navCount)
+      onSliceCountResolvedRef.current?.(Math.max(navCount, seriesUrls.length))
     }
 
-    const resolveSliceCount = () => {
+    const resolveNavSliceCount = () => {
       const fromDwv = readSliceCount()
       if (fromDwv <= 1 && seriesUrls.length > 1) {
         return seriesUrls.length
@@ -307,14 +340,37 @@ export default function DicomViewer({
     }
 
     const publishResolvedSliceCount = () => {
-      publishSliceCount(resolveSliceCount())
+      publishSliceCount(resolveNavSliceCount())
       if (seriesUrls.length > 1) {
         requestAnimationFrame(() => {
           if (disposed) return
           const refined = readSliceCount()
-          if (refined > 1) publishSliceCount(refined)
+          if (refined >= 1) publishSliceCount(refined)
         })
       }
+    }
+
+    const scheduleLayout = () => {
+      for (const ms of [0, 50, 150, 400, 800]) {
+        layoutTimerIds.push(
+          window.setTimeout(() => {
+            if (disposed || !loadSucceeded) return
+            try {
+              app.fitToContainer()
+              app.onResize()
+            } catch {
+              /* layout may fail before canvas is ready */
+            }
+          }, ms),
+        )
+      }
+    }
+
+    const markReady = () => {
+      if (disposed) return
+      publishResolvedSliceCount()
+      readSlicePosition()
+      setStatus('ready')
     }
 
     const finalizeLoad = () => {
@@ -324,14 +380,8 @@ export default function DicomViewer({
         window.clearTimeout(readyFallbackId)
         readyFallbackId = null
       }
-      requestAnimationFrame(() => {
-        if (disposed) return
-        app.fitToContainer()
-        requestAnimationFrame(() => {
-          if (disposed) return
-          app.onResize()
-        })
-      })
+      setStatus('rendering')
+      scheduleLayout()
       const controller = app
         .getActiveLayerGroup()
         ?.getActiveViewLayer()
@@ -348,7 +398,9 @@ export default function DicomViewer({
       setTool('WindowLevel')
       publishResolvedSliceCount()
       readSlicePosition()
-      setStatus('ready')
+      renderReadyId = window.setTimeout(() => {
+        markReady()
+      }, 550)
     }
 
     const onLoadProgress = (event: DwvLoadEvent) => {
@@ -426,6 +478,8 @@ export default function DicomViewer({
     return () => {
       disposed = true
       if (readyFallbackId !== null) window.clearTimeout(readyFallbackId)
+      if (renderReadyId !== null) window.clearTimeout(renderReadyId)
+      for (const id of layoutTimerIds) window.clearTimeout(id)
       if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
       window.clearTimeout(failTimer)
       resizeObserver.disconnect()
@@ -478,8 +532,15 @@ export default function DicomViewer({
   const tools: { id: DicomTool; label: string; available: boolean }[] = [
     { id: 'WindowLevel', label: 'Fenêtrage', available: true },
     { id: 'ZoomAndPan', label: 'Zoom / Déplacement', available: true },
-    { id: 'Scroll', label: 'Coupes', available: sliceCount > 1 },
+    { id: 'Scroll', label: 'Coupes', available: isReady && sliceCount > 1 },
   ]
+
+  const viewportMessage =
+    status === 'rendering'
+      ? "Rendu de l'image…"
+      : fileCount > 1
+        ? `Chargement de la série (${fileCount} fichiers)…`
+        : "Chargement de l'image…"
 
   const hint =
     tool === 'Scroll' && sliceCount > 1
@@ -509,7 +570,12 @@ export default function DicomViewer({
                 </span>
               ) : null}
             </div>
-            <ViewerInfoBubble kind={infoKind} sliceCount={sliceCount} errorMessage={errorMessage} />
+            <ViewerInfoBubble
+              kind={infoKind}
+              sliceCount={sliceCount}
+              fileCount={fileCount}
+              errorMessage={errorMessage}
+            />
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -562,7 +628,7 @@ export default function DicomViewer({
               key={t.id}
               type="button"
               onClick={() => activateTool(t.id)}
-              disabled={status !== 'ready'}
+              disabled={!isReady}
               aria-pressed={tool === t.id}
               className="rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:opacity-30"
               style={{
@@ -581,7 +647,7 @@ export default function DicomViewer({
             key={preset.id}
             type="button"
             onClick={() => applyWindowPreset(preset)}
-            disabled={status !== 'ready'}
+            disabled={!isReady}
             aria-pressed={activePreset === preset.id}
             aria-label={`Preset fenêtrage ${preset.label}`}
             className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition disabled:opacity-30"
@@ -598,18 +664,18 @@ export default function DicomViewer({
         <button
           type="button"
           onClick={handleReset}
-          disabled={status !== 'ready'}
+          disabled={!isReady}
           className="rounded-lg px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
         >
           Réinitialiser
         </button>
 
-        {sliceCount > 1 && (
+        {isReady && sliceCount > 1 ? (
           <div className="flex items-center gap-1 ml-2">
             <button
               type="button"
               onClick={() => navigateSlice(-1)}
-              disabled={status !== 'ready' || sliceIndex <= 0}
+              disabled={sliceIndex <= 0}
               aria-label="Coupe précédente"
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
             >
@@ -626,7 +692,7 @@ export default function DicomViewer({
             <button
               type="button"
               onClick={() => navigateSlice(1)}
-              disabled={status !== 'ready' || sliceIndex >= sliceCount - 1}
+              disabled={sliceIndex >= sliceCount - 1}
               aria-label="Coupe suivante"
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
             >
@@ -634,10 +700,15 @@ export default function DicomViewer({
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </button>
           </div>
-        )}
+        ) : null}
 
         {!showHeader ? (
-          <ViewerInfoBubble kind={infoKind} sliceCount={sliceCount} errorMessage={errorMessage} />
+          <ViewerInfoBubble
+            kind={infoKind}
+            sliceCount={sliceCount}
+            fileCount={fileCount}
+            errorMessage={errorMessage}
+          />
         ) : null}
 
         <span className="ml-auto text-[11px] text-white/40 hidden sm:block">{hint}</span>
@@ -653,19 +724,23 @@ export default function DicomViewer({
       >
         <div ref={containerRef} id={layerGroupId} className="absolute inset-0" />
 
-        {status === 'loading' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
+        {isBusy ? (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none bg-[#0B1020]/85"
+            data-testid="dicom-viewport-overlay"
+          >
             <div
-              className="h-8 w-8 rounded-full border-2 border-white/20 border-t-white animate-spin"
+              className="h-8 w-8 rounded-full border-2 border-amber-200/30 border-t-amber-100 animate-spin"
               aria-hidden
             />
-            <p className="text-xs text-white/60">
-              Chargement du DICOM… {progress > 0 ? `${progress}%` : ''}
-            </p>
+            <p className="max-w-xs px-4 text-center text-sm font-medium text-white/90">{viewportMessage}</p>
+            {status === 'loading' && progress > 0 ? (
+              <p className="text-xs tabular-nums text-white/50">{progress} %</p>
+            ) : null}
           </div>
-        )}
+        ) : null}
 
-        {status === 'error' && (
+        {status === 'error' ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
             <AlertTriangle className="size-8 text-white/80" strokeWidth={1.75} aria-hidden="true" />
             <p className="text-sm font-medium text-white">Impossible d&apos;afficher ce DICOM</p>
@@ -681,7 +756,7 @@ export default function DicomViewer({
               Télécharger le fichier
             </a>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
