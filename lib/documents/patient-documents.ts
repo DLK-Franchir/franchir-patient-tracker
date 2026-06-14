@@ -14,11 +14,21 @@ import { z } from 'zod'
 
 export const PATIENT_DOCUMENTS_BUCKET = 'patient-documents'
 
-/** Les séries DICOM et scans haute résolution peuvent être lourds : 50 Mo max. */
-export const MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024
+/**
+ * Taille max par fichier : 100 Mo. Les séries DICOM et scans haute résolution
+ * peuvent être lourds. Depuis l'upload DIRECT navigateur → Storage (URLs signées),
+ * les octets ne transitent plus par la fonction serverless (plus de limite
+ * pratique de ~4,5 Mo par requête) : seule cette limite par fichier subsiste.
+ */
+export const MAX_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
 
-/** Plafond de fichiers par requête d'upload (séries DICOM = nombreux fichiers). */
-export const MAX_DOCUMENTS_PER_REQUEST = 50
+/**
+ * Plafond de fichiers par lot (un dossier DICOM = des centaines de coupes).
+ * L'upload direct ne fait plus transiter les octets par la fonction : ce plafond
+ * n'est qu'un garde-fou large contre un import accidentel massif. Le client
+ * découpe l'émission des URLs signées en sous-lots.
+ */
+export const MAX_DOCUMENTS_PER_REQUEST = 1000
 
 /** TTL des URLs signées (PHI) : court, régénéré à chaque affichage. */
 export const SIGNED_URL_TTL_SECONDS = 300
@@ -96,6 +106,57 @@ export function isAllowedDocumentFile(name: string, type: string | null | undefi
   }
   const ext = getFileExtension(name)
   return ext !== null && ALLOWED_DOCUMENT_EXTENSIONS.has(ext)
+}
+
+/**
+ * Fichiers parasites couramment présents sur les CD/DVD d'imagerie médicale
+ * (index DICOMDIR, visionneuses embarquées, autorun, vignettes système…). Lors
+ * d'un import de DOSSIER (`webkitdirectory`), on les ignore SILENCIEUSEMENT :
+ * ils ne sont ni de l'imagerie ni des documents cliniques et feraient échouer
+ * la validation pour rien.
+ */
+const IGNORABLE_COMPANION_EXTENSIONS = new Set<string>([
+  'exe',
+  'bat',
+  'cmd',
+  'com',
+  'dll',
+  'ini',
+  'inf',
+  'sh',
+  'app',
+  'jar',
+  'msi',
+  'dmg',
+  'so',
+  'db',
+  'lnk',
+])
+
+const IGNORABLE_COMPANION_BASENAMES = new Set<string>([
+  'dicomdir',
+  'autorun.inf',
+  'autorun',
+  'thumbs.db',
+  '.ds_store',
+  'desktop.ini',
+  'readme',
+  'readme.txt',
+  'lisezmoi.txt',
+])
+
+/**
+ * Vrai si le fichier est un parasite de CD/visionneuse à ignorer en silence
+ * (pas une erreur de validation). Couvre DICOMDIR, exécutables/visionneuses et
+ * fichiers système. Les fichiers cachés (`.qqch`) sont également ignorés.
+ */
+export function isIgnorableCompanionFile(name: string): boolean {
+  const base = (name.split(/[\\/]/).pop() ?? name).trim().toLowerCase()
+  if (base.length === 0) return true
+  if (base.startsWith('.')) return true
+  if (IGNORABLE_COMPANION_BASENAMES.has(base)) return true
+  const ext = getFileExtension(base)
+  return ext !== null && IGNORABLE_COMPANION_EXTENSIONS.has(ext)
 }
 
 /** Détermine le type de rendu UI d'un fichier depuis son nom et son mime. */
@@ -197,9 +258,28 @@ export function validateDocumentFile(file: {
 export const DOCUMENT_VALIDATION_MESSAGES: Record<DocumentValidationError, string> = {
   filename_required: 'Nom de fichier manquant',
   empty_file: 'Fichier vide',
-  file_too_large: 'Fichier trop volumineux (max 50 Mo)',
+  file_too_large: 'Fichier trop volumineux (max 100 Mo)',
   unsupported_type: 'Type de fichier non pris en charge (DICOM, PDF ou image)',
 }
+
+/**
+ * Métadonnée d'un fichier à enregistrer APRÈS un upload direct navigateur →
+ * Storage (URL signée). La route de finalisation ne reçoit QUE ces métadonnées
+ * (jamais les octets) : `path` est la clé Storage retournée par la signature,
+ * re-validée serveur (anti-IDOR) avant l'INSERT dans patient_documents.
+ */
+export const finalizeDocumentSchema = z.object({
+  path: z.string().min(1).max(500),
+  fileName: z.string().min(1).max(255),
+  size: z.number().int().nonnegative(),
+  type: z.string().max(255).nullable().optional(),
+})
+
+export type FinalizeDocumentInput = z.infer<typeof finalizeDocumentSchema>
+
+export const finalizeDocumentsRequestSchema = z.object({
+  documents: z.array(finalizeDocumentSchema).min(1).max(MAX_DOCUMENTS_PER_REQUEST),
+})
 
 /** Métadonnées d'un document telles que renvoyées par l'API au navigateur. */
 export type PatientDocument = {

@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import DocumentUpload from '@/components/patient/document-upload'
+import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
@@ -99,18 +100,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     if (pendingFiles.length === 0) return
     setUploading(true)
     try {
-      const formData = new FormData()
-      for (const file of pendingFiles) {
-        formData.append('files', file)
-      }
-      const res = await fetch(`/api/patients/${patientId}/documents`, {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error(data.error || "Échec de l'upload")
-      }
+      // Upload DIRECT navigateur → Storage (URLs signées) : pas de limite serverless.
+      await uploadPatientDocuments(patientId, pendingFiles)
       setPendingFiles([])
       setShowUpload(false)
       await fetchDocuments()

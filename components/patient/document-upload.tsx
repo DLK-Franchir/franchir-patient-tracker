@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { UploadCloud, X, FileText, Brain, ImageIcon } from 'lucide-react'
+import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp } from 'lucide-react'
 import {
   validateDocumentFile,
   inferRenderType,
+  isIgnorableCompanionFile,
   DOCUMENT_VALIDATION_MESSAGES,
   MAX_DOCUMENTS_PER_REQUEST,
   type DocumentRenderType,
@@ -39,6 +40,7 @@ function RenderTypeIcon({ type }: { type: DocumentRenderType }) {
 
 export default function DocumentUpload({ files, onChange, disabled = false }: DocumentUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
 
@@ -49,6 +51,11 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
       const accepted: File[] = []
 
       for (const file of list) {
+        // Fichiers parasites de CD/visionneuse (DICOMDIR, exe, .DS_Store…) :
+        // ignorés SILENCIEUSEMENT lors d'un import de dossier, pas une erreur.
+        if (isIgnorableCompanionFile(file.name)) {
+          continue
+        }
         const validationError = validateDocumentFile({
           name: file.name,
           size: file.size,
@@ -138,7 +145,7 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
           Glissez-déposez vos fichiers ou cliquez pour parcourir
         </p>
         <p className="text-xs text-gray-500">
-          Imagerie DICOM (.dcm) · PDF · images (JPG, PNG…) — 50 Mo max par fichier
+          Imagerie DICOM (.dcm) · PDF · images (JPG, PNG…) — 100 Mo max par fichier
         </p>
         <input
           ref={inputRef}
@@ -153,6 +160,36 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
             e.target.value = ''
           }}
         />
+        {/* Import de DOSSIER (CD DICOM avec sous-dossiers). webkitdirectory n'est
+            pas typé standard → cast. Les fichiers parasites sont filtrés. */}
+        <input
+          ref={folderInputRef}
+          type="file"
+          className="hidden"
+          disabled={disabled}
+          {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+          onChange={(e) => {
+            if (e.target.files?.length) addFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => folderInputRef.current?.click()}
+          className="inline-flex items-center gap-1.5 text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium disabled:opacity-50"
+        >
+          <FolderUp className="w-4 h-4" aria-hidden="true" />
+          Importer un dossier (CD DICOM)
+        </button>
+        {files.length > 0 && (
+          <span className="text-xs text-gray-500">
+            {files.length} fichier{files.length > 1 ? 's' : ''} importé{files.length > 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {errors.length > 0 && (

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft } from 'lucide-react'
 import DocumentUpload from '@/components/patient/document-upload'
+import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 
 export default function NewPatientPage() {
   const [name, setName] = useState('')
@@ -44,19 +45,14 @@ export default function NewPatientPage() {
       // le dossier (déjà créé) : on redirige vers la fiche pour réessayer.
       if (files.length > 0 && patientId) {
         setUploadStep(true)
-        const formData = new FormData()
-        for (const file of files) {
-          formData.append('files', file)
-        }
-        const uploadRes = await fetch(`/api/patients/${patientId}/documents`, {
-          method: 'POST',
-          body: formData,
-        })
-        if (!uploadRes.ok) {
-          const uploadData = await uploadRes.json().catch(() => ({}))
+        // Upload DIRECT navigateur → Storage (URLs signées) : aucun octet ne
+        // transite par la fonction serverless → plus de limite de taille/nombre.
+        try {
+          await uploadPatientDocuments(patientId, files)
+        } catch (uploadErr) {
           alert(
             'Le dossier a été créé, mais l\'envoi des fichiers a échoué : ' +
-              (uploadData.error || 'erreur inconnue') +
+              (uploadErr instanceof Error ? uploadErr.message : 'erreur inconnue') +
               '. Vous pourrez les ajouter depuis la fiche patient.'
           )
         }

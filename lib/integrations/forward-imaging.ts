@@ -17,6 +17,7 @@
  * corrélation établie.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('forward-imaging')
@@ -26,6 +27,27 @@ export type ForwardableFile = {
   type: string | null
   data: ArrayBuffer
 }
+
+/**
+ * Référence à un objet déjà stocké (upload direct navigateur → Storage). Les
+ * octets ne sont plus en mémoire côté serveur : on les relit depuis le bucket
+ * au moment du forward (best-effort).
+ */
+export type ForwardableObject = {
+  path: string
+  name: string
+  type: string | null
+}
+
+/**
+ * Plafond de taille pour le forward d'un fichier vers le récepteur
+ * questionnaires : ce dernier reçoit l'imagerie en multipart via une fonction
+ * serverless (~4,5 Mo par requête). On ne forwarde donc QUE les fichiers
+ * raisonnablement petits (comptes rendus, images), un par requête. L'imagerie
+ * lourde reste consultable dans le tracker (source de vérité) ; le forward est
+ * best-effort et documenté comme tel.
+ */
+const FORWARD_MAX_FILE_SIZE = 4 * 1024 * 1024
 
 export async function forwardImagingToQuestionnaires(
   trackerPatientId: string,
@@ -59,5 +81,44 @@ export async function forwardImagingToQuestionnaires(
     }
   } catch (error) {
     log.error('Échec transfert imagerie vers questionnaires', error)
+  }
+}
+
+/**
+ * Variante pour l'upload DIRECT (Item A) : les octets ne transitent plus par la
+ * fonction, on les relit donc depuis le bucket pour les forwarder. Best-effort,
+ * fire-and-forget : ne lève jamais. Les fichiers > FORWARD_MAX_FILE_SIZE sont
+ * ignorés (le récepteur questionnaires est multipart serverless, ~4,5 Mo par
+ * requête) ; ils restent consultables dans le tracker (source de vérité).
+ */
+export async function forwardImagingFromStorage(
+  service: SupabaseClient,
+  bucket: string,
+  trackerPatientId: string,
+  objects: ForwardableObject[],
+): Promise<void> {
+  const url = process.env.QUESTIONNAIRES_IMAGING_URL
+  const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
+  if (!url || !token || objects.length === 0) return
+
+  for (const object of objects) {
+    try {
+      const { data, error } = await service.storage.from(bucket).download(object.path)
+      if (error || !data) {
+        log.error('Lecture objet à forwarder échouée', { status: 'download_failed' })
+        continue
+      }
+      if (data.size > FORWARD_MAX_FILE_SIZE) {
+        // Trop volumineux pour le récepteur serverless : ignoré (best-effort).
+        continue
+      }
+
+      const arrayBuffer = await data.arrayBuffer()
+      await forwardImagingToQuestionnaires(trackerPatientId, [
+        { name: object.name, type: object.type, data: arrayBuffer },
+      ])
+    } catch (error) {
+      log.error('Échec forward objet depuis Storage', error)
+    }
   }
 }
