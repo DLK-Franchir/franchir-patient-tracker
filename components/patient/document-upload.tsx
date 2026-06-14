@@ -15,6 +15,7 @@ import {
   configureWebkitDirectoryInput,
   pickDirectoryViaFileSystemAccess,
   snapshotFileList,
+  supportsDirectoryPicker,
 } from '@/lib/imaging/directory-picker'
 
 /**
@@ -138,9 +139,17 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
             count: s.files.length,
           })),
         )
+        const existingKeys = new Set(files.map((f) => `${f.name}:${f.size}:${f.lastModified}`))
+        const newFileCount = prepared.filter(
+          (f) => !existingKeys.has(`${f.name}:${f.size}:${f.lastModified}`),
+        ).length
+
         mergeAccepted(prepared)
 
         const notes: string[] = []
+        if (newFileCount === 0) {
+          notes.push('Ce dossier est deja importe (fichiers identiques).')
+        }
         if (result.ignoredCompanionCount > 0) {
           notes.push(`${result.ignoredCompanionCount} fichier(s) parasite(s) ignore(s)`)
         }
@@ -169,21 +178,31 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
     [disabled, mergeAccepted],
   )
 
-  const openFolderPicker = useCallback(async () => {
+  const openFolderPicker = useCallback(() => {
     if (disabled || folderImporting) return
 
-    try {
-      const outcome = await pickDirectoryViaFileSystemAccess()
-      if (outcome.status === 'cancelled') return
-      if (outcome.status === 'picked') {
-        await handleFolderImport(outcome.result.files)
-        return
-      }
-    } catch {
-      // Repli webkitdirectory (Safari/Firefox ou API indisponible).
+    // Safari/Firefox : le click() doit rester synchrone dans le geste utilisateur.
+    if (!supportsDirectoryPicker()) {
+      setFolderError(null)
+      folderInputRef.current?.click()
+      return
     }
 
-    folderInputRef.current?.click()
+    void (async () => {
+      try {
+        const outcome = await pickDirectoryViaFileSystemAccess()
+        if (outcome.status === 'cancelled') return
+        if (outcome.status === 'picked') {
+          await handleFolderImport(outcome.result.files)
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Impossible d'ouvrir le selecteur de dossier."
+        setFolderError(message)
+      }
+    })()
   }, [disabled, folderImporting, handleFolderImport])
 
   const handleDrop = useCallback(
