@@ -61,3 +61,41 @@ export async function revokeQuestionnaireLink(trackerPatientId: string): Promise
     return false
   }
 }
+
+function isQuestionnaireCompletedOnPortal(status: QuestionnaireStatus): boolean {
+  if (status.activeLink?.completedAt) return true
+  return status.sessions.some((s) => s.status === 'completed')
+}
+
+/**
+ * Rattrapage best-effort : si le portail questionnaires indique une complétion
+ * mais que le tracker est encore en `sent`/NULL (callback retour manqué en prod),
+ * on aligne le sous-état local. Idempotent ; ne rétrograde jamais un `completed`.
+ */
+export async function reconcileQuestionnaireCompletion(
+  trackerPatientId: string,
+  portalStatus: QuestionnaireStatus | null,
+  currentTrackerStatus: string | null | undefined,
+): Promise<boolean> {
+  if (currentTrackerStatus === 'completed' || !portalStatus) return false
+  if (!isQuestionnaireCompletedOnPortal(portalStatus)) return false
+
+  const completedSession = portalStatus.sessions.find((s) => s.status === 'completed')
+  const completedAt =
+    portalStatus.activeLink?.completedAt ?? completedSession?.completedAt ?? new Date().toISOString()
+
+  const { createServiceRoleClient } = await import('@/lib/supabase/service-role')
+  const supabase = createServiceRoleClient()
+  const { error } = await supabase
+    .from('patients')
+    .update({
+      questionnaire_status: 'completed',
+      questionnaire_completed_at: completedAt,
+      questionnaire_summary:
+        'Questionnaire complété par le patient (rattrapage automatique depuis le portail).',
+    })
+    .eq('id', trackerPatientId)
+    .neq('questionnaire_status', 'completed')
+
+  return !error
+}
