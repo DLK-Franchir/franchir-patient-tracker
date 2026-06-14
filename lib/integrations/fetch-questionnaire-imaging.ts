@@ -12,6 +12,7 @@ export type QuestionnaireImagingFile = {
   name: string
   url: string
   type: 'image' | 'pdf' | 'dicom'
+  size?: number | null
 }
 
 export async function fetchQuestionnairePatientImages(
