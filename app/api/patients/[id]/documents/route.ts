@@ -30,8 +30,16 @@ import {
   DOCUMENT_VALIDATION_MESSAGES,
 } from '@/lib/documents/patient-documents'
 import { Logger } from '@/lib/logger'
+import { forwardImagingToQuestionnaires, type ForwardableFile } from '@/lib/integrations/forward-imaging'
 
 const log = new Logger('api/patients/documents')
+
+/** Imagerie remontée au portail chirurgien : DICOM, PDF de compte rendu, images. */
+function isForwardableImaging(file: { type: string | null }, kind: string): boolean {
+  if (kind === 'dicom') return true
+  const t = (file.type ?? '').toLowerCase()
+  return t === 'application/pdf' || t.startsWith('image/')
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -141,6 +149,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const uploaded: string[] = []
+  const forwardable: ForwardableFile[] = []
   try {
     const now = Date.now()
     const rows: Array<{
@@ -172,9 +181,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
       uploaded.push(objectKey)
 
+      const kind = inferDocumentKind(file.name, file.type)
+      if (isForwardableImaging({ type: file.type || null }, kind)) {
+        forwardable.push({ name: file.name, type: file.type || null, data: arrayBuffer })
+      }
+
       rows.push({
         patient_id: patientId,
-        kind: inferDocumentKind(file.name, file.type),
+        kind,
         file_path: objectKey,
         file_name: file.name,
         mime_type: file.type || null,
@@ -191,6 +205,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (insertError) {
       throw new Error(`insert metadata: ${insertError.message}`)
     }
+
+    // Option A : remonte l'imagerie vers le portail chirurgien (questionnaires).
+    // Best-effort : n'altère jamais la réponse d'upload (stockage tracker = vérité).
+    await forwardImagingToQuestionnaires(patientId, forwardable)
 
     return NextResponse.json({ success: true, count: inserted?.length ?? rows.length })
   } catch (error) {
