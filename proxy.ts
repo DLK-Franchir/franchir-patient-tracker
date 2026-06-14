@@ -2,7 +2,10 @@ import { createServerClient } from '@supabase/ssr'
 import { isStaffProfile } from '@/lib/access-control'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/auth']
+// `/api/integrations` = endpoints machine-à-machine (callback questionnaires →
+// tracker) authentifiés par service-token, SANS session navigateur : ils ne
+// doivent jamais être redirigés vers /login par le middleware d'auth.
+const PUBLIC_PATHS = ['/login', '/auth', '/api/integrations']
 
 export async function updateSession(request: NextRequest) {
   try {
