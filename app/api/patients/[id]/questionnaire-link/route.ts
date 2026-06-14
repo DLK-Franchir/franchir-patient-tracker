@@ -59,6 +59,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = await req.json().catch(() => ({}))
   const newSession = Boolean(body?.newSession)
 
+  // Règle métier (item 7) : un dossier dont le questionnaire est déjà complété
+  // ne peut PLUS recevoir de lien (ni renvoi, ni nouveau questionnaire de suivi).
+  // Une nouvelle évaluation nécessite un NOUVEAU dossier patient → 409.
+  const guard = createServiceRoleClient()
+  const { data: existing } = await guard
+    .from('patients')
+    .select('questionnaire_status')
+    .eq('id', patientId)
+    .maybeSingle()
+  if (existing?.questionnaire_status === 'completed') {
+    return NextResponse.json(
+      {
+        error:
+          'Questionnaire déjà complété — pour une nouvelle évaluation, créez un nouveau dossier patient.',
+      },
+      { status: 409 },
+    )
+  }
+
   try {
     const response = await fetch(QUESTIONNAIRE_LINK_URL, {
       method: 'POST',
@@ -74,6 +93,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (response.status === 404) {
         return NextResponse.json(
           { error: "Le dossier n'est pas encore synchronisé côté questionnaires. Réessayez dans un instant." },
+          { status: 409 },
+        )
+      }
+      if (response.status === 409) {
+        return NextResponse.json(
+          {
+            error:
+              'Questionnaire déjà complété — pour une nouvelle évaluation, créez un nouveau dossier patient.',
+          },
           { status: 409 },
         )
       }

@@ -376,35 +376,39 @@ export default function PatientDetailClient({
               )}
 
               {canManageQuestionnaire && (
-                <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                  <button
-                    onClick={() => handleQuestionnaireLink(false)}
-                    disabled={questionnaireLoading}
-                    className="w-full text-sm bg-[#2563EB] text-white px-3 py-2 rounded-md font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition"
-                  >
-                    {questionnaireLoading
-                      ? 'Envoi…'
-                      : patient.questionnaire_status
-                        ? 'Renvoyer le lien'
-                        : 'Générer et envoyer le lien'}
-                  </button>
-                  <button
-                    onClick={() => handleQuestionnaireLink(true)}
-                    disabled={questionnaireLoading}
-                    className="w-full text-sm border border-gray-300 text-gray-700 px-3 py-2 rounded-md font-medium hover:bg-gray-50 disabled:opacity-50 transition"
-                  >
-                    Nouveau questionnaire (suivi)
-                  </button>
-                  {questionnaireStatus?.activeLink && (
+                patient.questionnaire_status === 'completed' ? (
+                  // Règle métier (item 7) : questionnaire complété = non refaisable
+                  // via un nouveau lien. Une nouvelle évaluation nécessite un
+                  // nouveau dossier patient.
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                      Questionnaire complété — pour une nouvelle évaluation, créez un nouveau dossier patient.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
                     <button
-                      onClick={handleRevokeLink}
+                      onClick={() => handleQuestionnaireLink(false)}
                       disabled={questionnaireLoading}
-                      className="w-full text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-md disabled:opacity-50 transition"
+                      className="w-full text-sm bg-[#2563EB] text-white px-3 py-2 rounded-md font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition"
                     >
-                      Révoquer le lien actif
+                      {questionnaireLoading
+                        ? 'Envoi…'
+                        : patient.questionnaire_status
+                          ? 'Renvoyer le lien'
+                          : 'Générer et envoyer le lien'}
                     </button>
-                  )}
-                </div>
+                    {questionnaireStatus?.activeLink && (
+                      <button
+                        onClick={handleRevokeLink}
+                        disabled={questionnaireLoading}
+                        className="w-full text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-md disabled:opacity-50 transition"
+                      >
+                        Révoquer le lien actif
+                      </button>
+                    )}
+                  </div>
+                )
               )}
 
               {questionnaireStatus?.activeLink && (
