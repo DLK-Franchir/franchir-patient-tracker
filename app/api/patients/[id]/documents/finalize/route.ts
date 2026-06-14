@@ -22,6 +22,7 @@ import {
   inferDocumentKind,
   isObjectKeyOwnedByPatient,
 } from '@/lib/documents/patient-documents'
+import { forwardDocumentsViaSignedUpload } from '@/lib/integrations/forward-imaging'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('api/patients/documents/finalize')
@@ -95,6 +96,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     log.error('Erreur insertion métadonnées documents', insertError)
     return NextResponse.json({ error: "Échec de l'enregistrement des fichiers" }, { status: 500 })
   }
+
+  // Best-effort : re-forward serveur vers le portail chirurgien (URLs signées).
+  void forwardDocumentsViaSignedUpload(
+    service,
+    patientId,
+    parsed.data.documents.map((doc) => ({
+      path: doc.path,
+      name: doc.fileName,
+      type: doc.type ?? null,
+      size: doc.size,
+    })),
+  )
 
   return NextResponse.json({ success: true, count: inserted?.length ?? rows.length })
 }

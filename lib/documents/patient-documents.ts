@@ -105,7 +105,15 @@ export function isAllowedDocumentFile(name: string, type: string | null | undefi
     return true
   }
   const ext = getFileExtension(name)
-  return ext !== null && ALLOWED_DOCUMENT_EXTENSIONS.has(ext)
+  if (ext !== null && ALLOWED_DOCUMENT_EXTENSIONS.has(ext)) {
+    return true
+  }
+  // CD DICOM : fichiers sans extension, souvent en application/octet-stream.
+  if (ext === null) {
+    const t = normalizedType ?? ''
+    if (t === '' || t === 'application/octet-stream') return true
+  }
+  return false
 }
 
 /**
@@ -166,6 +174,13 @@ export function inferRenderType(name: string, mimeType?: string | null): Documen
 
   const ext = getFileExtension(name)
   if (ext === 'dcm' || ext === 'dicom') return 'dicom'
+  // Sans extension + mime binaire → DICOM probable (CD médical).
+  if (ext === null) {
+    const t = normalizedMime ?? ''
+    if (t === '' || t === 'application/octet-stream' || t === 'application/dicom' || t === 'image/dicom') {
+      return 'dicom'
+    }
+  }
   if (ext === 'pdf' || normalizedMime === 'application/pdf') return 'pdf'
   if ((ext && IMAGE_EXTENSIONS.has(ext)) || (normalizedMime && IMAGE_MIME_TYPES.has(normalizedMime))) {
     return 'image'

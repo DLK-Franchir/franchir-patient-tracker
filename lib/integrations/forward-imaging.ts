@@ -19,6 +19,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Logger } from '@/lib/logger'
+import { PATIENT_DOCUMENTS_BUCKET } from '@/lib/documents/patient-documents'
+import { putFileToSignedUploadUrl } from '@/lib/integrations/signed-upload-put'
+import { signQuestionnaireImagingUpload } from '@/lib/integrations/fetch-questionnaire-imaging'
 
 const log = new Logger('forward-imaging')
 
@@ -37,6 +40,7 @@ export type ForwardableObject = {
   path: string
   name: string
   type: string | null
+  size?: number
 }
 
 /**
@@ -121,4 +125,77 @@ export async function forwardImagingFromStorage(
       log.error('Échec forward objet depuis Storage', error)
     }
   }
+}
+
+/** Taille max par fichier pour le forward signé (aligné portail questionnaires). */
+const SIGNED_FORWARD_MAX_FILE_SIZE = 50 * 1024 * 1024
+
+/**
+ * Forward serveur après finalisation : relit les objets tracker et les pousse
+ * vers questionnaires via URLs signées (protocole FormData PUT). Best-effort :
+ * ne lève jamais ; compense un forward navigateur interrompu ou raté.
+ */
+export async function forwardDocumentsViaSignedUpload(
+  service: SupabaseClient,
+  trackerPatientId: string,
+  objects: ForwardableObject[],
+): Promise<void> {
+  if (objects.length === 0) return
+
+  const eligible = objects.filter((o) => o.path.length > 0)
+  if (eligible.length === 0) return
+
+  for (const group of chunk(eligible, 10)) {
+    const signed = await signQuestionnaireImagingUpload(
+      trackerPatientId,
+      group.map((o) => ({
+        name: o.name,
+        size: o.size && o.size > 0 ? o.size : 1,
+        type: o.type,
+      })),
+    )
+    if (!signed?.uploads?.length) {
+      log.error('Forward signé questionnaires indisponible', { count: group.length })
+      continue
+    }
+
+    for (let index = 0; index < group.length; index += 1) {
+      const object = group[index]
+      const upload = signed.uploads[index]
+      if (!upload) continue
+
+      try {
+        const { data, error } = await service.storage
+          .from(PATIENT_DOCUMENTS_BUCKET)
+          .download(object.path)
+        if (error || !data) {
+          log.error('Lecture objet forward signé échouée', { status: 'download_failed' })
+          continue
+        }
+        if (data.size > SIGNED_FORWARD_MAX_FILE_SIZE) {
+          log.error('Objet trop volumineux pour forward signé', { size: data.size })
+          continue
+        }
+
+        const ok = await putFileToSignedUploadUrl(
+          { ...upload, fileName: object.name },
+          data,
+          object.type,
+        )
+        if (!ok) {
+          log.error('PUT signé questionnaires non abouti', { file: object.name })
+        }
+      } catch (error) {
+        log.error('Échec forward signé objet', error)
+      }
+    }
+  }
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size))
+  }
+  return out
 }

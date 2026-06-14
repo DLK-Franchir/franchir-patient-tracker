@@ -17,6 +17,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { PATIENT_DOCUMENTS_BUCKET } from '@/lib/documents/patient-documents'
+import { putFileToSignedUploadUrl } from '@/lib/integrations/signed-upload-put'
 
 /** Taille des sous-lots d'émission d'URLs signées (équilibre latence / charge). */
 const SIGN_BATCH_SIZE = 50
@@ -60,48 +61,62 @@ async function parseError(res: Response, fallback: string): Promise<string> {
 }
 
 /**
- * Best-effort : pousse les mêmes octets vers le bucket patient-images du portail
- * questionnaires via URLs signées (sans limite serverless). N'interrompt jamais
- * l'upload local tracker.
+ * Pousse les mêmes octets vers le bucket patient-images du portail questionnaires
+ * via URLs signées (protocole Supabase FormData PUT). Retourne le nombre de
+ * fichiers forwardés avec succès.
  */
 async function forwardBatchToQuestionnaires(
   patientId: string,
   batch: File[],
-): Promise<void> {
-  try {
-    const signRes = await fetch(`/api/patients/${patientId}/questionnaires-imaging/sign-upload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        files: batch.map((f) => ({ name: f.name, size: f.size, type: f.type || null })),
-      }),
-    })
-    if (!signRes.ok) return
-
-    const { uploads } = (await signRes.json()) as { uploads?: SignedUpload[] }
-    if (!uploads?.length) return
-
-    for (const group of chunk(
-      uploads.map((upload, index) => ({ upload, file: batch[index] })).filter((p) => p.file),
-      UPLOAD_CONCURRENCY,
-    )) {
-      await Promise.all(
-        group.map(async ({ upload, file }) => {
-          if (!file) return
-          await fetch(upload.signedUrl, {
-            method: 'PUT',
-            body: file,
-            headers: {
-              Authorization: `Bearer ${upload.token}`,
-              'Content-Type': file.type || 'application/octet-stream',
-            },
-          })
-        }),
-      )
-    }
-  } catch {
-    // Fire-and-forget : l'imagerie reste dans le tracker (source de vérité locale).
+): Promise<number> {
+  const signRes = await fetch(`/api/patients/${patientId}/questionnaires-imaging/sign-upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      files: batch.map((f) => ({ name: f.name, size: f.size, type: f.type || null })),
+    }),
+  })
+  if (!signRes.ok) {
+    console.warn('[upload-client] forward sign-upload failed', signRes.status)
+    return 0
   }
+
+  const { uploads } = (await signRes.json()) as { uploads?: SignedUpload[] }
+  if (!uploads?.length) return 0
+
+  let forwarded = 0
+  const pairs = uploads
+    .map((upload, index) => ({ upload, file: batch[index] }))
+    .filter((p): p is { upload: SignedUpload; file: File } => Boolean(p.file))
+
+  for (const group of chunk(pairs, UPLOAD_CONCURRENCY)) {
+    const results = await Promise.all(
+      group.map(async ({ upload, file }) => {
+        const ok = await putFileToSignedUploadUrl(
+          { ...upload, fileName: file.name },
+          file,
+          file.type || null,
+        )
+        if (!ok) {
+          // Un retry immédiat compense les courses réseau transitoires.
+          return putFileToSignedUploadUrl(
+            { ...upload, fileName: file.name },
+            file,
+            file.type || null,
+          )
+        }
+        return ok
+      }),
+    )
+    forwarded += results.filter(Boolean).length
+  }
+
+  if (forwarded < batch.length) {
+    console.warn(
+      `[upload-client] forward partiel questionnaires: ${forwarded}/${batch.length} fichiers`,
+    )
+  }
+  return forwarded
 }
 
 /**
@@ -161,12 +176,11 @@ export async function uploadPatientDocuments(
       )
     }
 
-    // Best-effort cross-portail : ne bloque pas l upload local ni la finalisation.
-    void Promise.all(
-      chunk(batch, QUESTIONNAIRES_SIGN_BATCH_SIZE).map((qBatch) =>
-        forwardBatchToQuestionnaires(patientId, qBatch),
-      ),
-    )
+    // Cross-portail : attendu avant finalisation pour que le chirurgien voie
+    // l'imagerie dès le prochain chargement (le serveur re-forward aussi).
+    for (const qBatch of chunk(batch, QUESTIONNAIRES_SIGN_BATCH_SIZE)) {
+      await forwardBatchToQuestionnaires(patientId, qBatch)
+    }
   }
 
   // 3. Enregistre les métadonnées (route légère : aucun octet).
