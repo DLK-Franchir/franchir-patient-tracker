@@ -10,7 +10,12 @@ import {
   MAX_DOCUMENTS_PER_REQUEST,
   type DocumentRenderType,
 } from '@/lib/documents/patient-documents'
-import { importDicomFolder } from '@/lib/imaging/dicom-folder-import'
+import { importDicomFolder, formatEmptyDicomFolderMessage } from '@/lib/imaging/dicom-folder-import'
+import {
+  configureWebkitDirectoryInput,
+  pickDirectoryViaFileSystemAccess,
+  snapshotFileList,
+} from '@/lib/imaging/directory-picker'
 
 /**
  * Sélecteur de fichiers réutilisable (DICOM + PDF/images), drag & drop +
@@ -53,8 +58,7 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
   useEffect(() => {
     const input = folderInputRef.current
     if (!input) return
-    input.setAttribute('webkitdirectory', '')
-    input.setAttribute('directory', '')
+    configureWebkitDirectoryInput(input)
   }, [])
 
   const mergeAccepted = useCallback(
@@ -110,7 +114,7 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
   )
 
   const handleFolderImport = useCallback(
-    async (fileList: FileList) => {
+    async (fileList: FileList | File[]) => {
       if (disabled) return
       setFolderImporting(true)
       setFolderNote(null)
@@ -121,7 +125,7 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
         const prepared = result.series.flatMap((s) => s.files.map((f) => f.file))
 
         if (prepared.length === 0) {
-          setFolderError('Aucune image DICOM reconnue dans ce dossier.')
+          setFolderError(formatEmptyDicomFolderMessage(result))
           return
         }
 
@@ -130,14 +134,14 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
 
         const notes: string[] = []
         if (result.ignoredCompanionCount > 0) {
-          notes.push(`${result.ignoredCompanionCount} fichier(s) parasite(s) ignoré(s)`)
+          notes.push(`${result.ignoredCompanionCount} fichier(s) parasite(s) ignore(s)`)
         }
         if (result.skippedNonDicomCount > 0) {
-          notes.push(`${result.skippedNonDicomCount} fichier(s) non-DICOM ignoré(s)`)
+          notes.push(`${result.skippedNonDicomCount} fichier(s) non-DICOM ignore(s)`)
         }
         if (notes.length > 0) setFolderNote(notes.join(' · '))
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Échec de l'analyse du dossier DICOM."
+        const message = err instanceof Error ? err.message : "Echec de l'analyse du dossier DICOM."
         setFolderError(message)
       } finally {
         setFolderImporting(false)
@@ -145,6 +149,23 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
     },
     [disabled, mergeAccepted],
   )
+
+  const openFolderPicker = useCallback(async () => {
+    if (disabled || folderImporting) return
+
+    try {
+      const outcome = await pickDirectoryViaFileSystemAccess()
+      if (outcome.status === 'cancelled') return
+      if (outcome.status === 'picked') {
+        await handleFolderImport(outcome.result.files)
+        return
+      }
+    } catch {
+      // Repli webkitdirectory (Safari/Firefox ou API indisponible).
+    }
+
+    folderInputRef.current?.click()
+  }, [disabled, folderImporting, handleFolderImport])
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -212,24 +233,28 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
           disabled={disabled}
           onChange={(e) => {
             if (e.target.files?.length) addFiles(e.target.files)
-            // Réinitialise pour permettre de re-sélectionner le même fichier.
-            e.target.value = ''
-          }}
-        />
-        {/* Import de DOSSIER (CD DICOM avec sous-dossiers). webkitdirectory n'est
-            pas typé standard → cast. Les fichiers parasites sont filtrés. */}
-        <input
-          ref={folderInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          disabled={disabled}
-          onChange={(e) => {
-            if (e.target.files?.length) void handleFolderImport(e.target.files)
+            // Reinitialise pour permettre de re-selectionner le meme fichier.
             e.target.value = ''
           }}
         />
       </div>
+
+      {/* Input dossier hors zone cliquable (evite conflits drag/drop). */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          const input = e.target
+          const picked = input.files
+          if (!picked?.length) return
+          const snapshot = snapshotFileList(picked)
+          input.value = ''
+          void handleFolderImport(snapshot)
+        }}
+      />
 
       {seriesPreview.length > 0 && (
         <ul className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
@@ -245,19 +270,25 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
       {folderError ? <p className="text-xs text-red-600">{folderError}</p> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button
-          type="button"
-          disabled={disabled || folderImporting}
-          onClick={() => folderInputRef.current?.click()}
-          className="inline-flex items-center gap-1.5 text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium disabled:opacity-50"
-        >
-          {folderImporting ? (
-            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <FolderUp className="w-4 h-4" aria-hidden="true" />
-          )}
-          Importer un dossier (CD DICOM)
-        </button>
+        <div className="space-y-1">
+          <button
+            type="button"
+            disabled={disabled || folderImporting}
+            onClick={() => void openFolderPicker()}
+            className="inline-flex items-center gap-1.5 text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium disabled:opacity-50"
+          >
+            {folderImporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <FolderUp className="w-4 h-4" aria-hidden="true" />
+            )}
+            {folderImporting ? 'Analyse du dossier…' : 'Importer un dossier (CD DICOM)'}
+          </button>
+          <p className="text-xs text-gray-500">
+            Sur Mac, le selecteur affiche <strong>Ouvrir</strong> (pas Importer) — c&apos;est normal.
+            Choisissez le dossier racine du CD (ex. Arcande_IRM ou DICOM IRM).
+          </p>
+        </div>
         {files.length > 0 && (
           <span className="text-xs text-gray-500">
             {files.length} fichier{files.length > 1 ? 's' : ''} importé{files.length > 1 ? 's' : ''}
