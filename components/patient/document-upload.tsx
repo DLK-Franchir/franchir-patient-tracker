@@ -52,7 +52,8 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
   const [folderImporting, setFolderImporting] = useState(false)
   const [folderNote, setFolderNote] = useState<string | null>(null)
   const [folderError, setFolderError] = useState<string | null>(null)
-  const [seriesPreview, setSeriesPreview] = useState<string[]>([])
+  const [seriesPreview, setSeriesPreview] = useState<{ label: string; count: number }[]>([])
+  const [importSummary, setImportSummary] = useState<string | null>(null)
 
   // webkitdirectory nest pas dans les typings React : pose imperatif comme questionnaires.
   useEffect(() => {
@@ -63,10 +64,10 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
 
   const mergeAccepted = useCallback(
     (accepted: File[]) => {
-      const existingKeys = new Set(files.map((f) => `${f.name}:${f.size}`))
+      const existingKeys = new Set(files.map((f) => `${f.name}:${f.size}:${f.lastModified}`))
       const merged = [...files]
       for (const file of accepted) {
-        const key = `${file.name}:${file.size}`
+        const key = `${file.name}:${file.size}:${file.lastModified}`
         if (!existingKeys.has(key)) {
           existingKeys.add(key)
           merged.push(file)
@@ -120,16 +121,23 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
       setFolderNote(null)
       setFolderError(null)
       setSeriesPreview([])
+      setImportSummary(null)
       try {
         const result = await importDicomFolder(fileList)
         const prepared = result.series.flatMap((s) => s.files.map((f) => f.file))
+        const totalImages = prepared.length
 
         if (prepared.length === 0) {
           setFolderError(formatEmptyDicomFolderMessage(result))
           return
         }
 
-        setSeriesPreview(result.series.map((s) => s.label))
+        setSeriesPreview(
+          result.series.map((s) => ({
+            label: s.label,
+            count: s.files.length,
+          })),
+        )
         mergeAccepted(prepared)
 
         const notes: string[] = []
@@ -138,8 +146,19 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
         }
         if (result.skippedNonDicomCount > 0) {
           notes.push(`${result.skippedNonDicomCount} fichier(s) non-DICOM ignore(s)`)
+          if (result.sampleSkippedPaths.length > 0) {
+            notes.push(`ex. ${result.sampleSkippedPaths.slice(0, 3).join(', ')}`)
+          }
         }
         if (notes.length > 0) setFolderNote(notes.join(' · '))
+
+        setImportSummary(
+          `${result.series.length} serie(s), ${totalImages} image(s) importee(s)${
+            result.skippedNonDicomCount > 0
+              ? `, ${result.skippedNonDicomCount} ignore(s)`
+              : ''
+          }`,
+        )
       } catch (err) {
         const message = err instanceof Error ? err.message : "Echec de l'analyse du dossier DICOM."
         setFolderError(message)
@@ -258,15 +277,18 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
 
       {seriesPreview.length > 0 && (
         <ul className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-          {seriesPreview.map((label) => (
-            <li key={label} className="text-xs text-indigo-900">
-              {label}
+          {seriesPreview.map((entry) => (
+            <li key={entry.label} className="text-xs text-indigo-900">
+              {entry.label}
             </li>
           ))}
         </ul>
       )}
 
       {folderNote ? <p className="text-xs text-gray-500">{folderNote}</p> : null}
+      {importSummary ? (
+        <p className="text-xs font-medium text-indigo-800">{importSummary}</p>
+      ) : null}
       {folderError ? <p className="text-xs text-red-600">{folderError}</p> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">

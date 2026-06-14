@@ -21,29 +21,9 @@ export function hasDicomPreamble(bytes: ArrayBuffer | Uint8Array): boolean {
   )
 }
 
-export function ensureDicomExtension(name: string): string {
-  if (getFileExtension(name) !== null) return name
-  const base = name.trim()
-  return base.length > 0 ? `${base}.dcm` : 'fichier.dcm'
+function isValidDicomVr(vr: string): boolean {
+  return /^[A-Z]{2}$/.test(vr)
 }
-
-export type DicomHeaderInfo = {
-  seriesInstanceUid: string
-  modality: string | null
-  sopInstanceUid: string | null
-}
-
-const TAG_TRANSFER_SYNTAX = 0x00100002
-/** (0020,000E) Series Instance UID — pas (0020,000D) Instance Number. */
-const TAG_SERIES_INSTANCE_UID = 0x000e0020
-const TAG_MODALITY = 0x00600008
-/** (0008,0018) SOP Instance UID */
-const TAG_SOP_INSTANCE_UID = 0x00180008
-
-const IMPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2'
-const EXPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2.1'
-
-const EXPLICIT_VR_LONG_LENGTH = new Set(['OB', 'OW', 'OF', 'SQ', 'UT', 'UN', 'UC'])
 
 function readU16LE(view: Uint8Array, offset: number): number {
   return view[offset]! | (view[offset + 1]! << 8)
@@ -57,6 +37,64 @@ function readU32LE(view: Uint8Array, offset: number): number {
     (view[offset + 3]! << 24)
   ) >>> 0
 }
+
+export function hasLikelyRawDicomStructure(bytes: ArrayBuffer | Uint8Array): boolean {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+  if (view.length < 8) return false
+  if (hasDicomPreamble(view)) return true
+
+  const group = readU16LE(view, 0)
+  if (![0x0002, 0x0008, 0x0010, 0x0020].includes(group)) return false
+
+  const vr = String.fromCharCode(view[4]!, view[5]!)
+  if (isValidDicomVr(vr)) {
+    const length = readU16LE(view, 6)
+    return length > 0 && length < 65534
+  }
+
+  const length = readU32LE(view, 4)
+  return length > 0 && length < view.length
+}
+
+export function isDicomSeriesFolderPath(relativePath: string): boolean {
+  const parts = relativePath.split(/[\\/]/).filter(Boolean)
+  return parts.some((part) => /^SE\d+/i.test(part) || /^Series\d*/i.test(part))
+}
+
+const EXTENSIONLESS_IMAGING_MIMES = new Set([
+  '',
+  'application/octet-stream',
+  'application/dicom',
+  'image/dicom',
+])
+
+export function isExtensionlessImagingCandidate(name: string, type: string | null | undefined): boolean {
+  if (getFileExtension(name) !== null) return false
+  const normalized = type?.toLowerCase().trim() ?? ''
+  return EXTENSIONLESS_IMAGING_MIMES.has(normalized)
+}
+
+export function ensureDicomExtension(name: string): string {
+  if (getFileExtension(name) !== null) return name
+  const base = name.trim()
+  return base.length > 0 ? `${base}.dcm` : 'fichier.dcm'
+}
+
+export type DicomHeaderInfo = {
+  seriesInstanceUid: string
+  modality: string | null
+  sopInstanceUid: string | null
+}
+
+const TAG_TRANSFER_SYNTAX = 0x00100002
+const TAG_SERIES_INSTANCE_UID = 0x000e0020
+const TAG_MODALITY = 0x00600008
+const TAG_SOP_INSTANCE_UID = 0x00180008
+
+const IMPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2'
+const EXPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2.1'
+
+const EXPLICIT_VR_LONG_LENGTH = new Set(['OB', 'OW', 'OF', 'SQ', 'UT', 'UN', 'UC'])
 
 function readTag(
   view: Uint8Array,
@@ -104,11 +142,17 @@ function isImplicitVrTransferSyntax(uid: string): boolean {
 
 export function parseDicomHeaderInfo(bytes: ArrayBuffer | Uint8Array): DicomHeaderInfo | null {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-  if (!hasDicomPreamble(view)) return null
 
-  let offset = 132
+  let offset = 0
   let transferSyntax = EXPLICIT_VR_LITTLE_ENDIAN
-  let inMeta = true
+  let inMeta = false
+
+  if (hasDicomPreamble(view)) {
+    offset = 132
+    inMeta = true
+  } else if (!hasLikelyRawDicomStructure(view)) {
+    return null
+  }
 
   const info: DicomHeaderInfo = {
     seriesInstanceUid: '',
@@ -145,7 +189,9 @@ export function parseDicomHeaderInfo(bytes: ArrayBuffer | Uint8Array): DicomHead
     offset = parsed.nextOffset
   }
 
-  if (!info.seriesInstanceUid) return null
+  if (!info.seriesInstanceUid) {
+    return { seriesInstanceUid: '', modality: info.modality, sopInstanceUid: info.sopInstanceUid }
+  }
   return info
 }
 
@@ -153,6 +199,20 @@ export async function fileHasDicomPreamble(file: File): Promise<boolean> {
   const head = file.slice(0, Math.min(file.size, 132))
   const buffer = await head.arrayBuffer()
   return hasDicomPreamble(buffer)
+}
+
+export async function fileIsLikelyDicom(file: File, relativePath: string): Promise<boolean> {
+  const head = file.slice(0, Math.min(file.size, 132))
+  const buffer = await head.arrayBuffer()
+  if (hasDicomPreamble(buffer)) return true
+
+  if (!isDicomSeriesFolderPath(relativePath) && !isExtensionlessImagingCandidate(file.name, file.type)) {
+    return false
+  }
+
+  const scan = file.slice(0, Math.min(file.size, 256))
+  const scanBuffer = await scan.arrayBuffer()
+  return hasLikelyRawDicomStructure(scanBuffer)
 }
 
 export async function readDicomHeaderFromFile(file: File): Promise<DicomHeaderInfo | null> {

@@ -5,7 +5,7 @@
 import {
   DICOM_MIME_TYPE,
   ensureDicomExtension,
-  fileHasDicomPreamble,
+  fileIsLikelyDicom,
   readDicomHeaderFromFile,
   type DicomHeaderInfo,
 } from '@/lib/imaging/dicom-detection'
@@ -17,12 +17,14 @@ export type PreparedDicomFile = {
   seriesInstanceUid: string
   modality: string | null
   originalName: string
+  relativePath: string
 }
 
 export type DicomImportSeries = {
   seriesInstanceUid: string
   modality: string | null
   label: string
+  seriesFolderKey: string | null
   files: PreparedDicomFile[]
 }
 
@@ -30,9 +32,7 @@ export type DicomFolderImportResult = {
   series: DicomImportSeries[]
   ignoredCompanionCount: number
   skippedNonDicomCount: number
-  /** Nombre de fichiers parcourus (hors parasites). */
   scannedCandidateCount: number
-  /** Exemples de chemins non reconnus (diagnostic UX). */
   sampleSkippedPaths: string[]
 }
 
@@ -45,7 +45,7 @@ export function formatEmptyDicomFolderMessage(result: DicomFolderImportResult): 
     return `${base} ${result.skippedNonDicomCount} fichier(s) analyse(s) sans en-tete DICOM valide.`
   }
   const samples = result.sampleSkippedPaths.slice(0, 3).join(', ')
-  return `${base} Exemples non reconnus : ${samples}. Selectionnez le dossier racine du CD (ex. Arcande_IRM) contenant DICOM/ ou SE*/IM*.`
+  return `${base} Exemples non reconnus : ${samples}. Selectionnez le dossier racine du CD (ex. Arcande_IRM) contenant DICOM/ ou SE/IM*.`
 }
 
 export function basenameFromPath(path: string): string {
@@ -58,8 +58,54 @@ function sanitizeBasename(name: string): string {
   return safe.length > 0 ? safe : 'fichier'
 }
 
-export function prepareDicomUploadFile(original: File, _header: DicomHeaderInfo): File {
-  const safeName = ensureDicomExtension(sanitizeBasename(original.name))
+export function extractSeriesFolderKey(relativePath: string): string | null {
+  const parts = relativePath.split(/[\\/]/).filter(Boolean)
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const part = parts[i]!
+    if (/^SE\d+/i.test(part) || /^Series\d*/i.test(part)) {
+      return parts.slice(0, i + 1).join('/')
+    }
+  }
+  const base = basenameFromPath(relativePath)
+  if (/^IM\d+/i.test(base) && parts.length >= 2) {
+    return parts.slice(0, -1).join('/')
+  }
+  return null
+}
+
+export function resolveSeriesKey(header: DicomHeaderInfo | null, relativePath: string): string {
+  if (header?.seriesInstanceUid) return header.seriesInstanceUid
+  const folderKey = extractSeriesFolderKey(relativePath)
+  if (folderKey) return `path:${folderKey}`
+  return `path:${relativePath.replace(/[\\/]/g, '/')}`
+}
+
+export function buildUniqueUploadName(relativePath: string, originalName: string): string {
+  const base = sanitizeBasename(originalName)
+  const withExt = ensureDicomExtension(base)
+  const stem = withExt.replace(/\.(dcm|dicom)$/i, '')
+
+  const folderKey = extractSeriesFolderKey(relativePath)
+  if (folderKey) {
+    const seriesTag = sanitizeBasename(basenameFromPath(folderKey))
+    return `${seriesTag}_${stem}.dcm`
+  }
+
+  const parts = relativePath.split(/[\\/]/).filter(Boolean)
+  if (parts.length >= 2) {
+    const parent = sanitizeBasename(parts[parts.length - 2]!)
+    return `${parent}_${withExt}`
+  }
+
+  return withExt
+}
+
+export function prepareDicomUploadFile(
+  original: File,
+  relativePath: string,
+  _header: DicomHeaderInfo | null,
+): File {
+  const safeName = buildUniqueUploadName(relativePath, original.name)
   const blob = original.slice(0, original.size, DICOM_MIME_TYPE)
   return new File([blob], safeName, {
     type: DICOM_MIME_TYPE,
@@ -82,9 +128,14 @@ export function dicomSeriesImportLabel(
   modality: string | null,
   seriesIndex: number,
   sliceCount: number,
+  seriesFolderKey?: string | null,
 ): string {
   const mod = modality?.toUpperCase() ?? null
   const modLabel = mod ? (MODALITY_LABELS[mod] ?? mod) : 'Série DICOM'
+  if (seriesFolderKey) {
+    const folderName = basenameFromPath(seriesFolderKey)
+    return `Série ${folderName} : ${sliceCount} image${sliceCount > 1 ? 's' : ''}${mod ? ` (${modLabel})` : ''}`
+  }
   return `${modLabel} ${seriesIndex + 1} (${sliceCount} image${sliceCount > 1 ? 's' : ''})`
 }
 
@@ -106,25 +157,22 @@ export async function importDicomFolder(input: FileList | File[]): Promise<Dicom
 
     scannedCandidateCount += 1
 
-    const isDicom = await fileHasDicomPreamble(file)
+    const isDicom = await fileIsLikelyDicom(file, displayPath)
     if (!isDicom) {
       skippedNonDicomCount += 1
-      if (sampleSkippedPaths.length < 5) sampleSkippedPaths.push(displayPath)
+      if (sampleSkippedPaths.length < 3) sampleSkippedPaths.push(displayPath)
       continue
     }
 
     const header = await readDicomHeaderFromFile(file)
-    if (!header) {
-      skippedNonDicomCount += 1
-      if (sampleSkippedPaths.length < 5) sampleSkippedPaths.push(displayPath)
-      continue
-    }
+    const seriesKey = resolveSeriesKey(header, displayPath)
 
     prepared.push({
-      file: prepareDicomUploadFile(file, header),
-      seriesInstanceUid: header.seriesInstanceUid,
-      modality: header.modality,
+      file: prepareDicomUploadFile(file, displayPath, header),
+      seriesInstanceUid: seriesKey,
+      modality: header?.modality ?? null,
       originalName: file.name,
+      relativePath: displayPath,
     })
   }
 
@@ -137,16 +185,20 @@ export async function importDicomFolder(input: FileList | File[]): Promise<Dicom
 
   const series: DicomImportSeries[] = Array.from(bySeries.entries()).map(
     ([seriesInstanceUid, seriesFiles], index) => {
-      seriesFiles.sort((a, b) => a.file.name.localeCompare(b.file.name))
+      seriesFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
       const modality = seriesFiles[0]?.modality ?? null
+      const seriesFolderKey = extractSeriesFolderKey(seriesFiles[0]?.relativePath ?? '')
       return {
         seriesInstanceUid,
         modality,
-        label: dicomSeriesImportLabel(modality, index, seriesFiles.length),
+        seriesFolderKey,
+        label: dicomSeriesImportLabel(modality, index, seriesFiles.length, seriesFolderKey),
         files: seriesFiles,
       }
     },
   )
+
+  series.sort((a, b) => (a.seriesFolderKey ?? a.label).localeCompare(b.seriesFolderKey ?? b.label))
 
   return {
     series,

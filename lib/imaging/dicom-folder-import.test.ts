@@ -2,16 +2,21 @@ import { describe, expect, it } from 'vitest'
 import {
   ensureDicomExtension,
   hasDicomPreamble,
+  hasLikelyRawDicomStructure,
   parseDicomHeaderInfo,
 } from '@/lib/imaging/dicom-detection'
 import {
+  buildUniqueUploadName,
   dicomSeriesImportLabel,
+  extractSeriesFolderKey,
   formatEmptyDicomFolderMessage,
   importDicomFolder,
   prepareDicomUploadFile,
+  resolveSeriesKey,
 } from '@/lib/imaging/dicom-folder-import'
 import { fileRelativePath } from '@/lib/imaging/directory-picker'
 import { isIgnorableCompanionFile } from '@/lib/documents/patient-documents'
+import { dicomSeriesGroupId, groupDicomFilesIntoSeries } from '@/lib/imaging/dicom-series-group'
 
 function appendExplicitTag(
   chunks: number[],
@@ -65,48 +70,56 @@ describe('dicom-folder-import', () => {
     expect(isIgnorableCompanionFile('IM000001')).toBe(false)
   })
 
-  it('renomme IM000001 sans extension en .dcm', () => {
+  it('renomme avec prefixe SE pour eviter collisions', () => {
     const bytes = buildMinimalDicom({ seriesUid: '1.2.3.4.5', modality: 'MR' })
+    const path = 'DICOM IRM/DICOM/PA000001/ST000001/SE000005/IM000001'
     const original = new File([toArrayBuffer(bytes)], 'IM000001', { type: 'application/octet-stream' })
-    const prepared = prepareDicomUploadFile(original, {
+    const prepared = prepareDicomUploadFile(original, path, {
       seriesInstanceUid: '1.2.3.4.5',
       modality: 'MR',
       sopInstanceUid: null,
     })
-    expect(prepared.name).toBe('IM000001.dcm')
+    expect(prepared.name).toBe('SE000005_IM000001.dcm')
     expect(prepared.type).toBe('application/dicom')
     expect(ensureDicomExtension('IM000001')).toBe('IM000001.dcm')
   })
 
-  it('importe une structure CD PA/ST/SE/IM avec webkitRelativePath', async () => {
+  it('produit des noms uniques pour 10+ IM000001 dans des SE differents', () => {
+    const names = new Set<string>()
+    for (let i = 2; i <= 12; i += 1) {
+      const se = `SE${String(i).padStart(6, '0')}`
+      const path = `Arcande_IRM/DICOM/PA000001/ST000001/${se}/IM000001`
+      names.add(buildUniqueUploadName(path, 'IM000001'))
+    }
+    expect(names.size).toBe(11)
+  })
+
+  it('importe structure Arcande_IRM PA/ST/SE/IM en series separees', async () => {
     const seriesA = buildMinimalDicom({ seriesUid: '1.2.3.4.5', modality: 'MR' })
     const seriesB = buildMinimalDicom({ seriesUid: '9.8.7.6.5', modality: 'MR' })
+    const seriesC = buildMinimalDicom({ seriesUid: '9.8.7.6.6', modality: 'MR' })
+    const seriesD = buildMinimalDicom({ seriesUid: '9.8.7.6.7', modality: 'MR' })
+
     const files = [
-      mockFileWithPath(
-        'IM000001',
-        seriesA,
-        'DICOM IRM/DICOM/PA000001/ST000001/SE000005/IM000001',
-      ),
-      mockFileWithPath(
-        'IM000002',
-        seriesA,
-        'DICOM IRM/DICOM/PA000001/ST000001/SE000005/IM000002',
-      ),
-      mockFileWithPath(
-        'IM000001.dcm',
-        seriesB,
-        'DICOM IRM/SE000004/IM000001.dcm',
-      ),
-      mockFileWithPath('DICOMDIR', new Uint8Array([1, 2, 3]), 'DICOM IRM/DICOMDIR'),
+      mockFileWithPath('IM000001', seriesA, 'Arcande_IRM/DICOM/PA000001/ST000001/SE000005/IM000001'),
+      mockFileWithPath('IM000002', seriesA, 'Arcande_IRM/DICOM/PA000001/ST000001/SE000005/IM000002'),
+      mockFileWithPath('IM000001.dcm', seriesB, 'Arcande_IRM/DICOM/PA000001/ST000001/SE000004/IM000001.dcm'),
+      mockFileWithPath('IM000001', seriesC, 'Arcande_IRM/DICOM/PA000001/ST000001/SE000003/IM000001'),
+      mockFileWithPath('IM000001', seriesD, 'Arcande_IRM/DICOM/PA000001/ST000001/SE000002/IM000001'),
+      mockFileWithPath('00000000.dcm', buildMinimalDicom({ seriesUid: 'cd.1' }), 'Arcande_IRM/DICOMOBJ/00000000.dcm'),
+      mockFileWithPath('DICOMDIR', new Uint8Array([1, 2, 3]), 'Arcande_IRM/DICOMDIR'),
     ]
 
     const result = await importDicomFolder(files)
-    expect(result.series).toHaveLength(2)
-    expect(result.series[0]?.files).toHaveLength(2)
-    expect(result.series[1]?.files).toHaveLength(1)
+    expect(result.series).toHaveLength(5)
     expect(result.ignoredCompanionCount).toBe(1)
     expect(result.skippedNonDicomCount).toBe(0)
-    expect(dicomSeriesImportLabel('MR', 0, 2)).toMatch(/IRM/)
+    expect(extractSeriesFolderKey('Arcande_IRM/DICOM/PA000001/ST000001/SE000005/IM000001')).toContain('SE000005')
+    expect(resolveSeriesKey(null, 'Arcande_IRM/DICOM/PA000001/ST000001/SE000004/IM000001.dcm')).toContain('SE000004')
+
+    const uploadNames = result.series.flatMap((s) => s.files.map((f) => f.file.name))
+    expect(new Set(uploadNames).size).toBe(uploadNames.length)
+    expect(dicomSeriesImportLabel('MR', 0, 2, 'Arcande_IRM/DICOM/PA000001/ST000001/SE000005')).toMatch(/SE000005/)
     expect(fileRelativePath(files[0]!)).toContain('SE000005/IM000001')
   })
 
@@ -120,6 +133,12 @@ describe('dicom-folder-import', () => {
     expect(info?.modality).toBe('MR')
   })
 
+  it('detecte raw DICOM sans preamble', () => {
+    const chunks: number[] = []
+    appendExplicitTag(chunks, 0x0008, 0x0060, 'CS', 'MR')
+    expect(hasLikelyRawDicomStructure(new Uint8Array(chunks))).toBe(true)
+  })
+
   it('formate une erreur explicite quand aucun DICOM', async () => {
     const files = [
       mockFileWithPath('NOTES', new Uint8Array([1, 2, 3, 4]), 'Arcande_IRM/README.txt'),
@@ -130,5 +149,18 @@ describe('dicom-folder-import', () => {
     const message = formatEmptyDicomFolderMessage(result)
     expect(message).toContain('Aucune image DICOM')
     expect(message).toMatch(/Arcande_IRM/)
+  })
+})
+
+describe('dicom-series-group SE prefix', () => {
+  it('groupe par prefixe SE', () => {
+    expect(dicomSeriesGroupId('1781451087388_SE000005_IM000001.dcm')).toBe('series:SE000005')
+    const groups = groupDicomFilesIntoSeries([
+      { name: '1781451087388_SE000005_IM000001.dcm', url: 'a1' },
+      { name: '1781451087388_SE000005_IM000002.dcm', url: 'a2' },
+      { name: '1781451087388_SE000004_IM000001.dcm', url: 'b1' },
+    ])
+    expect(groups).toHaveLength(2)
+    expect(groups.find((g) => g.groupId === 'series:SE000005')?.files).toHaveLength(2)
   })
 })

@@ -1,12 +1,11 @@
 /**
  * Regroupe les fichiers DICOM listés depuis Storage en séries distinctes.
- * Voir le pendant côté portail questionnaires (`dicom-series-group.ts`).
  */
 
 export type NamedImagingFile = {
-  name: string;
-  url: string;
-};
+  name: string
+  url: string
+}
 
 export function stripStorageTimestampPrefix(storageName: string): string {
   const base = storageName.split('/').pop() ?? storageName
@@ -22,9 +21,21 @@ function storageTimestampPrefix(storageName: string): number {
 
 export function dicomSeriesGroupId(storageName: string): string {
   const stripped = stripStorageTimestampPrefix(storageName)
-  if (/^IM\d+/i.test(stripped)) return 'patient-im'
+
+  const seMatch = stripped.match(/^(SE\d+)_/i)
+  if (seMatch) return `series:${seMatch[1]!.toUpperCase()}`
+
+  const seriesMatch = stripped.match(/^(Series\d*)_/i)
+  if (seriesMatch) return `series:${seriesMatch[1]!}`
+
   if (/^0+\d+\.(dcm|dicom)$/i.test(stripped)) return 'marcel-cd'
+
+  if (/^IM\d+\.(dcm|dicom)$/i.test(stripped)) return 'patient-im'
+
   const stem = stripped.replace(/\.(dcm|dicom)$/i, '')
+  const prefixMatch = stem.match(/^([A-Za-z0-9]+)_/)
+  if (prefixMatch) return `series:${prefixMatch[1]}`
+
   return `series:${stem.replace(/\d+$/, '') || stripped}`
 }
 
@@ -41,7 +52,12 @@ export function dedupeDicomFilesByBasename<T extends { name: string }>(files: T[
 }
 
 export function dicomSeriesLabel(groupId: string, count: number, singleName: string): string {
-  if (count <= 1) return singleName
+  const stripped = stripStorageTimestampPrefix(singleName)
+  if (count <= 1) return stripped
+
+  const seFromName = stripped.match(/^(SE\d+)_/i)
+  if (seFromName) return `Série ${seFromName[1]!.toUpperCase()} (${count} coupes)`
+
   if (groupId === 'patient-im') return `Série DICOM patient (${count} coupes)`
   return `Série DICOM (${count} coupes)`
 }
@@ -66,9 +82,9 @@ export function groupDicomFilesIntoSeries<T extends NamedImagingFile>(
 
   const orderedIds = [
     ...GROUP_ORDER.filter((id) => groups.has(id)),
-    ...Array.from(groups.keys()).filter(
-      (id) => !GROUP_ORDER.includes(id as (typeof GROUP_ORDER)[number]),
-    ),
+    ...Array.from(groups.keys())
+      .filter((id) => !GROUP_ORDER.includes(id as (typeof GROUP_ORDER)[number]))
+      .sort(),
   ]
 
   return orderedIds.map((groupId) => ({
