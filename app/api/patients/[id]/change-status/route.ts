@@ -128,9 +128,11 @@ export async function POST(
         return NextResponse.json({ error: surgeonUpdateError.message }, { status: 500 })
       }
       await sendSurgeonAssignmentEmail(assignSurgeon, patient.patient_name)
-      newStatusCode = 'sent_to_surgeon'
+      // Pas de changement de statut : le jeu de statuts de prod ne contient pas
+      // de "sent_to_surgeon". L'assignation est enregistrée via assigned_surgeon_id
+      // + message + email ; le dossier reste à son étape médicale courante.
       messageTitle = 'Chirurgien assigné'
-      messageBody = `Chirurgien assigné : ${assignSurgeon.full_name}. Le dossier est transmis au chirurgien.`
+      messageBody = `Chirurgien assigné : ${assignSurgeon.full_name}. Le dossier lui est transmis pour étude.`
       break
     }
 
@@ -179,7 +181,7 @@ export async function POST(
       break
 
     case 'reopen_case':
-      newStatusCode = 'draft'
+      newStatusCode = 'prospect_created'
       messageTitle = 'Dossier réouvert'
       messageBody = data?.message || 'Le dossier a été réouvert par un administrateur.'
       break
