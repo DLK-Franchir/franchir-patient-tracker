@@ -61,6 +61,38 @@ export default function PatientDetailClient({
   const router = useRouter()
   const [patient, setPatient] = useState(initialPatient)
   const [activeTab, setActiveTab] = useState<'medical' | 'commercial'>('medical')
+  const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
+
+  const canManageQuestionnaire = userRole !== 'gilles'
+
+  const handleQuestionnaireLink = async (newSession: boolean) => {
+    setQuestionnaireLoading(true)
+    try {
+      const response = await fetch(`/api/patients/${patient.id}/questionnaire-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newSession }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || "Échec de l'émission du lien")
+      }
+      setPatient((p) => ({
+        ...p,
+        questionnaire_status: p.questionnaire_status === 'completed' ? 'completed' : 'sent',
+      }))
+      alert(
+        data.emailSent
+          ? 'Lien questionnaire envoyé au patient par email.'
+          : 'Lien questionnaire généré (email non envoyé — vérifier la configuration email).'
+      )
+      router.refresh()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Une erreur est survenue")
+    } finally {
+      setQuestionnaireLoading(false)
+    }
+  }
 
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
 
@@ -290,20 +322,47 @@ export default function PatientDetailClient({
                     </span>
                   )}
                 </div>
+              ) : patient.questionnaire_status === 'sent' ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  Lien envoyé — en attente de complétion
+                </span>
               ) : (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                  En attente de complétion
+                  En attente d&apos;envoi
                 </span>
               )}
               {patient.patient_email && (
                 <p className="text-xs text-gray-500 mt-2 break-all">
-                  Lien envoyé à {patient.patient_email}
+                  Patient : {patient.patient_email}
                 </p>
               )}
               {patient.questionnaire_status === 'completed' && patient.questionnaire_summary && (
                 <p className="text-xs text-gray-600 mt-2 whitespace-pre-line border-t border-gray-100 pt-2">
                   {patient.questionnaire_summary}
                 </p>
+              )}
+
+              {canManageQuestionnaire && (
+                <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                  <button
+                    onClick={() => handleQuestionnaireLink(false)}
+                    disabled={questionnaireLoading}
+                    className="w-full text-sm bg-[#2563EB] text-white px-3 py-2 rounded-md font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition"
+                  >
+                    {questionnaireLoading
+                      ? 'Envoi…'
+                      : patient.questionnaire_status
+                        ? 'Renvoyer le lien'
+                        : 'Générer et envoyer le lien'}
+                  </button>
+                  <button
+                    onClick={() => handleQuestionnaireLink(true)}
+                    disabled={questionnaireLoading}
+                    className="w-full text-sm border border-gray-300 text-gray-700 px-3 py-2 rounded-md font-medium hover:bg-gray-50 disabled:opacity-50 transition"
+                  >
+                    Nouveau questionnaire (suivi)
+                  </button>
+                </div>
               )}
             </div>
 
