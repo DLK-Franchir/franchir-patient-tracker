@@ -1,11 +1,11 @@
-'use client'
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { App, AppOptions, ToolConfig, ViewConfig } from "dwv";
 import { ArrowLeft, ArrowRight, AlertTriangle, Info, Activity, X } from 'lucide-react'
 
 /**
- * SYNC: structure alignée sur franchir-patient-tracker/components/patient/dicom-viewer.tsx
+ * SYNC: structure alignée sur Franchir_Questionnaires_Patients/src/components/clinician/DicomViewer.tsx
  * (pas de package partagé — garder les deux fichiers en parité fonctionnelle).
  */
 
@@ -174,14 +174,13 @@ export default function DicomViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<App | null>(null);
-  /** dataId dwv par index de fichier (aligné sur urls). */
-  const dataIdsRef = useRef<(string | undefined)[]>([]);
-  const fileLoadSeqRef = useRef(0);
   const toolRef = useRef<DicomTool>("WindowLevel");
   const onSliceCountResolvedRef = useRef(onSliceCountResolved);
   const [layerGroupId] = useState(() => `dwv-group-${(layerGroupCounter += 1)}`);
 
-  onSliceCountResolvedRef.current = onSliceCountResolved;
+  useEffect(() => {
+    onSliceCountResolvedRef.current = onSliceCountResolved;
+  }, [onSliceCountResolved]);
 
   const [status, setStatus] = useState<ViewerStatus>("loading");
   const [progress, setProgress] = useState(0);
@@ -197,6 +196,7 @@ export default function DicomViewer({
   const fileCount = urls.length;
   const isBusy = status === "loading" || status === "rendering";
   const isReady = status === "ready";
+  const isSequentialFileNav = navMode === "sequential" && fileCount > 1 && fileIndex > 0;
 
   const seriesCount = series?.length ?? 0;
   const hasSeriesNav = seriesCount > 1 && onNextSeries && onPrevSeries;
@@ -312,7 +312,6 @@ export default function DicomViewer({
     setFileIndex(0);
     setActivePreset(null);
     setErrorMessage(null);
-    dataIdsRef.current = [];
   }
 
   useEffect(() => {
@@ -322,21 +321,31 @@ export default function DicomViewer({
     const seriesUrls = urlsKey.split("\n").filter(Boolean);
     if (seriesUrls.length === 0) return;
 
-    setStatus("loading");
-    setProgress(0);
-    setPreloadLoaded(0);
+    const sequentialFileChange =
+      navMode === "sequential" && seriesUrls.length > 1 && fileIndex > 0;
+
+    // Reset viewer chrome when the dwv lifecycle restarts (series change or per-file nav).
+    /* eslint-disable react-hooks/set-state-in-effect -- intentional load-state reset on [urlsKey, navMode, fileIndex] */
+    if (sequentialFileChange) {
+      setStatus("rendering");
+    } else {
+      setStatus("loading");
+      setProgress(0);
+      setPreloadLoaded(0);
+    }
     setErrorMessage(null);
-    setNavMode("stack");
-    setFileIndex(0);
-    dataIdsRef.current = [];
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    const urlsToLoad =
+      navMode === "sequential" ? [seriesUrls[fileIndex] ?? seriesUrls[0]!] : seriesUrls;
 
     let disposed = false;
     let loadSucceeded = false;
     let readyFallbackId: number | null = null;
     let renderReadyId: number | null = null;
-    let layoutTimerIds: number[] = [];
+    const layoutTimerIds: number[] = [];
     let resizeRaf: number | null = null;
-    let resolvedNavMode: NavMode = "stack";
+    let pendingSequentialSwitch = false;
 
     const app = new App();
     appRef.current = app;
@@ -350,11 +359,6 @@ export default function DicomViewer({
     };
     app.init(options);
 
-    const collectRenderableDataIds = () =>
-      app
-        .getDataIds()
-        .filter((id) => Boolean(app.getData(id)?.image));
-
     const hasRenderableImage = () => {
       try {
         const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
@@ -365,23 +369,8 @@ export default function DicomViewer({
       }
     };
 
-    const ensureDisplayable = (preferredIds?: string[]) => {
-      if (hasRenderableImage()) return true;
-      const candidates = preferredIds ?? collectRenderableDataIds();
-      if (candidates.length === 0) return false;
-      for (const dataId of candidates) {
-        try {
-          app.render(dataId);
-        } catch {
-          continue;
-        }
-        if (hasRenderableImage()) return true;
-      }
-      return false;
-    };
-
     const readSlicePosition = () => {
-      if (resolvedNavMode === "sequential") {
+      if (navMode === "sequential") {
         setSliceIndex(fileIndex);
         return;
       }
@@ -413,27 +402,20 @@ export default function DicomViewer({
 
     const publishSliceCount = (navCount: number) => {
       const effective =
-        resolvedNavMode === "sequential" && seriesUrls.length > 1 ? seriesUrls.length : navCount;
+        navMode === "sequential" && seriesUrls.length > 1 ? seriesUrls.length : navCount;
       setSliceCount(effective);
       onSliceCountResolvedRef.current?.(effective);
-    };
-
-    const resolveSequentialDataIds = (): (string | undefined)[] => {
-      const renderable = collectRenderableDataIds();
-      return seriesUrls.map((_, index) => renderable[index]);
     };
 
     const needsSequentialFallback = () => {
       if (seriesUrls.length <= 1) return false;
       const dwvCount = readSliceCount();
       const hasImage = hasRenderableImage();
-      const renderableCount = collectRenderableDataIds().length;
-      if (renderableCount > 1) return true;
       return !hasImage || dwvCount < seriesUrls.length;
     };
 
     const publishResolvedSliceCount = () => {
-      if (resolvedNavMode === "sequential") {
+      if (navMode === "sequential") {
         publishSliceCount(seriesUrls.length);
         return;
       }
@@ -456,50 +438,20 @@ export default function DicomViewer({
       }
     };
 
-    const failLoad = (message: string) => {
-      if (disposed || loadSucceeded) return;
-      setStatus("error");
-      setErrorMessage(message);
-    };
-
     const markReady = () => {
       if (disposed) return;
       publishResolvedSliceCount();
       readSlicePosition();
-      setNavMode(resolvedNavMode);
       setStatus("ready");
     };
 
     const finalizeLoad = () => {
       if (disposed || loadSucceeded) return;
 
-      if (needsSequentialFallback()) {
-        const mapping = resolveSequentialDataIds();
-        dataIdsRef.current = mapping;
-        const renderableIds = mapping.filter((id): id is string => Boolean(id));
-        if (renderableIds.length === 0 && !ensureDisplayable()) {
-          failLoad("fichier illisible ou format non pris en charge");
-          return;
-        }
-        resolvedNavMode = "sequential";
-        const firstIndex = mapping.findIndex(
-          (id) => Boolean(id) && Boolean(app.getData(id!)?.image),
-        );
-        if (firstIndex >= 0) {
-          try {
-            app.render(mapping[firstIndex]!);
-          } catch {
-            if (!ensureDisplayable(renderableIds)) {
-              failLoad("fichier illisible ou format non pris en charge");
-              return;
-            }
-          }
-        } else if (!ensureDisplayable(renderableIds)) {
-          failLoad("fichier illisible ou format non pris en charge");
-          return;
-        }
-      } else if (!ensureDisplayable()) {
-        failLoad("fichier illisible ou format non pris en charge");
+      if (navMode === "stack" && needsSequentialFallback()) {
+        pendingSequentialSwitch = true;
+        setNavMode("sequential");
+        setFileIndex(0);
         return;
       }
 
@@ -527,9 +479,15 @@ export default function DicomViewer({
       publishResolvedSliceCount();
       readSlicePosition();
       renderReadyId = window.setTimeout(() => {
-        if (disposed) return;
-        if (!ensureDisplayable()) {
-          failLoad("fichier illisible ou format non pris en charge");
+        if (navMode === "stack" && !hasRenderableImage() && seriesUrls.length > 1) {
+          pendingSequentialSwitch = true;
+          setNavMode("sequential");
+          setFileIndex(0);
+          return;
+        }
+        if (!hasRenderableImage()) {
+          setStatus("error");
+          setErrorMessage("fichier illisible ou format non pris en charge");
           return;
         }
         markReady();
@@ -542,13 +500,16 @@ export default function DicomViewer({
         const total = typeof event.total === "number" && event.total > 0 ? event.total : 100;
         const pct = Math.min(100, Math.round((event.loaded / total) * 100));
         setProgress(pct);
-        if (seriesUrls.length > 1) {
-          const estimated = Math.max(1, Math.min(seriesUrls.length, Math.round((pct / 100) * seriesUrls.length)));
+        if (navMode === "stack" && seriesUrls.length > 1) {
+          const estimated = Math.max(
+            1,
+            Math.min(seriesUrls.length, Math.round((pct / 100) * seriesUrls.length)),
+          );
           setPreloadLoaded(estimated);
         }
         if (pct >= 100 && readyFallbackId === null) {
           readyFallbackId = window.setTimeout(() => {
-            if (!disposed && !loadSucceeded) {
+            if (!disposed && !loadSucceeded && !pendingSequentialSwitch) {
               finalizeLoad();
             }
           }, 600);
@@ -558,7 +519,7 @@ export default function DicomViewer({
 
     const onLoad = () => {
       if (disposed) return;
-      if (seriesUrls.length > 1) {
+      if (navMode === "stack" && seriesUrls.length > 1) {
         setPreloadLoaded(seriesUrls.length);
       }
       finalizeLoad();
@@ -574,14 +535,25 @@ export default function DicomViewer({
       const message =
         typeof event.error === "string" ? event.error : event.error?.message ?? null;
       console.error("[DicomViewer] load error", message ?? event);
-      if (message) setErrorMessage(message);
+      const fileLabel =
+        navMode === "sequential" && seriesUrls.length > 1
+          ? ` (fichier ${fileIndex + 1}/${seriesUrls.length})`
+          : "";
+      if (message) setErrorMessage(`${message}${fileLabel}`);
       if (!loadSucceeded) {
-        if (ensureDisplayable()) {
+        const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
+        const hasImage = Boolean(viewLayer && app.getData(viewLayer.getDataId())?.image);
+        if (hasImage) {
           finalizeLoad();
-        } else if (collectRenderableDataIds().length > 0) {
-          finalizeLoad();
+        } else if (navMode === "sequential" && seriesUrls.length > 1 && fileIndex < seriesUrls.length - 1) {
+          setErrorMessage(
+            `Fichier ${fileIndex + 1} illisible — passez au suivant avec →${message ? ` (${message})` : ""}`,
+          );
+          setStatus("ready");
+          publishSliceCount(seriesUrls.length);
+          setSliceIndex(fileIndex);
         } else {
-          failLoad(message ?? "fichier illisible ou format non pris en charge");
+          setStatus("error");
         }
       }
     };
@@ -593,16 +565,18 @@ export default function DicomViewer({
     app.addEventListener("error", onError);
 
     const failTimer = window.setTimeout(() => {
-      if (!disposed && !loadSucceeded) {
-        if (ensureDisplayable() || collectRenderableDataIds().length > 0) {
-          finalizeLoad();
+      if (!disposed && !loadSucceeded && !pendingSequentialSwitch) {
+        if (navMode === "stack" && seriesUrls.length > 1) {
+          setNavMode("sequential");
+          setFileIndex(0);
         } else {
-          failLoad("délai de chargement dépassé");
+          setStatus("error");
+          setErrorMessage("délai de chargement dépassé");
         }
       }
     }, 120_000);
 
-    app.loadURLs(seriesUrls.filter(Boolean));
+    app.loadURLs(urlsToLoad.filter(Boolean));
 
     const resizeObserver = new ResizeObserver((entries) => {
       if (disposed) return;
@@ -645,78 +619,8 @@ export default function DicomViewer({
       const node = document.getElementById(layerGroupId);
       if (node) node.replaceChildren();
       appRef.current = null;
-      dataIdsRef.current = [];
     };
-  }, [urlsKey, layerGroupId]);
-
-  useEffect(() => {
-    if (navMode !== "sequential" || status !== "ready") return;
-    const app = appRef.current;
-    if (!app) return;
-
-    const seriesUrls = urlsKey.split("\n").filter(Boolean);
-    const targetUrl = seriesUrls[fileIndex];
-    if (!targetUrl) return;
-
-    const tryRenderDataId = (dataId: string) => {
-      try {
-        const currentId = app.getActiveLayerGroup()?.getActiveViewLayer()?.getDataId();
-        if (currentId === dataId && app.getData(dataId)?.image) {
-          setSliceIndex(fileIndex);
-          return true;
-        }
-        app.render(dataId);
-        if (!app.getData(dataId)?.image) return false;
-        app.fitToContainer();
-        setSliceIndex(fileIndex);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
-    const cachedId = dataIdsRef.current[fileIndex];
-    if (cachedId && tryRenderDataId(cachedId)) return;
-
-    const knownIds = new Set(
-      dataIdsRef.current.filter((id): id is string => Boolean(id)),
-    );
-    let disposed = false;
-    const loadSeq = (fileLoadSeqRef.current += 1);
-
-    const onSingleLoad = () => {
-      if (disposed || loadSeq !== fileLoadSeqRef.current) return;
-      const renderable = app
-        .getDataIds()
-        .filter((id) => Boolean(app.getData(id)?.image));
-      const newId =
-        renderable.find((id) => !knownIds.has(id)) ?? renderable[renderable.length - 1];
-      if (!newId || !tryRenderDataId(newId)) return;
-      const next = [...dataIdsRef.current];
-      while (next.length < seriesUrls.length) next.push(undefined);
-      next[fileIndex] = newId;
-      dataIdsRef.current = next;
-    };
-
-    const onSingleError = () => {
-      if (disposed || loadSeq !== fileLoadSeqRef.current) return;
-      setErrorMessage(
-        `Fichier ${fileIndex + 1} illisible — passez au suivant avec →`,
-      );
-    };
-
-    app.addEventListener("load", onSingleLoad);
-    app.addEventListener("loaderror", onSingleError);
-    app.addEventListener("error", onSingleError);
-    app.loadURLs([targetUrl]);
-
-    return () => {
-      disposed = true;
-      app.removeEventListener("load", onSingleLoad);
-      app.removeEventListener("loaderror", onSingleError);
-      app.removeEventListener("error", onSingleError);
-    };
-  }, [fileIndex, navMode, status, urlsKey]);
+  }, [urlsKey, layerGroupId, navMode, fileIndex]);
 
   useEffect(() => {
     if (status === "ready") {
@@ -751,8 +655,10 @@ export default function DicomViewer({
 
   const viewportMessage =
     status === "rendering"
-      ? "Rendu de l'image…"
-      : fileCount > 1 && preloadLoaded > 0
+      ? navMode === "sequential" && fileCount > 1
+        ? `Chargement du fichier ${fileIndex + 1}/${fileCount}…`
+        : "Rendu de l'image…"
+      : fileCount > 1 && preloadLoaded > 0 && navMode === "stack"
         ? `Préchargement des images (${preloadLoaded}/${fileCount})…`
         : fileCount > 1
           ? `Chargement de la série (${fileCount} fichiers)…`
@@ -833,7 +739,7 @@ export default function DicomViewer({
                 aria-label="Fermer la visionneuse"
                 className="inline-flex items-center justify-center rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
               >
-                <X className="w-5 h-5" aria-hidden="true" />
+                <X className="size-5" aria-hidden="true" />
               </button>
             ) : null}
           </div>
@@ -841,7 +747,7 @@ export default function DicomViewer({
       ) : null}
 
       <div
-        className="flex flex-wrap items-center gap-2 px-3 py-2 border-b"
+        className="flex flex-wrap items-center gap-2 border-b px-3 py-2"
         style={{ borderColor: "rgba(255,255,255,0.1)" }}
       >
         {tools
@@ -936,7 +842,7 @@ export default function DicomViewer({
           />
         ) : null}
 
-        <span className="ml-auto text-[11px] text-white/40 hidden sm:block">{hint}</span>
+        <span className="ml-auto text-[11px] hidden text-white/40 sm:block">{hint}</span>
       </div>
 
       <div
@@ -951,7 +857,9 @@ export default function DicomViewer({
 
         {isBusy ? (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none bg-[#0B1020]/85"
+            className={`absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none ${
+              isSequentialFileNav ? "bg-[#0B1020]/35" : "bg-[#0B1020]/85"
+            }`}
             data-testid="dicom-viewport-overlay"
           >
             <div
