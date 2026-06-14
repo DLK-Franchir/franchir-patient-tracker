@@ -142,6 +142,26 @@ function destroyDwvApp(app: App, layerGroupId: string) {
   if (node) node.replaceChildren();
 }
 
+/** dwv rend sur canvas 0×0 si le conteneur est `display:none` pendant le chargement. */
+function setPoolContainerVisible(container: HTMLDivElement, visible: boolean) {
+  container.style.display = "block";
+  container.style.visibility = visible ? "visible" : "hidden";
+  container.style.pointerEvents = visible ? "auto" : "none";
+}
+
+function refreshDwvLayout(app: App) {
+  try {
+    const dataIds = app.getDataIds();
+    if (dataIds.length > 0) {
+      app.render(dataIds[0]!);
+    }
+    app.fitToContainer();
+    app.onResize();
+  } catch {
+    /* layout may fail before canvas is ready */
+  }
+}
+
 export type DicomViewerProps = {
   /** URLs signées des objets DICOM de la série active. */
   urls: string[];
@@ -710,7 +730,7 @@ export default function DicomViewer({
     const activatePoolFile = (index: number) => {
       if (disposed) return;
       pool.forEach((entry, i) => {
-        entry.container.style.display = i === index ? "block" : "none";
+        setPoolContainerVisible(entry.container, i === index);
       });
       const entry = pool.get(index);
       if (!entry) return;
@@ -721,8 +741,7 @@ export default function DicomViewer({
         appRef.current = entry.app;
         try {
           entry.app.setTool(toolRef.current);
-          entry.app.fitToContainer();
-          entry.app.onResize();
+          refreshDwvLayout(entry.app);
         } catch {
           /* layout may fail before canvas is ready */
         }
@@ -795,7 +814,7 @@ export default function DicomViewer({
       const fileContainer = document.createElement("div");
       fileContainer.id = fileLayerGroupId;
       fileContainer.className = "absolute inset-0";
-      fileContainer.style.display = "none";
+      setPoolContainerVisible(fileContainer, false);
       poolHost.appendChild(fileContainer);
 
       const app = createDwvApp(fileLayerGroupId);
@@ -886,7 +905,7 @@ export default function DicomViewer({
     if (pool.size === 0) return;
 
     pool.forEach((entry, i) => {
-      entry.container.style.display = i === fileIndex ? "block" : "none";
+      setPoolContainerVisible(entry.container, i === fileIndex);
     });
     const entry = pool.get(fileIndex);
     if (!entry) return;
@@ -897,8 +916,7 @@ export default function DicomViewer({
       appRef.current = entry.app;
       try {
         entry.app.setTool(toolRef.current);
-        entry.app.fitToContainer();
-        entry.app.onResize();
+        refreshDwvLayout(entry.app);
       } catch {
         /* layout may fail before canvas is ready */
       }

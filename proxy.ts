@@ -5,7 +5,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 // `/api/integrations` = endpoints machine-à-machine (callback questionnaires →
 // tracker) authentifiés par service-token, SANS session navigateur : ils ne
 // doivent jamais être redirigés vers /login par le middleware d'auth.
-const PUBLIC_PATHS = ['/login', '/auth', '/api/integrations']
+// dwv charge ses codec workers depuis /assets/workers/* (rewrite → /dwv-workers/*).
+// Ces fichiers doivent être publics : sinon le middleware redirige vers /login et
+// les DICOM JPEG Lossless (DICOMOBJ) ne se décodent pas.
+const PUBLIC_PATHS = ['/login', '/auth', '/api/integrations', '/dwv-workers', '/assets/workers']
 
 export async function updateSession(request: NextRequest) {
   try {
@@ -107,6 +110,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|dwv-workers|assets/workers|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|map)$).*)',
   ],
 }
