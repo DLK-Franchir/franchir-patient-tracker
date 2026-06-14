@@ -21,6 +21,7 @@ import {
   dicomSeriesLabel,
   groupDicomFilesIntoSeries,
 } from '@/lib/imaging/dicom-series-group'
+import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
 // paresseusement (le bundle DICOM n'est livré qu'à l'ouverture d'un DICOM).
@@ -103,6 +104,27 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
   return items
 }
 
+function buildDicomViewerSeries(items: ViewerItem[]): ViewerSeries[] {
+  return items
+    .filter(
+      (item): item is Extract<ViewerItem, { kind: 'dicom-series' | 'questionnaire-dicom-series' }> =>
+        item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series',
+    )
+    .map((item, index) => ({
+      id: `${item.kind}-${index}-${item.name}`,
+      label: item.name,
+      urls: item.urls,
+      fileCount: item.urls.length,
+    }))
+}
+
+function findDicomSeriesIndex(items: ViewerItem[], selected: ViewerItem): number {
+  const dicomItems = items.filter(
+    (item) => item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series',
+  )
+  return dicomItems.findIndex((item) => item === selected)
+}
+
 export default function DocumentsSection({ patientId, canManage }: DocumentsSectionProps) {
   const [documents, setDocuments] = useState<PatientDocument[]>([])
   const [questionnaireFiles, setQuestionnaireFiles] = useState<QuestionnaireImagingFile[]>([])
@@ -117,6 +139,16 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const items = useMemo(
     () => [...buildViewerItems(documents), ...buildQuestionnaireViewerItems(questionnaireFiles)],
     [documents, questionnaireFiles],
+  )
+
+  const dicomViewerSeries = useMemo(() => buildDicomViewerSeries(items), [items])
+
+  const dicomItems = useMemo(
+    () =>
+      items.filter(
+        (item) => item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series',
+      ),
+    [items],
   )
 
   const fetchDocuments = useCallback(async () => {
@@ -347,52 +379,24 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             aria-label="Visionneuse DICOM"
             data-testid="dicom-fullscreen-viewer"
           >
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">Visionneuse DICOM</p>
-                <p className="truncate text-xs text-white/60">{selectedName}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {items.length > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      disabled={selectedIndex === 0}
-                      onClick={() => setSelectedIndex((i) => (i !== null ? Math.max(0, i - 1) : 0))}
-                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
-                    >
-                      <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-                      Préc.
-                    </button>
-                    <span className="text-xs text-white/50 tabular-nums">
-                      {(selectedIndex ?? 0) + 1} / {items.length}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={selectedIndex === items.length - 1}
-                      onClick={() =>
-                        setSelectedIndex((i) => (i !== null ? Math.min(items.length - 1, i + 1) : 0))
-                      }
-                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
-                    >
-                      Suiv.
-                      <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setSelectedIndex(null)}
-                  aria-label="Fermer la visionneuse"
-                  className="inline-flex items-center justify-center rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <DicomViewer urls={selectedItem.urls} name={selectedItem.name} />
-            </div>
+            <DicomViewer
+              urls={selectedItem.urls}
+              name={selectedName}
+              fullscreen
+              series={dicomViewerSeries}
+              activeSeriesIndex={Math.max(0, findDicomSeriesIndex(items, selectedItem))}
+              onNextSeries={() => {
+                const current = findDicomSeriesIndex(items, selectedItem)
+                const next = dicomItems[Math.min(current + 1, dicomItems.length - 1)]
+                if (next) setSelectedIndex(items.indexOf(next))
+              }}
+              onPrevSeries={() => {
+                const current = findDicomSeriesIndex(items, selectedItem)
+                const prev = dicomItems[Math.max(current - 1, 0)]
+                if (prev) setSelectedIndex(items.indexOf(prev))
+              }}
+              onClose={() => setSelectedIndex(null)}
+            />
           </div>
         ) : (
           <div

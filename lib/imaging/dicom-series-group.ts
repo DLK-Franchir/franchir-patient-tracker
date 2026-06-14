@@ -56,10 +56,10 @@ export function dicomSeriesLabel(groupId: string, count: number, singleName: str
   if (count <= 1) return stripped
 
   const seFromName = stripped.match(/^(SE\d+)_/i)
-  if (seFromName) return `Série ${seFromName[1]!.toUpperCase()} (${count} coupes)`
+  if (seFromName) return `Série ${seFromName[1]!.toUpperCase()} (${count} fichiers)`
 
-  if (groupId === 'patient-im') return `Série DICOM patient (${count} coupes)`
-  return `Série DICOM (${count} coupes)`
+  if (groupId === 'patient-im') return `Série DICOM patient (${count} fichiers)`
+  return `Série DICOM (${count} fichiers)`
 }
 
 const GROUP_ORDER = ['patient-im', 'marcel-cd'] as const

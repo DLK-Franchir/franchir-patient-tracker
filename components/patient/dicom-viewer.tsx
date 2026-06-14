@@ -2,25 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { App, AppOptions, ToolConfig, ViewConfig } from 'dwv'
-import { ArrowLeft, ArrowRight, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, AlertTriangle, Info, Activity, X } from 'lucide-react'
 
 /**
- * Rendu DICOM réel pour la fiche patient du tracker (porté depuis l'app
- * questionnaires).
- *
- * dwv est une lib navigateur uniquement (DOM/canvas + web workers pour les
- * syntaxes compressées) : ce composant ne doit JAMAIS rendre côté serveur. Il
- * est chargé via next/dynamic ssr:false depuis {@link DocumentsViewer}.
- *
- * Toute la série est chargée dans un seul app dwv (loadURLs) : dwv regroupe les
- * coupes d'une même série en un volume navigable (changement de coupe instantané).
+ * SYNC: structure alignée sur Franchir_Questionnaires_Patients/src/components/clinician/DicomViewer.tsx
+ * (pas de package partagé — garder les deux fichiers en parité fonctionnelle).
  */
 
-type DicomViewerProps = {
-  /** URLs signées courtes des objets DICOM de la série, dans l'ordre d'upload. */
+const WL_PRESETS = [
+  { id: 'soft', label: 'Tissus mous', center: 40, width: 400 },
+  { id: 'bone', label: 'Os', center: 300, width: 1500 },
+  { id: 'brain', label: 'Cerveau', center: 40, width: 80 },
+] as const
+
+type WlPresetId = (typeof WL_PRESETS)[number]['id']
+
+export type ViewerSeries = {
+  id: string
+  label: string
   urls: string[]
-  /** Libellé de la série (ou nom de fichier), pour l'accessibilité. */
-  name: string
+  fileCount: number
 }
 
 type DicomTool = 'WindowLevel' | 'ZoomAndPan' | 'Scroll'
@@ -31,24 +32,120 @@ type DwvLoadEvent = {
   error?: { message?: string } | string
 }
 
+type ViewerInfoKind = 'loading' | 'single' | 'stack' | 'error'
+
+export type DicomViewerProps = {
+  urls: string[]
+  name: string
+  embedded?: boolean
+  fullscreen?: boolean
+  series?: ViewerSeries[]
+  activeSeriesIndex?: number
+  onNextSeries?: () => void
+  onPrevSeries?: () => void
+  onClose?: () => void
+  onSliceCountResolved?: (count: number) => void
+}
+
 let layerGroupCounter = 0
 
-export default function DicomViewer({ urls, name }: DicomViewerProps) {
+function ViewerInfoBubble({
+  kind,
+  sliceCount,
+  errorMessage,
+}: {
+  kind: ViewerInfoKind
+  sliceCount: number
+  errorMessage?: string | null
+}) {
+  if (kind === 'loading') {
+    return (
+      <span
+        className="inline-flex max-w-xs items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/70"
+        data-testid="dicom-info-bubble"
+      >
+        <span
+          className="inline-block size-3 shrink-0 rounded-full border-2 border-white/20 border-t-white animate-spin"
+          aria-hidden
+        />
+        Chargement en cours…
+      </span>
+    )
+  }
+
+  if (kind === 'error') {
+    return (
+      <span
+        className="inline-flex max-w-md items-start gap-2 rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1 text-[11px] text-red-100"
+        data-testid="dicom-info-bubble"
+      >
+        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+        <span>
+          Affichage impossible
+          {errorMessage
+            ? ` — ${errorMessage}`
+            : ' — format non pris en charge, fichier corrompu ou lien expiré'}
+        </span>
+      </span>
+    )
+  }
+
+  if (kind === 'single') {
+    return (
+      <span
+        className="inline-flex max-w-xs items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/70"
+        data-testid="dicom-info-bubble"
+      >
+        <Info className="size-3.5 shrink-0 text-[#38B2AC]" strokeWidth={1.75} aria-hidden="true" />
+        Image unique — pas de navigation entre coupes
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className="inline-flex max-w-sm items-center gap-2 rounded-full border border-[#38B2AC]/30 bg-[#38B2AC]/10 px-3 py-1 text-[11px] text-[#38B2AC]"
+      data-testid="dicom-info-bubble"
+    >
+      <Activity className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      Suite de {sliceCount} image{sliceCount > 1 ? 's' : ''} — utilisez ← → ou la molette
+    </span>
+  )
+}
+
+export default function DicomViewer({
+  urls,
+  name,
+  embedded = false,
+  fullscreen = false,
+  series,
+  activeSeriesIndex = 0,
+  onNextSeries,
+  onPrevSeries,
+  onClose,
+  onSliceCountResolved,
+}: DicomViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<App | null>(null)
-  // Id DOM stable et sûr pour le div de layer group dwv.
-  // CRITIQUE : l'id ne DOIT PAS contenir la sous-chaîne "-layer-" : dwv nomme
-  // les divs de layer `<groupDivId>-layer-<n>` et retrouve le groupe en
-  // splittant sur "-layer-". Un id comme `dwv-layer-group-1` casse ce lookup et
-  // tue silencieusement toute interaction souris/molette.
   const [layerGroupId] = useState(() => `dwv-group-${(layerGroupCounter += 1)}`)
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [progress, setProgress] = useState(0)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [tool, setTool] = useState<DicomTool>('WindowLevel')
+  const [activePreset, setActivePreset] = useState<WlPresetId | null>(null)
   const [sliceIndex, setSliceIndex] = useState(0)
   const [sliceCount, setSliceCount] = useState(1)
+
+  const seriesCount = series?.length ?? 0
+  const hasSeriesNav = seriesCount > 1 && onNextSeries && onPrevSeries
+  const showHeader = Boolean(fullscreen || onClose || hasSeriesNav)
+  const atFirstSeries = activeSeriesIndex <= 0
+  const atLastSeries = seriesCount > 0 ? activeSeriesIndex >= seriesCount - 1 : true
+
+  const infoKind: ViewerInfoKind =
+    status === 'loading' ? 'loading' : status === 'error' ? 'error' : sliceCount > 1 ? 'stack' : 'single'
 
   const activateTool = useCallback((next: DicomTool) => {
     const app = appRef.current
@@ -71,6 +168,23 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
     return app.getActiveLayerGroup()?.getActiveViewLayer()?.getViewController()
   }, [])
 
+  const applyWindowPreset = useCallback(
+    (preset: (typeof WL_PRESETS)[number]) => {
+      const app = appRef.current
+      const controller = getViewController()
+      if (!app || !controller) return
+      try {
+        controller.setWindowLevelPreset(preset.id)
+        app.setTool('WindowLevel')
+        setTool('WindowLevel')
+        setActivePreset(preset.id)
+      } catch {
+        /* preset may fail on non-grayscale modalities */
+      }
+    },
+    [getViewController],
+  )
+
   const navigateSlice = useCallback(
     (delta: 1 | -1) => {
       const controller = getViewController()
@@ -80,7 +194,7 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
         if (delta > 0) helper.incrementPositionAlongScroll()
         else helper.decrementPositionAlongScroll()
       } catch {
-        /* données mono-coupe : pas de dimension de scroll */
+        /* single-frame data has no scroll dimension */
       }
     },
     [getViewController],
@@ -118,6 +232,8 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
     setProgress(0)
     setSliceIndex(0)
     setSliceCount(1)
+    setActivePreset(null)
+    setErrorMessage(null)
   }
 
   useEffect(() => {
@@ -129,6 +245,7 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
 
     let disposed = false
     let loadSucceeded = false
+    let readyFallbackId: number | null = null
 
     const app = new App()
     appRef.current = app
@@ -151,41 +268,81 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
         if (!controller) return
         setSliceIndex(controller.getCurrentIndexScrollValue())
       } catch {
-        /* position pas encore disponible */
+        /* position not available yet */
       }
     }
 
     const readSliceCount = () => {
       try {
         const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer()
-        if (!viewLayer) return
+        if (!viewLayer) return 1
         const controller = viewLayer.getViewController()
         const image = app.getData(viewLayer.getDataId())?.image
-        if (!image) return
+        if (!image) return 1
         const size = image.getGeometry().getSize()
-        setSliceCount(Math.max(1, size.get(controller.getScrollDimIndex())))
+        return Math.max(1, size.get(controller.getScrollDimIndex()))
       } catch {
-        setSliceCount(1)
+        return 1
       }
+    }
+
+    const publishSliceCount = (count: number) => {
+      setSliceCount(count)
+      onSliceCountResolved?.(count)
+    }
+
+    const finalizeLoad = () => {
+      if (disposed || loadSucceeded) return
+      loadSucceeded = true
+      if (readyFallbackId !== null) {
+        window.clearTimeout(readyFallbackId)
+        readyFallbackId = null
+      }
+      requestAnimationFrame(() => {
+        if (disposed) return
+        app.fitToContainer()
+        requestAnimationFrame(() => {
+          if (disposed) return
+          app.onResize()
+        })
+      })
+      const controller = app
+        .getActiveLayerGroup()
+        ?.getActiveViewLayer()
+        ?.getViewController()
+      if (controller) {
+        controller.addWindowLevelPresets({
+          soft: { center: 40, width: 400 },
+          bone: { center: 300, width: 1500 },
+          brain: { center: 40, width: 80 },
+        })
+      }
+      app.setTool('WindowLevel')
+      setTool('WindowLevel')
+      publishSliceCount(readSliceCount())
+      readSlicePosition()
+      setStatus('ready')
     }
 
     const onLoadProgress = (event: DwvLoadEvent) => {
       if (disposed) return
       if (typeof event.loaded === 'number') {
         const total = typeof event.total === 'number' && event.total > 0 ? event.total : 100
-        setProgress(Math.min(100, Math.round((event.loaded / total) * 100)))
+        const pct = Math.min(100, Math.round((event.loaded / total) * 100))
+        setProgress(pct)
+        if (pct >= 100 && readyFallbackId === null) {
+          readyFallbackId = window.setTimeout(() => {
+            if (!disposed && !loadSucceeded) {
+              finalizeLoad()
+            }
+          }, 600)
+        }
       }
     }
 
     const onLoad = () => {
       if (disposed) return
-      loadSucceeded = true
-      app.fitToContainer()
-      app.setTool('WindowLevel')
-      setTool('WindowLevel')
-      readSliceCount()
-      readSlicePosition()
-      setStatus('ready')
+      finalizeLoad()
     }
 
     const onPositionChange = () => {
@@ -195,10 +352,17 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
 
     const onError = (event: DwvLoadEvent) => {
       if (disposed) return
-      const message = typeof event.error === 'string' ? event.error : event.error?.message
+      const message = typeof event.error === 'string' ? event.error : event.error?.message ?? null
       console.error('[DicomViewer] load error', message ?? event)
+      if (message) setErrorMessage(message)
       if (!loadSucceeded) {
-        setStatus('error')
+        const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer()
+        const hasImage = Boolean(viewLayer && app.getData(viewLayer.getDataId())?.image)
+        if (hasImage) {
+          finalizeLoad()
+        } else {
+          setStatus('error')
+        }
       }
     }
 
@@ -211,19 +375,26 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
     const failTimer = window.setTimeout(() => {
       if (!disposed && !loadSucceeded) {
         setStatus('error')
+        setErrorMessage('délai de chargement dépassé')
       }
     }, 120_000)
 
     app.loadURLs(seriesUrls)
 
-    const resizeObserver = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
       if (disposed) return
+      const rect = entries[0]?.contentRect
+      if (!rect || rect.width < 1 || rect.height < 1) return
       app.onResize()
+      if (loadSucceeded) {
+        app.fitToContainer()
+      }
     })
     resizeObserver.observe(container)
 
     return () => {
       disposed = true
+      if (readyFallbackId !== null) window.clearTimeout(readyFallbackId)
       window.clearTimeout(failTimer)
       resizeObserver.disconnect()
       app.removeEventListener('loadprogress', onLoadProgress)
@@ -245,7 +416,7 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
       if (node) node.replaceChildren()
       appRef.current = null
     }
-  }, [urlsKey, layerGroupId])
+  }, [urlsKey, layerGroupId, onSliceCountResolved])
 
   useEffect(() => {
     if (status === 'ready') {
@@ -269,9 +440,66 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
   return (
     <div
       className="flex flex-col w-full h-full"
-      style={{ backgroundColor: '#0B1020' }}
+      style={{ backgroundColor: embedded && !fullscreen ? 'transparent' : '#0B1020' }}
       onKeyDown={handleKeyDown}
+      data-testid="dicom-viewer-root"
     >
+      {showHeader ? (
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3"
+          data-testid="dicom-series-header"
+        >
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-sm font-semibold text-white">{name}</p>
+              {seriesCount > 1 ? (
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/60">
+                  Série {activeSeriesIndex + 1} / {seriesCount}
+                </span>
+              ) : null}
+            </div>
+            <ViewerInfoBubble kind={infoKind} sliceCount={sliceCount} errorMessage={errorMessage} />
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {hasSeriesNav ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onPrevSeries}
+                  disabled={atFirstSeries}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  data-testid="dicom-prev-series"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Série préc.
+                </button>
+                <button
+                  type="button"
+                  onClick={onNextSeries}
+                  disabled={atLastSeries}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#38B2AC] px-4 py-2.5 text-sm font-bold text-white shadow-lg transition hover:bg-[#38B2AC]/90 disabled:cursor-not-allowed disabled:opacity-40"
+                  data-testid="dicom-next-series"
+                >
+                  Série suivante
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </button>
+              </>
+            ) : null}
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Fermer la visionneuse"
+                className="inline-flex items-center justify-center rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div
         className="flex flex-wrap items-center gap-2 px-3 py-2 border-b"
         style={{ borderColor: 'rgba(255,255,255,0.1)' }}
@@ -287,13 +515,35 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
               aria-pressed={tool === t.id}
               className="rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:opacity-30"
               style={{
-                backgroundColor: tool === t.id ? '#3B82F6' : 'rgba(255,255,255,0.08)',
+                backgroundColor: tool === t.id ? '#38B2AC' : 'rgba(255,255,255,0.08)',
                 color: '#FFFFFF',
               }}
             >
               {t.label}
             </button>
           ))}
+
+        <span className="mx-1 hidden h-4 w-px bg-white/15 sm:block" aria-hidden="true" />
+
+        {WL_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => applyWindowPreset(preset)}
+            disabled={status !== 'ready'}
+            aria-pressed={activePreset === preset.id}
+            aria-label={`Preset fenêtrage ${preset.label}`}
+            className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition disabled:opacity-30"
+            style={{
+              backgroundColor:
+                activePreset === preset.id ? 'rgba(56,178,172,0.35)' : 'rgba(255,255,255,0.06)',
+              color: '#FFFFFF',
+            }}
+          >
+            {preset.label}
+          </button>
+        ))}
+
         <button
           type="button"
           onClick={handleReset}
@@ -335,6 +585,10 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
           </div>
         )}
 
+        {!showHeader ? (
+          <ViewerInfoBubble kind={infoKind} sliceCount={sliceCount} errorMessage={errorMessage} />
+        ) : null}
+
         <span className="ml-auto text-[11px] text-white/40 hidden sm:block">{hint}</span>
       </div>
 
@@ -365,8 +619,8 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
             <AlertTriangle className="size-8 text-white/80" strokeWidth={1.75} aria-hidden="true" />
             <p className="text-sm font-medium text-white">Impossible d&apos;afficher ce DICOM</p>
             <p className="text-xs text-white/50">
-              Le fichier est peut-être corrompu, dans un format compressé non pris en charge, ou le
-              lien sécurisé a expiré.
+              {errorMessage ??
+                'Le fichier est peut-être corrompu, dans un format compressé non pris en charge, ou le lien sécurisé a expiré.'}
             </p>
             <a
               href={urls[0]}
