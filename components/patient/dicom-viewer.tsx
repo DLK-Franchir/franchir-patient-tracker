@@ -128,6 +128,7 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
     if (seriesUrls.length === 0) return
 
     let disposed = false
+    let loadSucceeded = false
 
     const app = new App()
     appRef.current = app
@@ -178,6 +179,7 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
 
     const onLoad = () => {
       if (disposed) return
+      loadSucceeded = true
       app.fitToContainer()
       app.setTool('WindowLevel')
       setTool('WindowLevel')
@@ -195,7 +197,9 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
       if (disposed) return
       const message = typeof event.error === 'string' ? event.error : event.error?.message
       console.error('[DicomViewer] load error', message ?? event)
-      setStatus('error')
+      if (!loadSucceeded) {
+        setStatus('error')
+      }
     }
 
     app.addEventListener('loadprogress', onLoadProgress)
@@ -203,7 +207,12 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
     app.addEventListener('positionchange', onPositionChange)
     app.addEventListener('loaderror', onError)
     app.addEventListener('error', onError)
-    app.addEventListener('abort', onError)
+
+    const failTimer = window.setTimeout(() => {
+      if (!disposed && !loadSucceeded) {
+        setStatus('error')
+      }
+    }, 120_000)
 
     app.loadURLs(seriesUrls)
 
@@ -215,13 +224,13 @@ export default function DicomViewer({ urls, name }: DicomViewerProps) {
 
     return () => {
       disposed = true
+      window.clearTimeout(failTimer)
       resizeObserver.disconnect()
       app.removeEventListener('loadprogress', onLoadProgress)
       app.removeEventListener('load', onLoad)
       app.removeEventListener('positionchange', onPositionChange)
       app.removeEventListener('loaderror', onError)
       app.removeEventListener('error', onError)
-      app.removeEventListener('abort', onError)
       try {
         app.abortAllLoads()
       } catch {

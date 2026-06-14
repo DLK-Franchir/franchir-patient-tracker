@@ -17,6 +17,10 @@ import DocumentUpload from '@/components/patient/document-upload'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
+import {
+  dicomSeriesLabel,
+  groupDicomFilesIntoSeries,
+} from '@/lib/imaging/dicom-series-group'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
 // paresseusement (le bundle DICOM n'est livré qu'à l'ouverture d'un DICOM).
@@ -46,21 +50,24 @@ type ViewerItem =
  */
 function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   const items: ViewerItem[] = []
-  const dicomDocs = docs.filter((d) => d.renderType === 'dicom')
-  let seriesInserted = false
-
   for (const doc of docs) {
     if (doc.renderType !== 'dicom') {
       items.push({ kind: 'file', doc })
-      continue
     }
-    if (seriesInserted) continue
-    seriesInserted = true
+  }
+
+  for (const series of groupDicomFilesIntoSeries(
+    docs
+      .filter((d) => d.renderType === 'dicom')
+      .map((d) => ({ name: d.fileName, url: d.url })),
+  )) {
+    const first = series.files[0]
+    if (!first) continue
     items.push({
       kind: 'dicom-series',
-      name: dicomDocs.length > 1 ? `Série DICOM (${dicomDocs.length} coupes)` : doc.fileName,
-      urls: dicomDocs.map((d) => d.url),
-      firstUrl: doc.url,
+      name: dicomSeriesLabel(series.groupId, series.files.length, first.name),
+      urls: series.files.map((f) => f.url),
+      firstUrl: first.url,
     })
   }
 
@@ -69,9 +76,6 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
 
 function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): ViewerItem[] {
   const items: ViewerItem[] = []
-  const dicomFiles = files.filter((f) => f.type === 'dicom')
-  let seriesInserted = false
-
   for (const file of files) {
     if (file.type !== 'dicom') {
       items.push({
@@ -80,15 +84,19 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
         url: file.url,
         renderType: file.type,
       })
-      continue
     }
-    if (seriesInserted) continue
-    seriesInserted = true
+  }
+
+  for (const series of groupDicomFilesIntoSeries(
+    files.filter((f) => f.type === 'dicom').map((f) => ({ name: f.name, url: f.url })),
+  )) {
+    const first = series.files[0]
+    if (!first) continue
     items.push({
       kind: 'questionnaire-dicom-series',
-      name: dicomFiles.length > 1 ? `Série DICOM patient (${dicomFiles.length} coupes)` : file.name,
-      urls: dicomFiles.map((f) => f.url),
-      firstUrl: file.url,
+      name: dicomSeriesLabel(series.groupId, series.files.length, first.name),
+      urls: series.files.map((f) => f.url),
+      firstUrl: first.url,
     })
   }
 

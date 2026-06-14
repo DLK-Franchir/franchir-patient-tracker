@@ -31,7 +31,8 @@ export const MAX_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
 export const MAX_DOCUMENTS_PER_REQUEST = 1000
 
 /** TTL des URLs signées (PHI) : court, régénéré à chaque affichage. */
-export const SIGNED_URL_TTL_SECONDS = 300
+/** TTL URLs signées imagerie — séries volumineuses JPEG-LS. */
+export const SIGNED_URL_TTL_SECONDS = 1800
 
 /** Plafond de fichiers listés par patient. */
 export const MAX_DOCUMENTS_LISTED = 200
