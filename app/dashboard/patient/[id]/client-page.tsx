@@ -24,9 +24,13 @@ function LoadingSpinner() {
 interface PatientData {
   id: string
   patient_name: string
+  patient_email?: string | null
   clinical_summary: string | null
   sharepoint_link: string | null
   created_at: string
+  questionnaire_status?: string | null
+  questionnaire_completed_at?: string | null
+  questionnaire_summary?: string | null
   quote_amount?: number | null
   proposed_date?: string | null
   quote_accepted?: boolean
@@ -271,6 +275,36 @@ export default function PatientDetailClient({
                   onAction={handleAction}
                 />
               </div>
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Questionnaire patient</h3>
+              {patient.questionnaire_status === 'completed' ? (
+                <div className="flex items-start gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Complété
+                  </span>
+                  {patient.questionnaire_completed_at && (
+                    <span className="text-xs text-gray-500 mt-0.5">
+                      le {new Date(patient.questionnaire_completed_at).toLocaleDateString('fr-FR')}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  En attente de complétion
+                </span>
+              )}
+              {patient.patient_email && (
+                <p className="text-xs text-gray-500 mt-2 break-all">
+                  Lien envoyé à {patient.patient_email}
+                </p>
+              )}
+              {patient.questionnaire_status === 'completed' && patient.questionnaire_summary && (
+                <p className="text-xs text-gray-600 mt-2 whitespace-pre-line border-t border-gray-100 pt-2">
+                  {patient.questionnaire_summary}
+                </p>
+              )}
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
