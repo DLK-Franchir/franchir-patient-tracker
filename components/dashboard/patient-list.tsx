@@ -8,8 +8,22 @@ type Patient = {
   id: string
   patient_name: string
   created_at: string
+  questionnaire_status: string | null
   workflow_statuses: { label: string; color: string } | null
   profiles: { full_name: string } | null
+}
+
+function QuestionnaireBadge({ status }: { status: string | null }) {
+  const done = status === 'completed'
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+        done ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+      }`}
+    >
+      {done ? 'Questionnaire complété' : 'Questionnaire en attente'}
+    </span>
+  )
 }
 
 export default function PatientList({
@@ -64,6 +78,7 @@ export default function PatientList({
             <tr>
               <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Patient</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Statut</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Questionnaire</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Créé par</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date</th>
               <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
@@ -81,6 +96,9 @@ export default function PatientList({
                     {patient.workflow_statuses?.label}
                   </span>
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <QuestionnaireBadge status={patient.questionnaire_status} />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{patient.profiles?.full_name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                   {new Date(patient.created_at).toLocaleDateString('fr-FR')}
@@ -97,7 +115,7 @@ export default function PatientList({
             ))}
             {patients.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
+                <td colSpan={6} className="px-6 py-12 text-center text-gray-500 italic">
                   Aucun dossier patient pour le moment.
                 </td>
               </tr>
@@ -119,6 +137,9 @@ export default function PatientList({
                 <p className="text-xs text-gray-500 mt-1">
                   {patient.profiles?.full_name} • {new Date(patient.created_at).toLocaleDateString('fr-FR')}
                 </p>
+                <div className="mt-2">
+                  <QuestionnaireBadge status={patient.questionnaire_status} />
+                </div>
               </div>
               <span 
                 className="px-2.5 py-1 rounded-full text-xs font-bold text-white shrink-0"

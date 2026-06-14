@@ -17,6 +17,7 @@ async function getPatients(page: number = 0) {
       id,
       patient_name,
       created_at,
+      questionnaire_status,
       workflow_statuses (label, color),
       profiles (full_name)
     `, { count: 'exact' })
@@ -27,6 +28,7 @@ async function getPatients(page: number = 0) {
     id: p.id,
     patient_name: p.patient_name,
     created_at: p.created_at,
+    questionnaire_status: p.questionnaire_status ?? null,
     workflow_statuses: Array.isArray(p.workflow_statuses) ? p.workflow_statuses[0] || null : p.workflow_statuses,
     profiles: Array.isArray(p.profiles) ? p.profiles[0] || null : p.profiles,
   }))
