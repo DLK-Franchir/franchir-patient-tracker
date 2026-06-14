@@ -11,7 +11,6 @@ export default function NewPatientPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [summary, setSummary] = useState('')
-  const [link, setLink] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [uploadStep, setUploadStep] = useState(false)
@@ -29,7 +28,6 @@ export default function NewPatientPage() {
           patient_name: name,
           patient_email: email,
           clinical_summary: summary,
-          sharepoint_link: link,
         }),
       })
 
@@ -136,15 +134,7 @@ export default function NewPatientPage() {
               rows={4}
               placeholder="Résumé des pathologies..."
             />
-            <p className="text-xs text-gray-500 mt-1">Le dossier médical complet reste sur SharePoint</p>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Lien sécurisé SharePoint *</label>
-            <input 
-              type="url" required value={link} onChange={e => setLink(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 text-base focus:ring-2 focus:ring-[#2563EB] outline-none" 
-              placeholder="https://sharepoint.com/..."
-            />
+            <p className="text-xs text-gray-500 mt-1">Résumé clinique synthétique du dossier</p>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">

@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try {
     const { patient_name, patient_email, clinical_summary, sharepoint_link } = await req.json()
 
-    if (!patient_name || !sharepoint_link) {
+    if (!patient_name) {
       return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
     }
 
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         patient_name,
         patient_email,
         clinical_summary,
-        sharepoint_link,
+        sharepoint_link: sharepoint_link ?? null,
         current_status_id: status?.id,
         created_by: user.id,
       })
