@@ -60,7 +60,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   for (const series of groupDicomFilesIntoSeries(
     docs
       .filter((d) => d.renderType === 'dicom')
-      .map((d) => ({ name: d.fileName, url: d.url })),
+      .map((d) => ({ name: d.fileName, url: d.url, size: d.sizeBytes })),
   )) {
     const first = series.files[0]
     if (!first) continue
@@ -89,7 +89,7 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
   }
 
   for (const series of groupDicomFilesIntoSeries(
-    files.filter((f) => f.type === 'dicom').map((f) => ({ name: f.name, url: f.url })),
+    files.filter((f) => f.type === 'dicom').map((f) => ({ name: f.name, url: f.url, size: f.size ?? null })),
   )) {
     const first = series.files[0]
     if (!first) continue

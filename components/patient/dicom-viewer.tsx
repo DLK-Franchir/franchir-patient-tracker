@@ -52,6 +52,43 @@ type PoolEntry = {
 
 /** Limite mémoire : une App dwv isolée par fichier en mode séquentiel. */
 const MAX_SEQUENTIAL_POOL = 50;
+/** Chargements dwv parallèles max (évite OOM sur séries JPEG volumineuses). */
+const MAX_POOL_LOAD_CONCURRENCY = 4;
+
+/** Messages utilisateur pour échecs dwv / transfer syntax non supportée. */
+export function formatDicomLoadError(message: string | null | undefined): string {
+  if (!message?.trim()) {
+    return "format non pris en charge, fichier corrompu ou lien expiré";
+  }
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("jpeg-ls") ||
+    lower.includes("jpegls") ||
+    lower.includes("1.2.840.10008.1.2.4.80") ||
+    lower.includes("1.2.840.10008.1.2.4.81")
+  ) {
+    return "Format DICOM non supporté (JPEG-LS) — contactez le support";
+  }
+  if (
+    lower.includes("jpeg 2000") ||
+    lower.includes("jpeg2000") ||
+    lower.includes("1.2.840.10008.1.2.4.90") ||
+    lower.includes("1.2.840.10008.1.2.4.91")
+  ) {
+    return "Format DICOM non supporté (JPEG 2000) — contactez le support";
+  }
+  if (
+    lower.includes("jpeg lossless") ||
+    lower.includes("jpegloss") ||
+    lower.includes("1.2.840.10008.1.2.4.70")
+  ) {
+    return "Format DICOM non supporté (JPEG Lossless) — contactez le support";
+  }
+  if (lower.includes("codec") || lower.includes("decompress") || lower.includes("transfer syntax")) {
+    return "Format DICOM non supporté — contactez le support";
+  }
+  return message;
+}
 
 function createDwvApp(layerGroupId: string): App {
   const app = new App();
@@ -511,7 +548,7 @@ export default function DicomViewer({
         }
         if (!hasRenderableImage(app)) {
           setStatus("error");
-          setErrorMessage("fichier illisible ou format non pris en charge");
+          setErrorMessage(formatDicomLoadError("fichier illisible ou format non pris en charge"));
           return;
         }
         markReady();
@@ -559,7 +596,7 @@ export default function DicomViewer({
       const message =
         typeof event.error === "string" ? event.error : event.error?.message ?? null;
       console.error("[DicomViewer] load error", message ?? event);
-      if (message) setErrorMessage(message);
+      if (message) setErrorMessage(formatDicomLoadError(message));
       if (!loadSucceeded) {
         const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
         const hasImage = Boolean(viewLayer && app.getData(viewLayer.getDataId())?.image);
@@ -706,6 +743,70 @@ export default function DicomViewer({
       }
     };
 
+    const startPoolLoad = (index: number) => {
+      const entry = pool.get(index);
+      if (!entry || entry.status !== "loading") return;
+      const url = seriesUrls[index];
+      if (!url) return;
+
+      const app = entry.app;
+      const finalizeEntry = (success: boolean, errMsg?: string) => {
+        window.setTimeout(() => {
+          if (disposed) return;
+          markEntryProcessed(index, app, success, errMsg);
+          pumpPoolLoads();
+        }, 550);
+      };
+
+      const onLoad = () => {
+        if (disposed) return;
+        finalizeEntry(hasRenderableImage(app));
+      };
+
+      const onError = (event: DwvLoadEvent) => {
+        if (disposed) return;
+        const message =
+          typeof event.error === "string" ? event.error : event.error?.message ?? null;
+        console.error(`[DicomViewer] pool load error file ${index + 1}`, message ?? event);
+        finalizeEntry(false, formatDicomLoadError(message ?? "erreur de chargement"));
+      };
+
+      app.addEventListener("load", onLoad);
+      app.addEventListener("loaderror", onError);
+      app.addEventListener("error", onError);
+      app.loadURLs([url]);
+    };
+
+    let poolLoadCursor = 0;
+    let poolLoadsInFlight = 0;
+
+    const pumpPoolLoads = () => {
+      if (disposed) return;
+      while (poolLoadsInFlight < MAX_POOL_LOAD_CONCURRENCY && poolLoadCursor < poolSize) {
+        const index = poolLoadCursor;
+        poolLoadCursor += 1;
+        poolLoadsInFlight += 1;
+        startPoolLoad(index);
+      }
+    };
+
+    for (let i = 0; i < poolSize; i++) {
+      const fileLayerGroupId = `${layerGroupId}-seq-${i}`;
+      const fileContainer = document.createElement("div");
+      fileContainer.id = fileLayerGroupId;
+      fileContainer.className = "absolute inset-0";
+      fileContainer.style.display = "none";
+      poolHost.appendChild(fileContainer);
+
+      const app = createDwvApp(fileLayerGroupId);
+      pool.set(i, {
+        app,
+        container: fileContainer,
+        layerGroupId: fileLayerGroupId,
+        status: "loading",
+      });
+    }
+
     const markEntryProcessed = (index: number, app: App, success: boolean, errMsg?: string) => {
       if (disposed) return;
       const entry = pool.get(index);
@@ -720,6 +821,7 @@ export default function DicomViewer({
         entry.errorMessage = errMsg ?? "erreur de chargement";
       }
 
+      poolLoadsInFlight = Math.max(0, poolLoadsInFlight - 1);
       processedCount += 1;
       updatePreloadProgress();
 
@@ -732,48 +834,7 @@ export default function DicomViewer({
       }
     };
 
-    for (let i = 0; i < poolSize; i++) {
-      const fileLayerGroupId = `${layerGroupId}-seq-${i}`;
-      const fileContainer = document.createElement("div");
-      fileContainer.id = fileLayerGroupId;
-      fileContainer.className = "absolute inset-0";
-      fileContainer.style.display = "none";
-      poolHost.appendChild(fileContainer);
-
-      const app = createDwvApp(fileLayerGroupId);
-      const entry: PoolEntry = {
-        app,
-        container: fileContainer,
-        layerGroupId: fileLayerGroupId,
-        status: "loading",
-      };
-      pool.set(i, entry);
-
-      const finalizeEntry = (success: boolean, errMsg?: string) => {
-        window.setTimeout(() => {
-          if (disposed) return;
-          markEntryProcessed(i, app, success, errMsg);
-        }, 550);
-      };
-
-      const onLoad = () => {
-        if (disposed) return;
-        finalizeEntry(hasRenderableImage(app));
-      };
-
-      const onError = (event: DwvLoadEvent) => {
-        if (disposed) return;
-        const message =
-          typeof event.error === "string" ? event.error : event.error?.message ?? null;
-        console.error(`[DicomViewer] pool load error file ${i + 1}`, message ?? event);
-        finalizeEntry(false, message ?? "erreur de chargement");
-      };
-
-      app.addEventListener("load", onLoad);
-      app.addEventListener("loaderror", onError);
-      app.addEventListener("error", onError);
-      app.loadURLs([seriesUrls[i]!]);
-    }
+    pumpPoolLoads();
 
     const resizeObserver = new ResizeObserver((entries) => {
       if (disposed) return;

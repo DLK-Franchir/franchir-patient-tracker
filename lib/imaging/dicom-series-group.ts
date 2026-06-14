@@ -5,6 +5,8 @@
 export type NamedImagingFile = {
   name: string
   url: string
+  /** Taille en octets (Storage) — résout les re-uploads partiels d'une même coupe. */
+  size?: number | null
 }
 
 export function stripStorageTimestampPrefix(storageName: string): string {
@@ -39,16 +41,85 @@ export function dicomSeriesGroupId(storageName: string): string {
   return `series:${stem.replace(/\d+$/, '') || stripped}`
 }
 
-export function dedupeDicomFilesByBasename<T extends { name: string }>(files: T[]): T[] {
-  const best = new Map<string, T>()
+function fileSizeBytes(file: NamedImagingFile): number | null {
+  if (typeof file.size === 'number' && file.size > 0) return file.size
+  return null
+}
+
+function medianSize(values: number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  return sorted[Math.floor(sorted.length / 2)] ?? null
+}
+
+function pickDuplicateVersion<T extends NamedImagingFile>(
+  candidates: T[],
+  referenceSize: number | null,
+): T {
+  if (candidates.length === 1) return candidates[0]!
+
+  let ref = referenceSize
+  if (ref === null) {
+    const candidateSizes = candidates
+      .map((file) => fileSizeBytes(file))
+      .filter((size): size is number => size !== null)
+    ref = medianSize(candidateSizes)
+  }
+
+  if (ref !== null && ref > 0) {
+    return candidates.reduce((best, cur) => {
+      const curSize = fileSizeBytes(cur)
+      const bestSize = fileSizeBytes(best)
+      const curDist =
+        curSize !== null ? Math.abs(curSize - ref!) : Number.POSITIVE_INFINITY
+      const bestDist =
+        bestSize !== null ? Math.abs(bestSize - ref!) : Number.POSITIVE_INFINITY
+      if (curDist !== bestDist) return curDist < bestDist ? cur : best
+      return storageTimestampPrefix(cur.name) >= storageTimestampPrefix(best.name) ? cur : best
+    })
+  }
+
+  return candidates.reduce((best, cur) =>
+    storageTimestampPrefix(cur.name) <= storageTimestampPrefix(best.name) ? cur : best,
+  )
+}
+
+function dedupeSeriesGroupFiles<T extends NamedImagingFile>(files: T[]): T[] {
+  const byBasename = new Map<string, T[]>()
   for (const file of files) {
     const base = stripStorageTimestampPrefix(file.name)
-    const previous = best.get(base)
-    if (!previous || storageTimestampPrefix(file.name) >= storageTimestampPrefix(previous.name)) {
-      best.set(base, file)
-    }
+    const list = byBasename.get(base) ?? []
+    list.push(file)
+    byBasename.set(base, list)
   }
-  return Array.from(best.values()).sort((a, b) => a.name.localeCompare(b.name))
+
+  const singletonSizes = [...byBasename.values()]
+    .filter((list) => list.length === 1)
+    .map((list) => fileSizeBytes(list[0]!))
+    .filter((size): size is number => size !== null)
+
+  const referenceSize = medianSize(singletonSizes)
+  const deduped: T[] = []
+  for (const candidates of byBasename.values()) {
+    deduped.push(pickDuplicateVersion(candidates, referenceSize))
+  }
+  return deduped.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export function dedupeDicomFilesByBasename<T extends NamedImagingFile>(files: T[]): T[] {
+  const bySeries = new Map<string, T[]>()
+  for (const file of files) {
+    const groupId = dicomSeriesGroupId(file.name)
+    const list = bySeries.get(groupId) ?? []
+    list.push(file)
+    bySeries.set(groupId, list)
+  }
+
+  const result: T[] = []
+  for (const seriesFiles of bySeries.values()) {
+    result.push(...dedupeSeriesGroupFiles(seriesFiles))
+  }
+  return result.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export function dicomSeriesLabel(groupId: string, count: number, singleName: string): string {
@@ -59,6 +130,7 @@ export function dicomSeriesLabel(groupId: string, count: number, singleName: str
   if (seFromName) return `Série ${seFromName[1]!.toUpperCase()} (${count} fichiers)`
 
   if (groupId === 'patient-im') return `Série DICOM patient (${count} fichiers)`
+  if (groupId === 'series:DICOMOBJ') return `Série DICOMOBJ (${count} fichiers)`
   return `Série DICOM (${count} fichiers)`
 }
 
