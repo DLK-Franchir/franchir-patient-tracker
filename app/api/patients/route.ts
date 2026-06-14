@@ -8,11 +8,20 @@ const log = new Logger('api/patients')
 
 export async function POST(req: Request) {
   try {
-    const { patient_name, patient_email, clinical_summary, sharepoint_link } = await req.json()
+    const { patient_name, patient_email, clinical_summary, sharepoint_link, form_types } =
+      await req.json()
 
     if (!patient_name) {
       return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
     }
+
+    const normalizedFormTypes = Array.isArray(form_types)
+      ? form_types.filter((t: unknown): t is 'cervical' | 'lombaire' =>
+          t === 'cervical' || t === 'lombaire',
+        )
+      : ['cervical']
+    const formTypes =
+      normalizedFormTypes.length > 0 ? [...new Set(normalizedFormTypes)] : (['cervical'] as const)
 
     // Email patient (D1) : requis pour l'envoi automatique du questionnaire.
     // Validation minimale (format) — la saisie complète est validée côté UI.
@@ -47,6 +56,7 @@ export async function POST(req: Request) {
         patient_email,
         clinical_summary,
         sharepoint_link: sharepoint_link ?? null,
+        form_types: formTypes,
         current_status_id: status?.id,
         created_by: user.id,
       })

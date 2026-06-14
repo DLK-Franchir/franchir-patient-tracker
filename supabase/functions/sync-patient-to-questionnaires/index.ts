@@ -15,7 +15,7 @@
 //
 // Schéma tracker utilisé :
 //   patients(id, patient_name, patient_email, clinical_summary,
-//            sharepoint_link, current_status_id, assigned_surgeon_id)
+//            sharepoint_link, form_types, current_status_id, assigned_surgeon_id)
 //   surgeons(id, full_name, email)
 //   workflow_statuses(id, code)
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
       assignedSurgeonName: surgeonName,
       clinicalSummary: record.clinical_summary ?? null,
       sharepointLink: record.sharepoint_link ?? null,
+      formTypes: Array.isArray(record.form_types) ? record.form_types : undefined,
       workflowStatus: status?.code ?? null,
     }),
   });

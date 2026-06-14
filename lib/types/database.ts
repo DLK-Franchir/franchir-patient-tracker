@@ -35,6 +35,7 @@ export interface Patient {
   patient_email: string | null
   clinical_summary: string | null
   sharepoint_link: string | null
+  form_types: ('cervical' | 'lombaire')[]
   current_status_id: string | null
   assigned_surgeon_id: string | null
   questionnaire_status: string | null

@@ -12,6 +12,7 @@ export default function NewPatientPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [summary, setSummary] = useState('')
+  const [formTypes, setFormTypes] = useState<Array<'cervical' | 'lombaire'>>(['cervical'])
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [uploadStep, setUploadStep] = useState(false)
@@ -29,6 +30,7 @@ export default function NewPatientPage() {
           patient_name: name,
           patient_email: email,
           clinical_summary: summary,
+          form_types: formTypes,
         }),
       })
 
@@ -131,6 +133,50 @@ export default function NewPatientPage() {
               placeholder="Résumé des pathologies..."
             />
             <p className="text-xs text-gray-500 mt-1">Résumé clinique synthétique du dossier</p>
+          </div>
+          <div>
+            <fieldset>
+              <legend className="block text-sm font-semibold text-gray-700 mb-2">
+                Type de questionnaire *
+              </legend>
+              <p className="text-xs text-gray-500 mb-3">
+                Sélectionnez cervical, lombaire, ou les deux. Transmis au portail questionnaire à la synchronisation.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                {(['cervical', 'lombaire'] as const).map((type) => {
+                  const checked = formTypes.includes(type)
+                  const label = type === 'cervical' ? 'Cervical' : 'Lombaire'
+                  return (
+                    <label
+                      key={type}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                        checked
+                          ? type === 'cervical'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setFormTypes((prev) => {
+                            if (checked) {
+                              const next = prev.filter((t) => t !== type)
+                              return next.length > 0 ? next : prev
+                            }
+                            return [...prev, type]
+                          })
+                        }}
+                        className="sr-only"
+                      />
+                      {label}
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
