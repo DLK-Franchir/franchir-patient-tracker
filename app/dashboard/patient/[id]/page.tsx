@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import PatientDetailClient from './client-page'
 import AppHeader from '@/components/app-header'
 import { type UserRole } from '@/lib/workflow-v2'
+import { fetchQuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 
 export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -63,6 +64,10 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     .eq('is_active', true)
     .order('full_name', { ascending: true })
 
+  // Suivi questionnaire détaillé (lien actif + sessions longitudinales) depuis
+  // l'app questionnaires. Best-effort : null si le pont n'est pas configuré.
+  const questionnaireStatus = await fetchQuestionnaireStatus(id)
+
   return (
     <>
       <AppHeader userRole={userRole} userName={staffProfile.full_name ?? undefined} showActions={true} />
@@ -71,6 +76,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
         initialMessages={allMessages || []}
         userRole={userRole}
         surgeons={surgeons || []}
+        questionnaireStatus={questionnaireStatus}
       />
     </>
   )

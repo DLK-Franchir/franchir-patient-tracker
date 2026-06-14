@@ -8,7 +8,19 @@ import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
 import DocumentsSection from '@/components/patient/documents-section'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
+import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 import { useRouter } from 'next/navigation'
+
+function formatDateFr(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  return new Date(iso).toLocaleDateString('fr-FR')
+}
+
+const SESSION_STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  draft: { label: 'À démarrer', cls: 'bg-slate-100 text-slate-600' },
+  in_progress: { label: 'En cours', cls: 'bg-orange-100 text-orange-800' },
+  completed: { label: 'Complété', cls: 'bg-green-100 text-green-800' },
+}
 
 const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
 const CommercialData = lazy(() => import('@/components/patient/commercial-data'))
@@ -52,11 +64,13 @@ export default function PatientDetailClient({
   initialMessages,
   userRole,
   surgeons = [],
+  questionnaireStatus = null,
 }: {
   initialPatient: PatientData
   initialMessages: Message[]
   userRole: UserRole
   surgeons?: SurgeonOption[]
+  questionnaireStatus?: QuestionnaireStatus | null
 }) {
   const router = useRouter()
   const [patient, setPatient] = useState(initialPatient)
@@ -89,6 +103,25 @@ export default function PatientDetailClient({
       router.refresh()
     } catch (error) {
       alert(error instanceof Error ? error.message : "Une erreur est survenue")
+    } finally {
+      setQuestionnaireLoading(false)
+    }
+  }
+
+  const handleRevokeLink = async () => {
+    if (!confirm('Révoquer le lien actif de ce patient ? Il ne pourra plus accéder au questionnaire avec ce lien.')) {
+      return
+    }
+    setQuestionnaireLoading(true)
+    try {
+      const response = await fetch(`/api/patients/${patient.id}/questionnaire-revoke`, { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Échec de la révocation')
+      }
+      router.refresh()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Une erreur est survenue')
     } finally {
       setQuestionnaireLoading(false)
     }
@@ -362,6 +395,58 @@ export default function PatientDetailClient({
                   >
                     Nouveau questionnaire (suivi)
                   </button>
+                  {questionnaireStatus?.activeLink && (
+                    <button
+                      onClick={handleRevokeLink}
+                      disabled={questionnaireLoading}
+                      className="w-full text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-md disabled:opacity-50 transition"
+                    >
+                      Révoquer le lien actif
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {questionnaireStatus?.activeLink && (
+                <div className="mt-3 border-t border-gray-100 pt-3 space-y-0.5 text-xs text-gray-500">
+                  {formatDateFr(questionnaireStatus.activeLink.expiresAt) && (
+                    <p>Expire le {formatDateFr(questionnaireStatus.activeLink.expiresAt)}</p>
+                  )}
+                  {formatDateFr(questionnaireStatus.activeLink.sentAt) && (
+                    <p>Envoyé le {formatDateFr(questionnaireStatus.activeLink.sentAt)}</p>
+                  )}
+                  {formatDateFr(questionnaireStatus.activeLink.openedAt) && (
+                    <p className="text-blue-700">Ouvert le {formatDateFr(questionnaireStatus.activeLink.openedAt)}</p>
+                  )}
+                  {formatDateFr(questionnaireStatus.activeLink.completedAt) && (
+                    <p className="text-green-700">Complété le {formatDateFr(questionnaireStatus.activeLink.completedAt)}</p>
+                  )}
+                </div>
+              )}
+
+              {questionnaireStatus?.sessions && questionnaireStatus.sessions.length > 0 && (
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Suivi longitudinal</p>
+                  <ul className="space-y-1.5">
+                    {questionnaireStatus.sessions.map((s) => {
+                      const cfg = SESSION_STATUS_LABEL[s.status] ?? SESSION_STATUS_LABEL.draft
+                      return (
+                        <li key={s.id} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-gray-700 truncate">
+                            {s.label}
+                            {s.isActive && <span className="ml-1 text-[10px] text-blue-600">(actif)</span>}
+                            <span className="block text-gray-400">
+                              {formatDateFr(s.createdAt)}
+                              {s.completedAt && ` · complété ${formatDateFr(s.completedAt)}`}
+                            </span>
+                          </span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-medium shrink-0 ${cfg.cls}`}>
+                            {cfg.label}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
               )}
             </div>
