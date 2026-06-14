@@ -61,7 +61,7 @@ function ViewerInfoBubble({
   if (kind === 'loading') {
     return (
       <span
-        className="inline-flex max-w-xs items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/70"
+        className="inline-flex max-w-xs items-center gap-2 rounded-lg border border-white/25 bg-slate-950/90 px-3 py-1.5 text-xs font-medium text-white shadow-sm"
         data-testid="dicom-info-bubble"
       >
         <span
@@ -93,7 +93,7 @@ function ViewerInfoBubble({
   if (kind === 'single') {
     return (
       <span
-        className="inline-flex max-w-xs items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/70"
+        className="inline-flex max-w-xs items-center gap-2 rounded-lg border border-white/20 bg-slate-900/90 px-3 py-1.5 text-xs font-medium text-white/90 shadow-sm"
         data-testid="dicom-info-bubble"
       >
         <Info className="size-3.5 shrink-0 text-[#38B2AC]" strokeWidth={1.75} aria-hidden="true" />
@@ -104,11 +104,11 @@ function ViewerInfoBubble({
 
   return (
     <span
-      className="inline-flex max-w-sm items-center gap-2 rounded-full border border-[#38B2AC]/30 bg-[#38B2AC]/10 px-3 py-1 text-[11px] text-[#38B2AC]"
+      className="inline-flex max-w-sm items-center gap-2 rounded-lg border border-[#38B2AC]/50 bg-[#38B2AC]/25 px-3 py-1.5 text-xs font-medium text-white shadow-sm"
       data-testid="dicom-info-bubble"
     >
-      <Activity className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      Suite de {sliceCount} image{sliceCount > 1 ? 's' : ''} — utilisez ← → ou la molette
+      <Activity className="size-3.5 shrink-0 text-[#38B2AC]" strokeWidth={1.75} aria-hidden="true" />
+      Suite de {sliceCount} image{sliceCount > 1 ? 's' : ''} — ← → ou outil Coupes
     </span>
   )
 }
@@ -128,7 +128,11 @@ export default function DicomViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<App | null>(null)
+  const toolRef = useRef<DicomTool>('WindowLevel')
+  const onSliceCountResolvedRef = useRef(onSliceCountResolved)
   const [layerGroupId] = useState(() => `dwv-group-${(layerGroupCounter += 1)}`)
+
+  onSliceCountResolvedRef.current = onSliceCountResolved
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [progress, setProgress] = useState(0)
@@ -151,6 +155,7 @@ export default function DicomViewer({
     const app = appRef.current
     if (!app) return
     app.setTool(next)
+    toolRef.current = next
     setTool(next)
   }, [])
 
@@ -176,6 +181,7 @@ export default function DicomViewer({
       try {
         controller.setWindowLevelPreset(preset.id)
         app.setTool('WindowLevel')
+        toolRef.current = 'WindowLevel'
         setTool('WindowLevel')
         setActivePreset(preset.id)
       } catch {
@@ -246,6 +252,7 @@ export default function DicomViewer({
     let disposed = false
     let loadSucceeded = false
     let readyFallbackId: number | null = null
+    let resizeRaf: number | null = null
 
     const app = new App()
     appRef.current = app
@@ -288,7 +295,26 @@ export default function DicomViewer({
 
     const publishSliceCount = (count: number) => {
       setSliceCount(count)
-      onSliceCountResolved?.(count)
+      onSliceCountResolvedRef.current?.(count)
+    }
+
+    const resolveSliceCount = () => {
+      const fromDwv = readSliceCount()
+      if (fromDwv <= 1 && seriesUrls.length > 1) {
+        return seriesUrls.length
+      }
+      return fromDwv
+    }
+
+    const publishResolvedSliceCount = () => {
+      publishSliceCount(resolveSliceCount())
+      if (seriesUrls.length > 1) {
+        requestAnimationFrame(() => {
+          if (disposed) return
+          const refined = readSliceCount()
+          if (refined > 1) publishSliceCount(refined)
+        })
+      }
     }
 
     const finalizeLoad = () => {
@@ -318,8 +344,9 @@ export default function DicomViewer({
         })
       }
       app.setTool('WindowLevel')
+      toolRef.current = 'WindowLevel'
       setTool('WindowLevel')
-      publishSliceCount(readSliceCount())
+      publishResolvedSliceCount()
       readSlicePosition()
       setStatus('ready')
     }
@@ -346,7 +373,7 @@ export default function DicomViewer({
     }
 
     const onPositionChange = () => {
-      if (disposed) return
+      if (disposed || !loadSucceeded) return
       readSlicePosition()
     }
 
@@ -385,16 +412,21 @@ export default function DicomViewer({
       if (disposed) return
       const rect = entries[0]?.contentRect
       if (!rect || rect.width < 1 || rect.height < 1) return
-      app.onResize()
-      if (loadSucceeded) {
-        app.fitToContainer()
-      }
+      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
+      resizeRaf = requestAnimationFrame(() => {
+        if (disposed) return
+        app.onResize()
+        if (loadSucceeded) {
+          app.fitToContainer()
+        }
+      })
     })
     resizeObserver.observe(container)
 
     return () => {
       disposed = true
       if (readyFallbackId !== null) window.clearTimeout(readyFallbackId)
+      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
       window.clearTimeout(failTimer)
       resizeObserver.disconnect()
       app.removeEventListener('loadprogress', onLoadProgress)
@@ -416,11 +448,30 @@ export default function DicomViewer({
       if (node) node.replaceChildren()
       appRef.current = null
     }
-  }, [urlsKey, layerGroupId, onSliceCountResolved])
+  }, [urlsKey, layerGroupId])
 
   useEffect(() => {
     if (status === 'ready') {
       surfaceRef.current?.focus({ preventScroll: true })
+    }
+  }, [status])
+
+  useEffect(() => {
+    toolRef.current = tool
+  }, [tool])
+
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface) return
+    const blockWheelUnlessScroll = (event: WheelEvent) => {
+      if (status !== 'ready' || toolRef.current !== 'Scroll') {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+    surface.addEventListener('wheel', blockWheelUnlessScroll, { passive: false, capture: true })
+    return () => {
+      surface.removeEventListener('wheel', blockWheelUnlessScroll, { capture: true })
     }
   }, [status])
 
@@ -431,11 +482,11 @@ export default function DicomViewer({
   ]
 
   const hint =
-    tool === 'ZoomAndPan'
-      ? 'Glisser : déplacer · molette : zoom'
-      : sliceCount > 1
-        ? 'Glisser : ajuster · molette : coupes · ← → : coupes'
-        : 'Glisser : ajuster'
+    tool === 'Scroll' && sliceCount > 1
+      ? 'Molette ou ← → : changer de coupe'
+      : tool === 'ZoomAndPan'
+        ? 'Glisser : déplacer · molette : zoom'
+        : 'Glisser : ajuster le fenêtrage (activez Coupes pour naviguer)'
 
   return (
     <div
