@@ -9,7 +9,11 @@ import {
 } from '@/lib/email-templates'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.franchir.eu'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://patients.franchir.eu'
+// Portail clinicien/chirurgien (app questionnaires) où le chirurgien consulte
+// l'analyse sécurisée + l'imagerie du dossier qui lui est assigné.
+const QUESTIONNAIRES_PORTAL_URL =
+  process.env.QUESTIONNAIRES_PORTAL_URL || 'https://franchir-questionnaires-patients.vercel.app'
 const log = new Logger('notifications')
 
 export type ProfileRow = {
@@ -120,6 +124,49 @@ export async function sendNewMessageNotifications(
   results.forEach((r, i) => {
     if (r.status === 'rejected') log.error(`Email failed for profile ${i}`, r.reason)
   })
+}
+
+/**
+ * Email envoyé au chirurgien lorsqu'un dossier lui est assigné (validation
+ * Gilles/Erik). Le chirurgien accède à l'analyse sécurisée du questionnaire +
+ * l'imagerie via le portail clinicien de l'app questionnaires (login + RLS :
+ * le dossier devient visible une fois `surgeon_email` enrichi par le webhook).
+ */
+export async function sendSurgeonAssignmentEmail(
+  surgeon: { full_name: string | null; email: string | null },
+  patientName: string
+): Promise<void> {
+  if (!canSendEmails() || !surgeon.email) return
+
+  const portalLink = `${QUESTIONNAIRES_PORTAL_URL}/clinician`
+
+  try {
+    await resend.emails.send({
+      from: EMAIL_FROM,
+      to: surgeon.email,
+      subject: `Nouveau dossier à étudier — ${patientName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1f2937;">
+          <h2 style="color: #2563EB;">Dossier patient assigné</h2>
+          <p>Bonjour ${surgeon.full_name ?? ''},</p>
+          <p>Le dossier de <strong>${patientName}</strong> vous a été confié pour étude,
+          recommandations et proposition chirurgicale.</p>
+          <p>Vous pouvez consulter l'<strong>analyse sécurisée du questionnaire</strong> et
+          l'<strong>imagerie</strong> du patient sur votre portail :</p>
+          <p style="margin: 24px 0;">
+            <a href="${portalLink}"
+               style="background:#2563EB;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">
+              Accéder au dossier sécurisé
+            </a>
+          </p>
+          <p style="font-size:12px;color:#6b7280;">Accès réservé : connectez-vous avec votre compte chirurgien.
+          Le dossier n'est visible que des praticiens qui y sont rattachés.</p>
+        </div>
+      `,
+    })
+  } catch (error) {
+    log.error('Échec envoi email assignation chirurgien', error)
+  }
 }
 
 export const STATUS_NOTIFICATION_RULES: Record<string, { roles: string[]; message: (name: string) => string }> = {

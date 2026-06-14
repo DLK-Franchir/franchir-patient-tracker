@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { type ActionId } from '@/lib/workflow-v2'
 import { Logger } from '@/lib/logger'
 import { canUseWorkflow } from '@/lib/access-control'
-import { sendStatusChangeNotifications } from '@/lib/notifications'
+import { sendStatusChangeNotifications, sendSurgeonAssignmentEmail } from '@/lib/notifications'
 
 const log = new Logger('api/change-status')
 
@@ -85,7 +85,7 @@ export async function POST(
       if (data?.surgeonId) {
         const { data: approveSurgeon } = await supabase
           .from('surgeons')
-          .select('id, full_name')
+          .select('id, full_name, email')
           .eq('id', data.surgeonId)
           .single()
         if (approveSurgeon) {
@@ -98,6 +98,7 @@ export async function POST(
             return NextResponse.json({ error: assignError.message }, { status: 500 })
           }
           messageBody += `\n\nChirurgien assigné : ${approveSurgeon.full_name}`
+          await sendSurgeonAssignmentEmail(approveSurgeon, patient.patient_name)
         }
       }
       break
@@ -112,7 +113,7 @@ export async function POST(
       }
       const { data: assignSurgeon } = await supabase
         .from('surgeons')
-        .select('id, full_name')
+        .select('id, full_name, email')
         .eq('id', surgeonId)
         .single()
       if (!assignSurgeon) {
@@ -126,6 +127,7 @@ export async function POST(
         log.error('Erreur assignation chirurgien', surgeonUpdateError)
         return NextResponse.json({ error: surgeonUpdateError.message }, { status: 500 })
       }
+      await sendSurgeonAssignmentEmail(assignSurgeon, patient.patient_name)
       newStatusCode = 'sent_to_surgeon'
       messageTitle = 'Chirurgien assigné'
       messageBody = `Chirurgien assigné : ${assignSurgeon.full_name}. Le dossier est transmis au chirurgien.`
