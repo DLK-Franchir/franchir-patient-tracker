@@ -34,8 +34,10 @@ export type DicomHeaderInfo = {
 }
 
 const TAG_TRANSFER_SYNTAX = 0x00100002
-const TAG_SERIES_INSTANCE_UID = 0x000d0020
+/** (0020,000E) Series Instance UID — pas (0020,000D) Instance Number. */
+const TAG_SERIES_INSTANCE_UID = 0x000e0020
 const TAG_MODALITY = 0x00600008
+/** (0008,0018) SOP Instance UID */
 const TAG_SOP_INSTANCE_UID = 0x00180008
 
 const IMPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2'
