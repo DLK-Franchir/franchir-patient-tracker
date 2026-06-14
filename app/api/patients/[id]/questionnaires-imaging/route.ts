@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
+import { isStaffProfile } from '@/lib/access-control'
 import { fetchQuestionnairePatientImages } from '@/lib/integrations/fetch-questionnaire-imaging'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -21,6 +22,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, email')
+    .eq('id', user.id)
+    .single()
+
+  if (!isStaffProfile(profile)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const files = await fetchQuestionnairePatientImages(patientId)

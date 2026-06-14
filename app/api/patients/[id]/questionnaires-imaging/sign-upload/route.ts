@@ -8,7 +8,8 @@ import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
 import { canManagePatientDocuments } from '@/lib/access-control'
 import { signQuestionnaireImagingUpload } from '@/lib/integrations/fetch-questionnaire-imaging'
-import { MAX_DOCUMENTS_PER_REQUEST } from '@/lib/documents/patient-documents'
+/** Plafond aligné sur MAX_IMAGING_FILES côté portail questionnaires. */
+const QUESTIONNAIRES_IMAGING_SIGN_MAX = 10
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -22,7 +23,7 @@ const signUploadRequestSchema = z.object({
       }),
     )
     .min(1)
-    .max(MAX_DOCUMENTS_PER_REQUEST),
+    .max(QUESTIONNAIRES_IMAGING_SIGN_MAX),
 })
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {

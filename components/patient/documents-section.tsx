@@ -16,6 +16,7 @@ import {
 import DocumentUpload from '@/components/patient/document-upload'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
+import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
 // paresseusement (le bundle DICOM n'est livré qu'à l'ouverture d'un DICOM).
@@ -38,12 +39,6 @@ type ViewerItem =
   | { kind: 'dicom-series'; name: string; urls: string[]; firstUrl: string }
   | { kind: 'questionnaire-file'; name: string; url: string; renderType: 'image' | 'pdf' | 'dicom' }
   | { kind: 'questionnaire-dicom-series'; name: string; urls: string[]; firstUrl: string }
-
-type QuestionnaireImagingFile = {
-  name: string
-  url: string
-  type: 'image' | 'pdf' | 'dicom'
-}
 
 /**
  * Regroupe tous les DICOM en une seule entrée « série » (chargée d'un bloc dans
@@ -418,14 +413,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             <div className="flex items-center justify-center min-h-[400px] max-h-[75vh] bg-[#0B1020]">
               {selectedItem.kind === 'dicom-series' || selectedItem.kind === 'questionnaire-dicom-series' ? (
                 <div className="w-full h-[70vh]">
-                  <DicomViewer
-                    urls={
-                      selectedItem.kind === 'dicom-series'
-                        ? selectedItem.urls
-                        : selectedItem.urls
-                    }
-                    name={selectedItem.name}
-                  />
+                  <DicomViewer urls={selectedItem.urls} name={selectedItem.name} />
                 </div>
               ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'image' ? (
                 // eslint-disable-next-line @next/next/no-img-element

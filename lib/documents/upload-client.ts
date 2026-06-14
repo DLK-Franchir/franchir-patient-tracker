@@ -24,8 +24,8 @@ const SIGN_BATCH_SIZE = 50
 /** Uploads parallèles simultanés (évite de saturer le réseau du navigateur). */
 const UPLOAD_CONCURRENCY = 4
 
-/** Sous-lot pour les URLs signées côté portail questionnaires (Option A). */
-const QUESTIONNAIRES_SIGN_BATCH_SIZE = 20
+/** Aligné sur MAX_IMAGING_FILES côté portail questionnaires (10). */
+const QUESTIONNAIRES_SIGN_BATCH_SIZE = 10
 
 type SignedUpload = {
   fileName: string
@@ -81,17 +81,24 @@ async function forwardBatchToQuestionnaires(
     const { uploads } = (await signRes.json()) as { uploads?: SignedUpload[] }
     if (!uploads?.length) return
 
-    await Promise.all(
-      uploads.map(async (upload, index) => {
-        const file = batch[index]
-        if (!file) return
-        await fetch(upload.signedUrl, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        })
-      }),
-    )
+    for (const group of chunk(
+      uploads.map((upload, index) => ({ upload, file: batch[index] })).filter((p) => p.file),
+      UPLOAD_CONCURRENCY,
+    )) {
+      await Promise.all(
+        group.map(async ({ upload, file }) => {
+          if (!file) return
+          await fetch(upload.signedUrl, {
+            method: 'PUT',
+            body: file,
+            headers: {
+              Authorization: `Bearer ${upload.token}`,
+              'Content-Type': file.type || 'application/octet-stream',
+            },
+          })
+        }),
+      )
+    }
   } catch {
     // Fire-and-forget : l'imagerie reste dans le tracker (source de vérité locale).
   }
@@ -154,8 +161,8 @@ export async function uploadPatientDocuments(
       )
     }
 
-    // Option A : remonte aussi vers le portail chirurgien (upload direct cross-projet).
-    await Promise.all(
+    // Best-effort cross-portail : ne bloque pas l upload local ni la finalisation.
+    void Promise.all(
       chunk(batch, QUESTIONNAIRES_SIGN_BATCH_SIZE).map((qBatch) =>
         forwardBatchToQuestionnaires(patientId, qBatch),
       ),

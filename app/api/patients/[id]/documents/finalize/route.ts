@@ -8,9 +8,8 @@
  * `path` doit vivre sous `patients/{patientId}/` (re-validé serveur).
  *
  * Réservé aux créateurs de dossier (marcel / franchir / admin). Écriture via le
- * client SERVICE-ROLE après contrôle d'accès. Best-effort : remonte ensuite
- * l'imagerie vers le portail chirurgien (questionnaires) en relisant les objets
- * depuis le bucket — sans jamais altérer la réponse.
+ * client SERVICE-ROLE après contrôle d'accès. Le forward cross-portail est
+ * déclenché côté navigateur lors de l'upload (upload-client.ts).
  * ============================================================================
  */
 
@@ -19,24 +18,15 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { canManagePatientDocuments } from '@/lib/access-control'
 import {
-  PATIENT_DOCUMENTS_BUCKET,
   finalizeDocumentsRequestSchema,
   inferDocumentKind,
-  inferRenderType,
   isObjectKeyOwnedByPatient,
 } from '@/lib/documents/patient-documents'
 import { Logger } from '@/lib/logger'
-import { forwardImagingFromStorage } from '@/lib/integrations/forward-imaging'
 
 const log = new Logger('api/patients/documents/finalize')
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** Imagerie remontée au portail chirurgien : DICOM, PDF de compte rendu, images. */
-function isForwardableImaging(fileName: string, mimeType: string | null): boolean {
-  const renderType = inferRenderType(fileName, mimeType)
-  return renderType === 'dicom' || renderType === 'pdf' || renderType === 'image'
-}
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: patientId } = await params
@@ -105,15 +95,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     log.error('Erreur insertion métadonnées documents', insertError)
     return NextResponse.json({ error: "Échec de l'enregistrement des fichiers" }, { status: 500 })
   }
-
-  // Option A : remonte l'imagerie vers le portail chirurgien (questionnaires).
-  // Best-effort : relit les objets depuis le bucket (les octets ne sont plus en
-  // mémoire côté serveur avec l'upload direct). N'altère jamais la réponse.
-  const forwardablePaths = parsed.data.documents
-    .filter((doc) => isForwardableImaging(doc.fileName, doc.type ?? null))
-    .map((doc) => ({ path: doc.path, name: doc.fileName, type: doc.type ?? null }))
-
-  await forwardImagingFromStorage(service, PATIENT_DOCUMENTS_BUCKET, patientId, forwardablePaths)
 
   return NextResponse.json({ success: true, count: inserted?.length ?? rows.length })
 }
