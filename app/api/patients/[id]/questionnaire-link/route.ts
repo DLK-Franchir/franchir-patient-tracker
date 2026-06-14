@@ -78,7 +78,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         )
       }
       log.error('Émission lien questionnaire échouée', { status: response.status, detail })
-      return NextResponse.json({ error: "Échec de l'émission du lien" }, { status: 502 })
+      const upstreamCode = typeof detail?.error === 'string' ? detail.error : 'inconnu'
+      return NextResponse.json(
+        { error: `Échec émission lien (questionnaires ${response.status} : ${upstreamCode})` },
+        { status: 502 },
+      )
     }
 
     const result = await response.json()
