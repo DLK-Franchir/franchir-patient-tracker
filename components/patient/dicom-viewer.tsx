@@ -1,287 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { App, AppOptions, ToolConfig, ViewConfig } from "dwv";
-import { ArrowLeft, ArrowRight, AlertTriangle, Info, Activity, X } from 'lucide-react'
+import type { App } from "dwv";
+import { ArrowLeft, ArrowRight, AlertTriangle, X } from 'lucide-react';
+import { ViewerInfoBubble } from "./dicom-viewer/dicom-viewer-info";
+import { useDicomSequentialPool } from "./dicom-viewer/dicom-viewer-pool";
+import { useDicomSequentialNavigation } from "./dicom-viewer/dicom-viewer-sequential";
+import { useDicomStackMode } from "./dicom-viewer/dicom-viewer-stack";
+import {
+  type DicomTool,
+  type DicomViewerProps,
+  type NavMode,
+  type PoolEntry,
+  type ViewerSeries,
+  type WlPresetId,
+  WL_PRESETS,
+  nextLayerGroupId,
+  resolveViewerInfoKind,
+} from "./dicom-viewer/dicom-viewer-types";
 
-/**
- * SYNC: structure alignée sur franchir-patient-tracker/components/patient/dicom-viewer.tsx
- * (pas de package partagé — garder les deux fichiers en parité fonctionnelle).
- */
-
-/** Presets fenêtrage courants en neurochirurgie / IRM rachis. */
-const WL_PRESETS = [
-  { id: "soft", label: "Tissus mous", center: 40, width: 400 },
-  { id: "bone", label: "Os", center: 300, width: 1500 },
-  { id: "brain", label: "Cerveau", center: 40, width: 80 },
-] as const;
-
-type WlPresetId = (typeof WL_PRESETS)[number]["id"];
-
-export type ViewerSeries = {
-  id: string;
-  label: string;
-  urls: string[];
-  /** Nombre de fichiers DICOM dans le groupe (peut différer du nombre de coupes dwv). */
-  fileCount: number;
-};
-
-type DicomTool = "WindowLevel" | "ZoomAndPan" | "Scroll";
-
-type DwvLoadEvent = {
-  loaded?: number;
-  total?: number;
-  error?: { message?: string } | string;
-};
-
-type ViewerStatus = "loading" | "rendering" | "ready" | "error";
-
-type ViewerInfoKind = "loading" | "single" | "stack" | "partial" | "sequential" | "error";
-
-type NavMode = "stack" | "sequential";
-
-type PoolEntryStatus = "loading" | "ready" | "error";
-
-type PoolEntry = {
-  app: App;
-  container: HTMLDivElement;
-  layerGroupId: string;
-  status: PoolEntryStatus;
-  errorMessage?: string;
-};
-
-/** Limite mémoire : une App dwv isolée par fichier en mode séquentiel. */
-const MAX_SEQUENTIAL_POOL = 50;
-/** Chargements dwv parallèles max (évite OOM sur séries JPEG volumineuses). */
-const MAX_POOL_LOAD_CONCURRENCY = 4;
-
-/** Messages utilisateur pour échecs dwv / transfer syntax non supportée. */
-export function formatDicomLoadError(message: string | null | undefined): string {
-  if (!message?.trim()) {
-    return "format non pris en charge, fichier corrompu ou lien expiré";
-  }
-  const lower = message.toLowerCase();
-  if (
-    lower.includes("jpeg-ls") ||
-    lower.includes("jpegls") ||
-    lower.includes("1.2.840.10008.1.2.4.80") ||
-    lower.includes("1.2.840.10008.1.2.4.81")
-  ) {
-    return "Format DICOM non supporté (JPEG-LS) — contactez le support";
-  }
-  if (
-    lower.includes("jpeg 2000") ||
-    lower.includes("jpeg2000") ||
-    lower.includes("1.2.840.10008.1.2.4.90") ||
-    lower.includes("1.2.840.10008.1.2.4.91")
-  ) {
-    return "Format DICOM non supporté (JPEG 2000) — contactez le support";
-  }
-  if (
-    lower.includes("jpeg lossless") ||
-    lower.includes("jpegloss") ||
-    lower.includes("1.2.840.10008.1.2.4.70")
-  ) {
-    return "Format DICOM non supporté (JPEG Lossless) — contactez le support";
-  }
-  if (lower.includes("codec") || lower.includes("decompress") || lower.includes("transfer syntax")) {
-    return "Format DICOM non supporté — contactez le support";
-  }
-  return message;
-}
-
-function createDwvApp(layerGroupId: string): App {
-  const app = new App();
-  const viewConfig = new ViewConfig(layerGroupId);
-  const options = new AppOptions({ "*": [viewConfig] });
-  options.tools = {
-    Scroll: new ToolConfig(),
-    ZoomAndPan: new ToolConfig(),
-    WindowLevel: new ToolConfig(),
-  };
-  app.init(options);
-  return app;
-}
-
-function hasRenderableImage(app: App): boolean {
-  try {
-    const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
-    if (!viewLayer) return false;
-    return Boolean(app.getData(viewLayer.getDataId())?.image);
-  } catch {
-    return false;
-  }
-}
-
-function addWindowLevelPresets(app: App) {
-  const controller = app.getActiveLayerGroup()?.getActiveViewLayer()?.getViewController();
-  if (!controller) return;
-  try {
-    controller.addWindowLevelPresets({
-      soft: { center: 40, width: 400 },
-      bone: { center: 300, width: 1500 },
-      brain: { center: 40, width: 80 },
-    });
-  } catch {
-    /* preset may fail on non-grayscale modalities */
-  }
-}
-
-function destroyDwvApp(app: App, layerGroupId: string) {
-  try {
-    app.abortAllLoads();
-  } catch {
-    /* ignore abort races during unmount */
-  }
-  try {
-    app.reset();
-  } catch {
-    /* ignore teardown races during unmount */
-  }
-  const node = document.getElementById(layerGroupId);
-  if (node) node.replaceChildren();
-}
-
-/** dwv rend sur canvas 0×0 si le conteneur est `display:none` pendant le chargement. */
-function setPoolContainerVisible(container: HTMLDivElement, visible: boolean) {
-  container.style.display = "block";
-  container.style.visibility = visible ? "visible" : "hidden";
-  container.style.pointerEvents = visible ? "auto" : "none";
-}
-
-function refreshDwvLayout(app: App) {
-  try {
-    const dataIds = app.getDataIds();
-    if (dataIds.length > 0) {
-      app.render(dataIds[0]!);
-    }
-    app.fitToContainer();
-    app.onResize();
-  } catch {
-    /* layout may fail before canvas is ready */
-  }
-}
-
-export type DicomViewerProps = {
-  /** URLs signées des objets DICOM de la série active. */
-  urls: string[];
-  /** Libellé de la série (accessibilité + en-tête). */
-  name: string;
-  /** Sans chrome externe (panneau latéral). */
-  embedded?: boolean;
-  /** Plein écran avec barre de navigation séries. */
-  fullscreen?: boolean;
-  /** Toutes les séries DICOM navigables (optionnel). */
-  series?: ViewerSeries[];
-  activeSeriesIndex?: number;
-  onNextSeries?: () => void;
-  onPrevSeries?: () => void;
-  onClose?: () => void;
-  /** Rapporte le nombre réel de coupes dwv une fois la série chargée. */
-  onSliceCountResolved?: (count: number) => void;
-};
-
-let layerGroupCounter = 0;
-
-function ViewerInfoBubble({
-  kind,
-  sliceCount,
-  fileCount,
-  errorMessage,
-  preloadLoaded,
-  preloadTotal,
-  preloadMode,
-}: {
-  kind: ViewerInfoKind;
-  sliceCount: number;
-  fileCount: number;
-  errorMessage?: string | null;
-  preloadLoaded?: number;
-  preloadTotal?: number;
-  preloadMode?: boolean;
-}) {
-  if (kind === "loading") {
-    const label =
-      preloadMode && preloadTotal && preloadTotal > 1 && typeof preloadLoaded === "number"
-        ? `Préchargement des images (${preloadLoaded}/${preloadTotal})…`
-        : fileCount > 1
-          ? `Chargement de la série (${fileCount} fichiers)…`
-          : "Chargement de l'image…";
-    return (
-      <span
-        className="inline-flex max-w-sm items-center gap-2 rounded-lg border border-amber-400/35 bg-amber-950/80 px-3 py-1.5 text-xs font-medium text-amber-50 shadow-sm"
-        data-testid="dicom-info-bubble"
-      >
-        <span
-          className="inline-block size-3 shrink-0 rounded-full border-2 border-amber-200/30 border-t-amber-100 animate-spin"
-          aria-hidden
-        />
-        {label}
-      </span>
-    );
-  }
-
-  if (kind === "error") {
-    return (
-      <span
-        className="inline-flex max-w-md items-start gap-2 rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1 text-[11px] text-red-100"
-        data-testid="dicom-info-bubble"
-      >
-        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-        <span>
-          Affichage impossible
-          {errorMessage ? ` — ${errorMessage}` : " — format non pris en charge, fichier corrompu ou lien expiré"}
-        </span>
-      </span>
-    );
-  }
-
-  if (kind === "partial") {
-    return (
-      <span
-        className="inline-flex max-w-md items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-950/70 px-3 py-1.5 text-xs font-medium text-amber-50 shadow-sm"
-        data-testid="dicom-info-bubble"
-      >
-        <Info className="size-3.5 shrink-0 text-amber-300" strokeWidth={1.75} aria-hidden="true" />
-        Série de {fileCount} fichiers — {sliceCount} coupe{sliceCount > 1 ? "s navigables" : " navigable"}
-      </span>
-    );
-  }
-
-  if (kind === "sequential") {
-    return (
-      <span
-        className="inline-flex max-w-md items-center gap-2 rounded-lg border border-sky-400/40 bg-sky-950/70 px-3 py-1.5 text-xs font-medium text-sky-50 shadow-sm"
-        data-testid="dicom-info-bubble"
-      >
-        <Info className="size-3.5 shrink-0 text-sky-300" strokeWidth={1.75} aria-hidden="true" />
-        Série de {fileCount} fichiers — navigation fichier par fichier (← →)
-      </span>
-    );
-  }
-
-  if (kind === "single") {
-    return (
-      <span
-        className="inline-flex max-w-xs items-center gap-2 rounded-lg border border-white/20 bg-slate-900/90 px-3 py-1.5 text-xs font-medium text-white/90 shadow-sm"
-        data-testid="dicom-info-bubble"
-      >
-        <Info className="size-3.5 shrink-0 text-[#38B2AC]" strokeWidth={1.75} aria-hidden="true" />
-        Image unique — pas de navigation entre coupes
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className="inline-flex max-w-sm items-center gap-2 rounded-lg border border-[#38B2AC]/50 bg-[#38B2AC]/25 px-3 py-1.5 text-xs font-medium text-white shadow-sm"
-      data-testid="dicom-info-bubble"
-    >
-      <Activity className="size-3.5 shrink-0 text-[#38B2AC]" strokeWidth={1.75} aria-hidden="true" />
-      Suite de {sliceCount} image{sliceCount > 1 ? "s" : ""} — ← → ou outil Coupes
-    </span>
-  );
-}
+export type { DicomViewerProps, ViewerSeries };
+export { formatDicomLoadError } from "./dicom-viewer/dicom-viewer-types";
 
 export default function DicomViewer({
   urls,
@@ -303,13 +42,13 @@ export default function DicomViewer({
   const fileIndexRef = useRef(0);
   const toolRef = useRef<DicomTool>("WindowLevel");
   const onSliceCountResolvedRef = useRef(onSliceCountResolved);
-  const [layerGroupId] = useState(() => `dwv-group-${(layerGroupCounter += 1)}`);
+  const [layerGroupId] = useState(nextLayerGroupId);
 
   useEffect(() => {
     onSliceCountResolvedRef.current = onSliceCountResolved;
   }, [onSliceCountResolved]);
 
-  const [status, setStatus] = useState<ViewerStatus>("loading");
+  const [status, setStatus] = useState<"loading" | "rendering" | "ready" | "error">("loading");
   const [progress, setProgress] = useState(0);
   const [preloadLoaded, setPreloadLoaded] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -335,17 +74,81 @@ export default function DicomViewer({
   const atFirstSeries = activeSeriesIndex <= 0;
   const atLastSeries = seriesCount > 0 ? activeSeriesIndex >= seriesCount - 1 : true;
 
-  const infoKind: ViewerInfoKind = isBusy
-    ? "loading"
-    : status === "error"
-      ? "error"
-      : navMode === "sequential" && fileCount > 1
-        ? "sequential"
-        : fileCount > 1 && sliceCount > 1 && fileCount > sliceCount
-          ? "partial"
-          : sliceCount > 1
-            ? "stack"
-            : "single";
+  const infoKind = resolveViewerInfoKind({
+    isBusy,
+    status,
+    navMode,
+    fileCount,
+    sliceCount,
+  });
+
+  const urlsKey = urls.join("\n");
+
+  const [prevUrlsKey, setPrevUrlsKey] = useState(urlsKey);
+  if (prevUrlsKey !== urlsKey) {
+    setPrevUrlsKey(urlsKey);
+    setStatus("loading");
+    setProgress(0);
+    setPreloadLoaded(0);
+    setSliceIndex(0);
+    setSliceCount(1);
+    setNavMode("stack");
+    setFileIndex(0);
+    setActivePreset(null);
+    setErrorMessage(null);
+    setPoolWarning(null);
+  }
+
+  useDicomStackMode({
+    navMode,
+    urlsKey,
+    layerGroupId,
+    containerRef,
+    appRef,
+    toolRef,
+    onSliceCountResolvedRef,
+    setNavMode,
+    setFileIndex,
+    setStatus,
+    setProgress,
+    setPreloadLoaded,
+    setErrorMessage,
+    setPoolWarning,
+    setSliceIndex,
+    setSliceCount,
+    setTool,
+    setActivePreset,
+  });
+
+  useDicomSequentialPool({
+    navMode,
+    urlsKey,
+    layerGroupId,
+    poolHostRef,
+    poolRef,
+    appRef,
+    fileIndexRef,
+    toolRef,
+    onSliceCountResolvedRef,
+    setStatus,
+    setProgress,
+    setPreloadLoaded,
+    setErrorMessage,
+    setPoolWarning,
+    setSliceIndex,
+    setSliceCount,
+  });
+
+  useDicomSequentialNavigation({
+    navMode,
+    fileIndex,
+    poolRef,
+    appRef,
+    toolRef,
+    setSliceIndex,
+    setStatus,
+    setErrorMessage,
+  });
 
   const activateTool = useCallback((next: DicomTool) => {
     const app = appRef.current;
@@ -429,514 +232,6 @@ export default function DicomViewer({
     }
   }, []);
 
-  const urlsKey = urls.join("\n");
-
-  const [prevUrlsKey, setPrevUrlsKey] = useState(urlsKey);
-  if (prevUrlsKey !== urlsKey) {
-    setPrevUrlsKey(urlsKey);
-    setStatus("loading");
-    setProgress(0);
-    setPreloadLoaded(0);
-    setSliceIndex(0);
-    setSliceCount(1);
-    setNavMode("stack");
-    setFileIndex(0);
-    setActivePreset(null);
-    setErrorMessage(null);
-    setPoolWarning(null);
-  }
-
-  // ── Mode stack : un seul App dwv, chargement groupé ──────────────────────
-  useEffect(() => {
-    if (navMode !== "stack") return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const seriesUrls = urlsKey.split("\n").filter(Boolean);
-    if (seriesUrls.length === 0) return;
-
-    /* eslint-disable react-hooks/set-state-in-effect -- intentional load-state reset on series change */
-    setStatus("loading");
-    setProgress(0);
-    setPreloadLoaded(0);
-    setErrorMessage(null);
-    setPoolWarning(null);
-    /* eslint-enable react-hooks/set-state-in-effect */
-
-    let disposed = false;
-    let loadSucceeded = false;
-    let readyFallbackId: number | null = null;
-    let renderReadyId: number | null = null;
-    const layoutTimerIds: number[] = [];
-    let resizeRaf: number | null = null;
-    let pendingSequentialSwitch = false;
-
-    const app = createDwvApp(layerGroupId);
-    appRef.current = app;
-
-    const readSlicePosition = () => {
-      try {
-        const controller = app
-          .getActiveLayerGroup()
-          ?.getActiveViewLayer()
-          ?.getViewController();
-        if (!controller) return;
-        setSliceIndex(controller.getCurrentIndexScrollValue());
-      } catch {
-        /* position not available yet */
-      }
-    };
-
-    const readSliceCount = () => {
-      try {
-        const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
-        if (!viewLayer) return 1;
-        const controller = viewLayer.getViewController();
-        const image = app.getData(viewLayer.getDataId())?.image;
-        if (!image) return 1;
-        const size = image.getGeometry().getSize();
-        return Math.max(1, size.get(controller.getScrollDimIndex()));
-      } catch {
-        return 1;
-      }
-    };
-
-    const publishSliceCount = (navCount: number) => {
-      setSliceCount(navCount);
-      onSliceCountResolvedRef.current?.(navCount);
-    };
-
-    const needsSequentialFallback = () => {
-      if (seriesUrls.length <= 1) return false;
-      const dwvCount = readSliceCount();
-      const hasImage = hasRenderableImage(app);
-      return !hasImage || dwvCount < seriesUrls.length;
-    };
-
-    const scheduleLayout = () => {
-      for (const ms of [0, 50, 150, 400, 800]) {
-        layoutTimerIds.push(
-          window.setTimeout(() => {
-            if (disposed || !loadSucceeded) return;
-            try {
-              app.fitToContainer();
-              app.onResize();
-            } catch {
-              /* layout may fail before canvas is ready */
-            }
-          }, ms),
-        );
-      }
-    };
-
-    const markReady = () => {
-      if (disposed) return;
-      publishSliceCount(readSliceCount());
-      readSlicePosition();
-      setStatus("ready");
-    };
-
-    const finalizeLoad = () => {
-      if (disposed || loadSucceeded) return;
-
-      if (needsSequentialFallback()) {
-        pendingSequentialSwitch = true;
-        setNavMode("sequential");
-        setFileIndex(0);
-        return;
-      }
-
-      loadSucceeded = true;
-      if (readyFallbackId !== null) {
-        window.clearTimeout(readyFallbackId);
-        readyFallbackId = null;
-      }
-      setStatus("rendering");
-      scheduleLayout();
-      addWindowLevelPresets(app);
-      app.setTool("WindowLevel");
-      toolRef.current = "WindowLevel";
-      setTool("WindowLevel");
-      publishSliceCount(readSliceCount());
-      readSlicePosition();
-      renderReadyId = window.setTimeout(() => {
-        if (!hasRenderableImage(app) && seriesUrls.length > 1) {
-          pendingSequentialSwitch = true;
-          setNavMode("sequential");
-          setFileIndex(0);
-          return;
-        }
-        if (!hasRenderableImage(app)) {
-          setStatus("error");
-          setErrorMessage(formatDicomLoadError("fichier illisible ou format non pris en charge"));
-          return;
-        }
-        markReady();
-      }, 550);
-    };
-
-    const onLoadProgress = (event: DwvLoadEvent) => {
-      if (disposed) return;
-      if (typeof event.loaded === "number") {
-        const total = typeof event.total === "number" && event.total > 0 ? event.total : 100;
-        const pct = Math.min(100, Math.round((event.loaded / total) * 100));
-        setProgress(pct);
-        if (seriesUrls.length > 1) {
-          const estimated = Math.max(
-            1,
-            Math.min(seriesUrls.length, Math.round((pct / 100) * seriesUrls.length)),
-          );
-          setPreloadLoaded(estimated);
-        }
-        if (pct >= 100 && readyFallbackId === null) {
-          readyFallbackId = window.setTimeout(() => {
-            if (!disposed && !loadSucceeded && !pendingSequentialSwitch) {
-              finalizeLoad();
-            }
-          }, 600);
-        }
-      }
-    };
-
-    const onLoad = () => {
-      if (disposed) return;
-      if (seriesUrls.length > 1) {
-        setPreloadLoaded(seriesUrls.length);
-      }
-      finalizeLoad();
-    };
-
-    const onPositionChange = () => {
-      if (disposed || !loadSucceeded) return;
-      readSlicePosition();
-    };
-
-    const onError = (event: DwvLoadEvent) => {
-      if (disposed) return;
-      const message =
-        typeof event.error === "string" ? event.error : event.error?.message ?? null;
-      console.error("[DicomViewer] load error", message ?? event);
-      if (message) setErrorMessage(formatDicomLoadError(message));
-      if (!loadSucceeded) {
-        const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
-        const hasImage = Boolean(viewLayer && app.getData(viewLayer.getDataId())?.image);
-        if (hasImage) {
-          finalizeLoad();
-        } else if (seriesUrls.length > 1) {
-          setNavMode("sequential");
-          setFileIndex(0);
-        } else {
-          setStatus("error");
-        }
-      }
-    };
-
-    app.addEventListener("loadprogress", onLoadProgress);
-    app.addEventListener("load", onLoad);
-    app.addEventListener("positionchange", onPositionChange);
-    app.addEventListener("loaderror", onError);
-    app.addEventListener("error", onError);
-
-    const failTimer = window.setTimeout(() => {
-      if (!disposed && !loadSucceeded && !pendingSequentialSwitch) {
-        if (seriesUrls.length > 1) {
-          setNavMode("sequential");
-          setFileIndex(0);
-        } else {
-          setStatus("error");
-          setErrorMessage("délai de chargement dépassé");
-        }
-      }
-    }, 120_000);
-
-    app.loadURLs(seriesUrls.filter(Boolean));
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (disposed) return;
-      const rect = entries[0]?.contentRect;
-      if (!rect || rect.width < 1 || rect.height < 1) return;
-      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
-      resizeRaf = requestAnimationFrame(() => {
-        if (disposed) return;
-        app.onResize();
-        if (loadSucceeded) {
-          app.fitToContainer();
-        }
-      });
-    });
-    resizeObserver.observe(container);
-
-    return () => {
-      disposed = true;
-      if (readyFallbackId !== null) window.clearTimeout(readyFallbackId);
-      if (renderReadyId !== null) window.clearTimeout(renderReadyId);
-      for (const id of layoutTimerIds) window.clearTimeout(id);
-      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
-      window.clearTimeout(failTimer);
-      resizeObserver.disconnect();
-      app.removeEventListener("loadprogress", onLoadProgress);
-      app.removeEventListener("load", onLoad);
-      app.removeEventListener("positionchange", onPositionChange);
-      app.removeEventListener("loaderror", onError);
-      app.removeEventListener("error", onError);
-      destroyDwvApp(app, layerGroupId);
-      appRef.current = null;
-    };
-  }, [urlsKey, layerGroupId, navMode]);
-
-  // ── Mode séquentiel : pool d'Apps (un par fichier), préchargement parallèle ─
-  useEffect(() => {
-    if (navMode !== "sequential") return;
-    const poolHost = poolHostRef.current;
-    if (!poolHost) return;
-
-    const seriesUrls = urlsKey.split("\n").filter(Boolean);
-    if (seriesUrls.length <= 1) return;
-
-    const poolSize = Math.min(seriesUrls.length, MAX_SEQUENTIAL_POOL);
-
-    /* eslint-disable react-hooks/set-state-in-effect -- intentional load-state reset on series change */
-    setStatus("loading");
-    setProgress(0);
-    setPreloadLoaded(0);
-    setErrorMessage(null);
-    setSliceCount(seriesUrls.length);
-    setSliceIndex(0);
-    onSliceCountResolvedRef.current?.(seriesUrls.length);
-    if (seriesUrls.length > MAX_SEQUENTIAL_POOL) {
-      setPoolWarning(
-        `Série volumineuse (${seriesUrls.length} fichiers) — seuls les ${MAX_SEQUENTIAL_POOL} premiers sont préchargés.`,
-      );
-    } else {
-      setPoolWarning(null);
-    }
-    /* eslint-enable react-hooks/set-state-in-effect */
-
-    let disposed = false;
-    let processedCount = 0;
-    let firstActivated = false;
-    const layoutTimerIds: number[] = [];
-    let resizeRaf: number | null = null;
-    const pool = new Map<number, PoolEntry>();
-    poolRef.current = pool;
-    poolHost.replaceChildren();
-    appRef.current = null;
-
-    const updatePreloadProgress = () => {
-      if (disposed) return;
-      setPreloadLoaded(processedCount);
-    };
-
-    const activatePoolFile = (index: number) => {
-      if (disposed) return;
-      pool.forEach((entry, i) => {
-        setPoolContainerVisible(entry.container, i === index);
-      });
-      const entry = pool.get(index);
-      if (!entry) return;
-
-      setSliceIndex(index);
-
-      if (entry.status === "ready") {
-        appRef.current = entry.app;
-        try {
-          entry.app.setTool(toolRef.current);
-          refreshDwvLayout(entry.app);
-        } catch {
-          /* layout may fail before canvas is ready */
-        }
-        setStatus("ready");
-        setErrorMessage(null);
-      } else if (entry.status === "error") {
-        appRef.current = entry.app;
-        setErrorMessage(
-          `Fichier ${index + 1} illisible — passez au suivant avec →${
-            entry.errorMessage ? ` (${entry.errorMessage})` : ""
-          }`,
-        );
-        setStatus("ready");
-      } else {
-        appRef.current = entry.app;
-        setStatus("rendering");
-        setErrorMessage(null);
-      }
-    };
-
-    const startPoolLoad = (index: number) => {
-      const entry = pool.get(index);
-      if (!entry || entry.status !== "loading") return;
-      const url = seriesUrls[index];
-      if (!url) return;
-
-      const app = entry.app;
-      const finalizeEntry = (success: boolean, errMsg?: string) => {
-        window.setTimeout(() => {
-          if (disposed) return;
-          markEntryProcessed(index, app, success, errMsg);
-          pumpPoolLoads();
-        }, 550);
-      };
-
-      const onLoad = () => {
-        if (disposed) return;
-        finalizeEntry(hasRenderableImage(app));
-      };
-
-      const onError = (event: DwvLoadEvent) => {
-        if (disposed) return;
-        const message =
-          typeof event.error === "string" ? event.error : event.error?.message ?? null;
-        console.error(`[DicomViewer] pool load error file ${index + 1}`, message ?? event);
-        finalizeEntry(false, formatDicomLoadError(message ?? "erreur de chargement"));
-      };
-
-      app.addEventListener("load", onLoad);
-      app.addEventListener("loaderror", onError);
-      app.addEventListener("error", onError);
-      app.loadURLs([url]);
-    };
-
-    let poolLoadCursor = 0;
-    let poolLoadsInFlight = 0;
-
-    const pumpPoolLoads = () => {
-      if (disposed) return;
-      while (poolLoadsInFlight < MAX_POOL_LOAD_CONCURRENCY && poolLoadCursor < poolSize) {
-        const index = poolLoadCursor;
-        poolLoadCursor += 1;
-        poolLoadsInFlight += 1;
-        startPoolLoad(index);
-      }
-    };
-
-    for (let i = 0; i < poolSize; i++) {
-      const fileLayerGroupId = `${layerGroupId}-seq-${i}`;
-      const fileContainer = document.createElement("div");
-      fileContainer.id = fileLayerGroupId;
-      fileContainer.className = "absolute inset-0";
-      setPoolContainerVisible(fileContainer, false);
-      poolHost.appendChild(fileContainer);
-
-      const app = createDwvApp(fileLayerGroupId);
-      pool.set(i, {
-        app,
-        container: fileContainer,
-        layerGroupId: fileLayerGroupId,
-        status: "loading",
-      });
-    }
-
-    const markEntryProcessed = (index: number, app: App, success: boolean, errMsg?: string) => {
-      if (disposed) return;
-      const entry = pool.get(index);
-      if (!entry || entry.status !== "loading") return;
-
-      if (success) {
-        entry.status = "ready";
-        addWindowLevelPresets(app);
-        app.setTool("WindowLevel");
-      } else {
-        entry.status = "error";
-        entry.errorMessage = errMsg ?? "erreur de chargement";
-      }
-
-      poolLoadsInFlight = Math.max(0, poolLoadsInFlight - 1);
-      processedCount += 1;
-      updatePreloadProgress();
-
-      const activeIndex = fileIndexRef.current;
-      if (!firstActivated) {
-        firstActivated = true;
-        activatePoolFile(activeIndex);
-      } else if (activeIndex === index) {
-        activatePoolFile(index);
-      }
-    };
-
-    pumpPoolLoads();
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (disposed) return;
-      const rect = entries[0]?.contentRect;
-      if (!rect || rect.width < 1 || rect.height < 1) return;
-      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
-      resizeRaf = requestAnimationFrame(() => {
-        if (disposed) return;
-        const active = pool.get(fileIndexRef.current);
-        if (active?.status === "ready") {
-          try {
-            active.app.onResize();
-            active.app.fitToContainer();
-          } catch {
-            /* ignore */
-          }
-        }
-      });
-    });
-    resizeObserver.observe(poolHost);
-
-    const failTimer = window.setTimeout(() => {
-      if (!disposed && !firstActivated) {
-        setStatus("error");
-        setErrorMessage("délai de chargement dépassé");
-      }
-    }, 120_000);
-
-    return () => {
-      disposed = true;
-      window.clearTimeout(failTimer);
-      for (const id of layoutTimerIds) window.clearTimeout(id);
-      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
-      resizeObserver.disconnect();
-      pool.forEach((entry) => {
-        destroyDwvApp(entry.app, entry.layerGroupId);
-      });
-      pool.clear();
-      poolRef.current = new Map();
-      poolHost.replaceChildren();
-      appRef.current = null;
-    };
-  }, [urlsKey, layerGroupId, navMode]);
-
-  // ── Navigation instantanée en mode séquentiel (swap de conteneur, sans reload) ─
-  useEffect(() => {
-    if (navMode !== "sequential") return;
-    const pool = poolRef.current;
-    if (pool.size === 0) return;
-
-    pool.forEach((entry, i) => {
-      setPoolContainerVisible(entry.container, i === fileIndex);
-    });
-    const entry = pool.get(fileIndex);
-    if (!entry) return;
-
-    setSliceIndex(fileIndex);
-
-    if (entry.status === "ready") {
-      appRef.current = entry.app;
-      try {
-        entry.app.setTool(toolRef.current);
-        refreshDwvLayout(entry.app);
-      } catch {
-        /* layout may fail before canvas is ready */
-      }
-      setStatus("ready");
-      setErrorMessage(null);
-    } else if (entry.status === "error") {
-      appRef.current = entry.app;
-      setErrorMessage(
-        `Fichier ${fileIndex + 1} illisible — passez au suivant avec →${
-          entry.errorMessage ? ` (${entry.errorMessage})` : ""
-        }`,
-      );
-      setStatus("ready");
-    } else {
-      appRef.current = entry.app;
-      setStatus("rendering");
-      setErrorMessage(null);
-    }
-  }, [fileIndex, navMode]);
-
   useEffect(() => {
     if (status === "ready") {
       surfaceRef.current?.focus({ preventScroll: true });
@@ -1000,7 +295,7 @@ export default function DicomViewer({
 
   return (
     <div
-      className="flex flex-col w-full h-full"
+      className="flex h-full w-full flex-col"
       style={{ backgroundColor: embedded && !fullscreen ? "transparent" : "#0B1020" }}
       onKeyDown={handleKeyDown}
       data-testid="dicom-viewer-root"
@@ -1047,7 +342,7 @@ export default function DicomViewer({
                   type="button"
                   onClick={onNextSeries}
                   disabled={atLastSeries}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#38B2AC] px-4 py-2.5 text-sm font-bold text-white shadow-lg transition hover:bg-[#38B2AC]/90 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-xl bg-dash-teal px-4 py-2.5 text-sm font-bold text-white shadow-lg transition hover:bg-dash-teal/90 disabled:cursor-not-allowed disabled:opacity-40"
                   data-testid="dicom-next-series"
                 >
                   Série suivante
