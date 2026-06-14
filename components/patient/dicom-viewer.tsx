@@ -174,7 +174,9 @@ export default function DicomViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<App | null>(null);
-  const dataIdsRef = useRef<string[]>([]);
+  /** dataId dwv par index de fichier (aligné sur urls). */
+  const dataIdsRef = useRef<(string | undefined)[]>([]);
+  const fileLoadSeqRef = useRef(0);
   const toolRef = useRef<DicomTool>("WindowLevel");
   const onSliceCountResolvedRef = useRef(onSliceCountResolved);
   const [layerGroupId] = useState(() => `dwv-group-${(layerGroupCounter += 1)}`);
@@ -363,16 +365,19 @@ export default function DicomViewer({
       }
     };
 
-    const ensureDisplayable = () => {
+    const ensureDisplayable = (preferredIds?: string[]) => {
       if (hasRenderableImage()) return true;
-      const dataIds = collectRenderableDataIds();
-      if (dataIds.length === 0) return false;
-      try {
-        app.render(dataIds[0]!);
-      } catch {
-        return false;
+      const candidates = preferredIds ?? collectRenderableDataIds();
+      if (candidates.length === 0) return false;
+      for (const dataId of candidates) {
+        try {
+          app.render(dataId);
+        } catch {
+          continue;
+        }
+        if (hasRenderableImage()) return true;
       }
-      return hasRenderableImage();
+      return false;
     };
 
     const readSlicePosition = () => {
@@ -413,13 +418,9 @@ export default function DicomViewer({
       onSliceCountResolvedRef.current?.(effective);
     };
 
-    const resolveSequentialDataIds = () => {
+    const resolveSequentialDataIds = (): (string | undefined)[] => {
       const renderable = collectRenderableDataIds();
-      if (renderable.length >= seriesUrls.length) {
-        return renderable.slice(0, seriesUrls.length);
-      }
-      if (renderable.length > 1) return renderable;
-      return renderable;
+      return seriesUrls.map((_, index) => renderable[index]);
     };
 
     const needsSequentialFallback = () => {
@@ -473,18 +474,27 @@ export default function DicomViewer({
       if (disposed || loadSucceeded) return;
 
       if (needsSequentialFallback()) {
-        const dataIds = resolveSequentialDataIds();
-        if (dataIds.length === 0) {
-          if (!ensureDisplayable()) {
-            failLoad("fichier illisible ou format non pris en charge");
-          }
+        const mapping = resolveSequentialDataIds();
+        dataIdsRef.current = mapping;
+        const renderableIds = mapping.filter((id): id is string => Boolean(id));
+        if (renderableIds.length === 0 && !ensureDisplayable()) {
+          failLoad("fichier illisible ou format non pris en charge");
           return;
         }
         resolvedNavMode = "sequential";
-        dataIdsRef.current = dataIds;
-        try {
-          app.render(dataIds[0]!);
-        } catch {
+        const firstIndex = mapping.findIndex(
+          (id) => Boolean(id) && Boolean(app.getData(id!)?.image),
+        );
+        if (firstIndex >= 0) {
+          try {
+            app.render(mapping[firstIndex]!);
+          } catch {
+            if (!ensureDisplayable(renderableIds)) {
+              failLoad("fichier illisible ou format non pris en charge");
+              return;
+            }
+          }
+        } else if (!ensureDisplayable(renderableIds)) {
           failLoad("fichier illisible ou format non pris en charge");
           return;
         }
@@ -642,25 +652,71 @@ export default function DicomViewer({
   useEffect(() => {
     if (navMode !== "sequential" || status !== "ready") return;
     const app = appRef.current;
-    const dataIds = dataIdsRef.current;
-    if (!app || dataIds.length === 0) return;
+    if (!app) return;
 
-    const dataId = dataIds[fileIndex];
-    if (!dataId) return;
+    const seriesUrls = urlsKey.split("\n").filter(Boolean);
+    const targetUrl = seriesUrls[fileIndex];
+    if (!targetUrl) return;
 
-    try {
-      const currentId = app.getActiveLayerGroup()?.getActiveViewLayer()?.getDataId();
-      if (currentId === dataId) {
+    const tryRenderDataId = (dataId: string) => {
+      try {
+        const currentId = app.getActiveLayerGroup()?.getActiveViewLayer()?.getDataId();
+        if (currentId === dataId && app.getData(dataId)?.image) {
+          setSliceIndex(fileIndex);
+          return true;
+        }
+        app.render(dataId);
+        if (!app.getData(dataId)?.image) return false;
+        app.fitToContainer();
         setSliceIndex(fileIndex);
-        return;
+        return true;
+      } catch {
+        return false;
       }
-      app.render(dataId);
-      app.fitToContainer();
-      setSliceIndex(fileIndex);
-    } catch {
-      /* render swap may fail on corrupt frame */
-    }
-  }, [fileIndex, navMode, status]);
+    };
+
+    const cachedId = dataIdsRef.current[fileIndex];
+    if (cachedId && tryRenderDataId(cachedId)) return;
+
+    const knownIds = new Set(
+      dataIdsRef.current.filter((id): id is string => Boolean(id)),
+    );
+    let disposed = false;
+    const loadSeq = (fileLoadSeqRef.current += 1);
+
+    const onSingleLoad = () => {
+      if (disposed || loadSeq !== fileLoadSeqRef.current) return;
+      const renderable = app
+        .getDataIds()
+        .filter((id) => Boolean(app.getData(id)?.image));
+      const newId =
+        renderable.find((id) => !knownIds.has(id)) ?? renderable[renderable.length - 1];
+      if (!newId || !tryRenderDataId(newId)) return;
+      const next = [...dataIdsRef.current];
+      while (next.length < seriesUrls.length) next.push(undefined);
+      next[fileIndex] = newId;
+      dataIdsRef.current = next;
+    };
+
+    const onSingleError = () => {
+      if (disposed || loadSeq !== fileLoadSeqRef.current) return;
+      setErrorMessage(
+        `Fichier ${fileIndex + 1} illisible — passez au suivant avec →`,
+      );
+    };
+
+    app.addEventListener("load", onSingleLoad);
+    app.addEventListener("loaderror", onSingleError);
+    app.addEventListener("error", onSingleError);
+    app.loadURLs([targetUrl]);
+
+    return () => {
+      disposed = true;
+      app.removeEventListener("load", onSingleLoad);
+      app.removeEventListener("loaderror", onSingleError);
+      app.removeEventListener("error", onSingleError);
+    };
+  }, [fileIndex, navMode, status, urlsKey]);
 
   useEffect(() => {
     if (status === "ready") {
