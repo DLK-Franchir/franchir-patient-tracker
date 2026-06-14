@@ -336,62 +336,35 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
         </div>
       )}
 
-      {/* Lightbox */}
-      {selectedItem && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
-          onClick={() => setSelectedIndex(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Visionneuse"
-        >
+      {/* Visionneuse plein écran (DICOM) ou lightbox (autres formats) */}
+      {selectedItem &&
+        (selectedItem.kind === 'dicom-series' ||
+          selectedItem.kind === 'questionnaire-dicom-series' ? (
           <div
-            className="relative max-w-5xl w-full mx-4 rounded-2xl overflow-hidden shadow-2xl bg-[#0B1020]"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex flex-col bg-[#0B1020]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Visionneuse DICOM"
+            data-testid="dicom-fullscreen-viewer"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <p className="text-sm font-medium text-white truncate flex-1">{selectedName}</p>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">Visionneuse DICOM</p>
+                <p className="truncate text-xs text-white/60">{selectedName}</p>
+              </div>
               <div className="flex items-center gap-2 shrink-0">
-                {selectedItem.kind === 'file' && (
-                  <a
-                    href={selectedItem.doc.url}
-                    download={selectedItem.doc.fileName}
-                    className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">Télécharger</span>
-                  </a>
-                )}
-                {(selectedItem.kind === 'questionnaire-file' ||
-                  selectedItem.kind === 'questionnaire-dicom-series') && (
-                  <a
-                    href={
-                      selectedItem.kind === 'questionnaire-file'
-                        ? selectedItem.url
-                        : selectedItem.firstUrl
-                    }
-                    download={
-                      selectedItem.kind === 'questionnaire-file' ? selectedItem.name : undefined
-                    }
-                    className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">Télécharger</span>
-                  </a>
-                )}
                 {items.length > 1 && (
                   <>
                     <button
                       type="button"
                       disabled={selectedIndex === 0}
                       onClick={() => setSelectedIndex((i) => (i !== null ? Math.max(0, i - 1) : 0))}
-                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
                     >
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                       Préc.
                     </button>
-                    <span className="text-xs text-white/50">
+                    <span className="text-xs text-white/50 tabular-nums">
                       {(selectedIndex ?? 0) + 1} / {items.length}
                     </span>
                     <button
@@ -400,90 +373,163 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                       onClick={() =>
                         setSelectedIndex((i) => (i !== null ? Math.min(items.length - 1, i + 1) : 0))
                       }
-                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
                     >
                       Suiv.
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </>
                 )}
                 <button
                   type="button"
                   onClick={() => setSelectedIndex(null)}
-                  aria-label="Fermer"
-                  className="ml-2 inline-flex items-center justify-center rounded-lg p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition"
+                  aria-label="Fermer la visionneuse"
+                  className="inline-flex items-center justify-center rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-
-            <div className="flex items-center justify-center min-h-[400px] max-h-[75vh] bg-[#0B1020]">
-              {selectedItem.kind === 'dicom-series' || selectedItem.kind === 'questionnaire-dicom-series' ? (
-                <div className="w-full h-[70vh]">
-                  <DicomViewer urls={selectedItem.urls} name={selectedItem.name} />
-                </div>
-              ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'image' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={selectedItem.doc.url}
-                  alt={selectedItem.doc.fileName}
-                  className="max-w-full max-h-[70vh] object-contain"
-                />
-              ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'image' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={selectedItem.url}
-                  alt={selectedItem.name}
-                  className="max-w-full max-h-[70vh] object-contain"
-                />
-              ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'pdf' ? (
-                <iframe
-                  src={selectedItem.doc.url}
-                  title={selectedItem.doc.fileName}
-                  className="w-full h-[70vh] bg-white"
-                />
-              ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'pdf' ? (
-                <iframe
-                  src={selectedItem.url}
-                  title={selectedItem.name}
-                  className="w-full h-[70vh] bg-white"
-                />
-              ) : selectedItem.kind === 'file' ? (
-                <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
-                  <FileText className="w-10 h-10 text-white/70" strokeWidth={1.5} />
-                  <p className="text-sm text-white/80">
-                    Aperçu non disponible pour ce type de fichier.
-                  </p>
-                  <a
-                    href={selectedItem.doc.url}
-                    download={selectedItem.doc.fileName}
-                    className="mt-1 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 transition"
-                  >
-                    <Download className="w-4 h-4" />
-                    Télécharger le fichier
-                  </a>
-                </div>
-              ) : selectedItem.kind === 'questionnaire-file' ? (
-                <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
-                  <FileText className="w-10 h-10 text-white/70" strokeWidth={1.5} />
-                  <p className="text-sm text-white/80">
-                    Aperçu non disponible pour ce type de fichier.
-                  </p>
-                  <a
-                    href={selectedItem.url}
-                    download={selectedItem.name}
-                    className="mt-1 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 transition"
-                  >
-                    <Download className="w-4 h-4" />
-                    Télécharger le fichier
-                  </a>
-                </div>
-              ) : null}
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <DicomViewer urls={selectedItem.urls} name={selectedItem.name} />
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
+            onClick={() => setSelectedIndex(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Visionneuse"
+          >
+            <div
+              className="relative max-w-5xl w-full mx-4 rounded-2xl overflow-hidden shadow-2xl bg-[#0B1020]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <p className="text-sm font-medium text-white truncate flex-1">{selectedName}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  {selectedItem.kind === 'file' && (
+                    <a
+                      href={selectedItem.doc.url}
+                      download={selectedItem.doc.fileName}
+                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span className="hidden sm:inline">Télécharger</span>
+                    </a>
+                  )}
+                  {selectedItem.kind === 'questionnaire-file' && (
+                    <a
+                      href={selectedItem.url}
+                      download={selectedItem.name}
+                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span className="hidden sm:inline">Télécharger</span>
+                    </a>
+                  )}
+                  {items.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={selectedIndex === 0}
+                        onClick={() => setSelectedIndex((i) => (i !== null ? Math.max(0, i - 1) : 0))}
+                        className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        Préc.
+                      </button>
+                      <span className="text-xs text-white/50">
+                        {(selectedIndex ?? 0) + 1} / {items.length}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={selectedIndex === items.length - 1}
+                        onClick={() =>
+                          setSelectedIndex((i) => (i !== null ? Math.min(items.length - 1, i + 1) : 0))
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
+                      >
+                        Suiv.
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIndex(null)}
+                    aria-label="Fermer"
+                    className="ml-2 inline-flex items-center justify-center rounded-lg p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center min-h-[400px] max-h-[75vh] bg-[#0B1020]">
+                {selectedItem.kind === 'file' && selectedItem.doc.renderType === 'image' ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedItem.doc.url}
+                    alt={selectedItem.doc.fileName}
+                    className="max-w-full max-h-[70vh] object-contain"
+                  />
+                ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'image' ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedItem.url}
+                    alt={selectedItem.name}
+                    className="max-w-full max-h-[70vh] object-contain"
+                  />
+                ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'pdf' ? (
+                  <iframe
+                    src={selectedItem.doc.url}
+                    title={selectedItem.doc.fileName}
+                    className="w-full h-[70vh] bg-white"
+                  />
+                ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'pdf' ? (
+                  <iframe
+                    src={selectedItem.url}
+                    title={selectedItem.name}
+                    className="w-full h-[70vh] bg-white"
+                  />
+                ) : selectedItem.kind === 'file' ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
+                    <FileText className="w-10 h-10 text-white/70" strokeWidth={1.5} />
+                    <p className="text-sm text-white/80">
+                      Aperçu non disponible pour ce type de fichier.
+                    </p>
+                    <a
+                      href={selectedItem.doc.url}
+                      download={selectedItem.doc.fileName}
+                      className="mt-1 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 transition"
+                    >
+                      <Download className="w-4 h-4" />
+                      Télécharger le fichier
+                    </a>
+                  </div>
+                ) : selectedItem.kind === 'questionnaire-file' ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
+                    <FileText className="w-10 h-10 text-white/70" strokeWidth={1.5} />
+                    <p className="text-sm text-white/80">
+                      Aperçu non disponible pour ce type de fichier.
+                    </p>
+                    <a
+                      href={selectedItem.url}
+                      download={selectedItem.name}
+                      className="mt-1 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 transition"
+                    >
+                      <Download className="w-4 h-4" />
+                      Télécharger le fichier
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ))}
     </section>
   )
 }

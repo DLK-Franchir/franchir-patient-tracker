@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp } from 'lucide-react'
+import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp, Loader2 } from 'lucide-react'
 import {
   validateDocumentFile,
   inferRenderType,
@@ -10,6 +10,7 @@ import {
   MAX_DOCUMENTS_PER_REQUEST,
   type DocumentRenderType,
 } from '@/lib/documents/patient-documents'
+import { importDicomFolder } from '@/lib/imaging/dicom-folder-import'
 
 /**
  * Sélecteur de fichiers réutilisable (DICOM + PDF/images), drag & drop +
@@ -43,6 +44,33 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
   const folderInputRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
+  const [folderImporting, setFolderImporting] = useState(false)
+  const [folderNote, setFolderNote] = useState<string | null>(null)
+  const [seriesPreview, setSeriesPreview] = useState<string[]>([])
+
+  const mergeAccepted = useCallback(
+    (accepted: File[]) => {
+      const existingKeys = new Set(files.map((f) => `${f.name}:${f.size}`))
+      const merged = [...files]
+      for (const file of accepted) {
+        const key = `${file.name}:${file.size}`
+        if (!existingKeys.has(key)) {
+          existingKeys.add(key)
+          merged.push(file)
+        }
+      }
+
+      const nextErrors = [...errors]
+      if (merged.length > MAX_DOCUMENTS_PER_REQUEST) {
+        nextErrors.push(`Maximum ${MAX_DOCUMENTS_PER_REQUEST} fichiers par envoi.`)
+        merged.length = MAX_DOCUMENTS_PER_REQUEST
+      }
+
+      setErrors(nextErrors)
+      onChange(merged)
+    },
+    [errors, files, onChange],
+  )
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
@@ -51,8 +79,6 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
       const accepted: File[] = []
 
       for (const file of list) {
-        // Fichiers parasites de CD/visionneuse (DICOMDIR, exe, .DS_Store…) :
-        // ignorés SILENCIEUSEMENT lors d'un import de dossier, pas une erreur.
         if (isIgnorableCompanionFile(file.name)) {
           continue
         }
@@ -68,26 +94,45 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
         accepted.push(file)
       }
 
-      // Déduplication simple (nom + taille) pour éviter les doublons évidents.
-      const existingKeys = new Set(files.map((f) => `${f.name}:${f.size}`))
-      const merged = [...files]
-      for (const file of accepted) {
-        const key = `${file.name}:${file.size}`
-        if (!existingKeys.has(key)) {
-          existingKeys.add(key)
-          merged.push(file)
-        }
-      }
-
-      if (merged.length > MAX_DOCUMENTS_PER_REQUEST) {
-        nextErrors.push(`Maximum ${MAX_DOCUMENTS_PER_REQUEST} fichiers par envoi.`)
-        merged.length = MAX_DOCUMENTS_PER_REQUEST
-      }
-
-      setErrors(nextErrors)
-      onChange(merged)
+      mergeAccepted(accepted)
+      if (nextErrors.length > 0) setErrors(nextErrors)
     },
-    [files, onChange],
+    [mergeAccepted],
+  )
+
+  const handleFolderImport = useCallback(
+    async (fileList: FileList) => {
+      if (disabled) return
+      setFolderImporting(true)
+      setFolderNote(null)
+      setSeriesPreview([])
+      try {
+        const result = await importDicomFolder(fileList)
+        const prepared = result.series.flatMap((s) => s.files.map((f) => f.file))
+
+        if (prepared.length === 0) {
+          setFolderNote('Aucune image DICOM reconnue dans ce dossier.')
+          return
+        }
+
+        setSeriesPreview(result.series.map((s) => s.label))
+        mergeAccepted(prepared)
+
+        const notes: string[] = []
+        if (result.ignoredCompanionCount > 0) {
+          notes.push(`${result.ignoredCompanionCount} fichier(s) parasite(s) ignoré(s)`)
+        }
+        if (result.skippedNonDicomCount > 0) {
+          notes.push(`${result.skippedNonDicomCount} fichier(s) non-DICOM ignoré(s)`)
+        }
+        if (notes.length > 0) setFolderNote(notes.join(' · '))
+      } catch {
+        setFolderNote("Échec de l'analyse du dossier DICOM.")
+      } finally {
+        setFolderImporting(false)
+      }
+    },
+    [disabled, mergeAccepted],
   )
 
   const handleDrop = useCallback(
@@ -169,20 +214,36 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
           disabled={disabled}
           {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
           onChange={(e) => {
-            if (e.target.files?.length) addFiles(e.target.files)
+            if (e.target.files?.length) void handleFolderImport(e.target.files)
             e.target.value = ''
           }}
         />
       </div>
 
+      {seriesPreview.length > 0 && (
+        <ul className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+          {seriesPreview.map((label) => (
+            <li key={label} className="text-xs text-indigo-900">
+              {label}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {folderNote ? <p className="text-xs text-gray-500">{folderNote}</p> : null}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
-          disabled={disabled}
+          disabled={disabled || folderImporting}
           onClick={() => folderInputRef.current?.click()}
           className="inline-flex items-center gap-1.5 text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium disabled:opacity-50"
         >
-          <FolderUp className="w-4 h-4" aria-hidden="true" />
+          {folderImporting ? (
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <FolderUp className="w-4 h-4" aria-hidden="true" />
+          )}
           Importer un dossier (CD DICOM)
         </button>
         {files.length > 0 && (
