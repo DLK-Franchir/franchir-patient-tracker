@@ -9,6 +9,7 @@ import {
   readDicomHeaderFromFile,
   type DicomHeaderInfo,
 } from '@/lib/imaging/dicom-detection'
+import { fileRelativePath } from '@/lib/imaging/directory-picker'
 import { isIgnorableCompanionFile } from '@/lib/documents/patient-documents'
 
 export type PreparedDicomFile = {
@@ -29,6 +30,22 @@ export type DicomFolderImportResult = {
   series: DicomImportSeries[]
   ignoredCompanionCount: number
   skippedNonDicomCount: number
+  /** Nombre de fichiers parcourus (hors parasites). */
+  scannedCandidateCount: number
+  /** Exemples de chemins non reconnus (diagnostic UX). */
+  sampleSkippedPaths: string[]
+}
+
+export function formatEmptyDicomFolderMessage(result: DicomFolderImportResult): string {
+  const base = 'Aucune image DICOM reconnue dans ce dossier.'
+  if (result.scannedCandidateCount === 0) {
+    return `${base} Le dossier semble vide ou ne contient que des fichiers systeme (DICOMDIR, autorun…).`
+  }
+  if (result.sampleSkippedPaths.length === 0) {
+    return `${base} ${result.skippedNonDicomCount} fichier(s) analyse(s) sans en-tete DICOM valide.`
+  }
+  const samples = result.sampleSkippedPaths.slice(0, 3).join(', ')
+  return `${base} Exemples non reconnus : ${samples}. Selectionnez le dossier racine du CD (ex. Arcande_IRM) contenant DICOM/ ou SE*/IM*.`
 }
 
 export function basenameFromPath(path: string): string {
@@ -75,24 +92,31 @@ export async function importDicomFolder(input: FileList | File[]): Promise<Dicom
   const files = Array.from(input)
   let ignoredCompanionCount = 0
   let skippedNonDicomCount = 0
+  let scannedCandidateCount = 0
+  const sampleSkippedPaths: string[] = []
 
   const prepared: PreparedDicomFile[] = []
 
   for (const file of files) {
-    if (isIgnorableCompanionFile(file.name)) {
+    const displayPath = fileRelativePath(file)
+    if (isIgnorableCompanionFile(displayPath) || isIgnorableCompanionFile(file.name)) {
       ignoredCompanionCount += 1
       continue
     }
 
+    scannedCandidateCount += 1
+
     const isDicom = await fileHasDicomPreamble(file)
     if (!isDicom) {
       skippedNonDicomCount += 1
+      if (sampleSkippedPaths.length < 5) sampleSkippedPaths.push(displayPath)
       continue
     }
 
     const header = await readDicomHeaderFromFile(file)
     if (!header) {
       skippedNonDicomCount += 1
+      if (sampleSkippedPaths.length < 5) sampleSkippedPaths.push(displayPath)
       continue
     }
 
@@ -124,7 +148,13 @@ export async function importDicomFolder(input: FileList | File[]): Promise<Dicom
     },
   )
 
-  return { series, ignoredCompanionCount, skippedNonDicomCount }
+  return {
+    series,
+    ignoredCompanionCount,
+    skippedNonDicomCount,
+    scannedCandidateCount,
+    sampleSkippedPaths,
+  }
 }
 
 export function flattenDicomImportSeries(result: DicomFolderImportResult): PreparedDicomFile[] {
