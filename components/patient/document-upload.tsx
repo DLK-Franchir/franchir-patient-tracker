@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp, Loader2 } from 'lucide-react'
 import {
   validateDocumentFile,
@@ -46,7 +46,16 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
   const [errors, setErrors] = useState<string[]>([])
   const [folderImporting, setFolderImporting] = useState(false)
   const [folderNote, setFolderNote] = useState<string | null>(null)
+  const [folderError, setFolderError] = useState<string | null>(null)
   const [seriesPreview, setSeriesPreview] = useState<string[]>([])
+
+  // webkitdirectory nest pas dans les typings React : pose imperatif comme questionnaires.
+  useEffect(() => {
+    const input = folderInputRef.current
+    if (!input) return
+    input.setAttribute('webkitdirectory', '')
+    input.setAttribute('directory', '')
+  }, [])
 
   const mergeAccepted = useCallback(
     (accepted: File[]) => {
@@ -105,13 +114,14 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
       if (disabled) return
       setFolderImporting(true)
       setFolderNote(null)
+      setFolderError(null)
       setSeriesPreview([])
       try {
         const result = await importDicomFolder(fileList)
         const prepared = result.series.flatMap((s) => s.files.map((f) => f.file))
 
         if (prepared.length === 0) {
-          setFolderNote('Aucune image DICOM reconnue dans ce dossier.')
+          setFolderError('Aucune image DICOM reconnue dans ce dossier.')
           return
         }
 
@@ -126,8 +136,9 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
           notes.push(`${result.skippedNonDicomCount} fichier(s) non-DICOM ignoré(s)`)
         }
         if (notes.length > 0) setFolderNote(notes.join(' · '))
-      } catch {
-        setFolderNote("Échec de l'analyse du dossier DICOM.")
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Échec de l'analyse du dossier DICOM."
+        setFolderError(message)
       } finally {
         setFolderImporting(false)
       }
@@ -210,9 +221,9 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
         <input
           ref={folderInputRef}
           type="file"
+          multiple
           className="hidden"
           disabled={disabled}
-          {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
           onChange={(e) => {
             if (e.target.files?.length) void handleFolderImport(e.target.files)
             e.target.value = ''
@@ -231,6 +242,7 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
       )}
 
       {folderNote ? <p className="text-xs text-gray-500">{folderNote}</p> : null}
+      {folderError ? <p className="text-xs text-red-600">{folderError}</p> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
