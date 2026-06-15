@@ -247,7 +247,12 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
 
       {canManage && showUpload && (
         <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <DocumentUpload files={pendingFiles} onChange={setPendingFiles} disabled={uploading} />
+          <DocumentUpload
+            files={pendingFiles}
+            onChange={setPendingFiles}
+            disabled={uploading}
+            isUploading={uploading}
+          />
           <div className="flex flex-col-reverse sm:flex-row gap-3 mt-4">
             <button
               type="button"

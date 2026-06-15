@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp, Loader2 } from 'lucide-react'
+import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp, Loader2, Info } from 'lucide-react'
+import { dropzoneHintLine, uploadGuidanceLines, UPLOAD_GUIDANCE } from '@/lib/documents/upload-guidance'
 import {
   validateDocumentFile,
   inferRenderType,
@@ -29,6 +30,8 @@ type DocumentUploadProps = {
   files: File[]
   onChange: (files: File[]) => void
   disabled?: boolean
+  /** Envoi serveur en cours (fiche patient). */
+  isUploading?: boolean
 }
 
 const ACCEPT = '.dcm,.dicom,.pdf,.jpg,.jpeg,.png,.webp,.gif,application/dicom,application/pdf,image/*'
@@ -45,7 +48,12 @@ function RenderTypeIcon({ type }: { type: DocumentRenderType }) {
   return <FileText className="w-4 h-4 text-blue-600 shrink-0" aria-hidden="true" />
 }
 
-export default function DocumentUpload({ files, onChange, disabled = false }: DocumentUploadProps) {
+export default function DocumentUpload({
+  files,
+  onChange,
+  disabled = false,
+  isUploading = false,
+}: DocumentUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -230,6 +238,31 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
   return (
     <div className="space-y-3">
       <div
+        role="note"
+        className="rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-2.5 text-xs text-blue-900"
+      >
+        <div className="flex items-start gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-700" aria-hidden="true" />
+          <ul className="list-disc space-y-0.5 pl-4">
+            {uploadGuidanceLines().map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {(isUploading || folderImporting) && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900"
+        >
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden="true" />
+          {isUploading ? UPLOAD_GUIDANCE.uploadingNote : UPLOAD_GUIDANCE.folderAnalyzingNote}
+        </p>
+      )}
+
+      <div
         onDragOver={(e) => {
           e.preventDefault()
           if (!disabled) setDragActive(true)
@@ -259,9 +292,7 @@ export default function DocumentUpload({ files, onChange, disabled = false }: Do
         <p className="text-sm font-medium text-gray-700">
           Glissez-déposez vos fichiers ou cliquez pour parcourir
         </p>
-        <p className="text-xs text-gray-500">
-          Imagerie DICOM (.dcm) · PDF · images (JPG, PNG…) — 100 Mo max par fichier
-        </p>
+        <p className="text-xs text-gray-500">{dropzoneHintLine()}</p>
         <input
           ref={inputRef}
           type="file"
