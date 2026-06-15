@@ -6,7 +6,7 @@
 
 const BASE =
   process.env.QUESTIONNAIRES_API_BASE ||
-  'https://franchir-questionnaires-patients.vercel.app/api/integrations/tracker'
+  'https://questionnaire.franchir.eu/api/integrations/tracker'
 
 export type QuestionnaireImagingFile = {
   name: string

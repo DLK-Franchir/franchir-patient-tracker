@@ -13,7 +13,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://patients.franchir.eu
 // Portail clinicien/chirurgien (app questionnaires) où le chirurgien consulte
 // l'analyse sécurisée + l'imagerie du dossier qui lui est assigné.
 const QUESTIONNAIRES_PORTAL_URL =
-  process.env.QUESTIONNAIRES_PORTAL_URL || 'https://franchir-questionnaires-patients.vercel.app'
+  process.env.QUESTIONNAIRES_PORTAL_URL || 'https://questionnaire.franchir.eu'
 const log = new Logger('notifications')
 
 export type ProfileRow = {

@@ -14,15 +14,17 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { canManagePatientDocuments } from '@/lib/access-control'
+import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('api/patients/questionnaire-link')
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const QUESTIONNAIRE_LINK_URL =
-  process.env.QUESTIONNAIRES_QUESTIONNAIRE_LINK_URL ||
-  'https://franchir-questionnaires-patients.vercel.app/api/integrations/tracker/questionnaire-link'
+const QUESTIONNAIRE_LINK_URL = `${
+  process.env.QUESTIONNAIRES_API_BASE ||
+  'https://questionnaire.franchir.eu/api/integrations/tracker'
+}/questionnaire-link`
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: patientId } = await params
@@ -79,7 +81,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const response = await fetch(QUESTIONNAIRE_LINK_URL, {
+    let response = await fetch(QUESTIONNAIRE_LINK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -87,6 +89,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
       body: JSON.stringify({ trackerPatientId: patientId, newSession }),
     })
+
+    if (response.status === 404) {
+      log.warn('Dossier non corrélé — tentative de sync rattrapage', { patientId })
+      const synced = await syncPatientToQuestionnaires(patientId)
+      if (synced) {
+        response = await fetch(QUESTIONNAIRE_LINK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ trackerPatientId: patientId, newSession }),
+        })
+      }
+    }
 
     if (!response.ok) {
       const detail = await response.json().catch(() => ({}))

@@ -8,7 +8,84 @@
 
 const BASE =
   process.env.QUESTIONNAIRES_API_BASE ||
-  'https://franchir-questionnaires-patients.vercel.app/api/integrations/tracker'
+  'https://questionnaire.franchir.eu/api/integrations/tracker'
+
+function getBridgeToken(): string | undefined {
+  return process.env.TRACKER_SYNC_SERVICE_TOKEN
+}
+
+/** Rattrapage si le webhook `sync-patient-to-questionnaires` a échoué (pont non provisionné, etc.). */
+export async function syncPatientToQuestionnaires(patientId: string): Promise<boolean> {
+  const token = getBridgeToken()
+  if (!token) return false
+
+  const { createServiceRoleClient } = await import('@/lib/supabase/service-role')
+  const supabase = createServiceRoleClient()
+
+  const { data: patient, error } = await supabase
+    .from('patients')
+    .select(
+      'id, patient_name, patient_email, clinical_summary, sharepoint_link, form_types, current_status_id, assigned_surgeon_id',
+    )
+    .eq('id', patientId)
+    .maybeSingle()
+
+  if (error || !patient) return false
+
+  let surgeonEmail: string | null = null
+  let surgeonName: string | null = null
+  let workflowStatus: string | null = null
+
+  const [surgeonResult, statusResult] = await Promise.all([
+    patient.assigned_surgeon_id
+      ? supabase
+          .from('surgeons')
+          .select('full_name, email')
+          .eq('id', patient.assigned_surgeon_id)
+          .single()
+      : Promise.resolve({ data: null }),
+    patient.current_status_id
+      ? supabase
+          .from('workflow_statuses')
+          .select('code')
+          .eq('id', patient.current_status_id)
+          .single()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const surgeon = surgeonResult.data as { full_name: string | null; email: string | null } | null
+  const status = statusResult.data as { code: string } | null
+
+  if (surgeon?.email) {
+    surgeonEmail = surgeon.email
+    surgeonName = surgeon.full_name ?? null
+  }
+  workflowStatus = status?.code ?? null
+
+  try {
+    const res = await fetch(`${BASE}/patient-upsert`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        trackerPatientId: patient.id,
+        patientName: patient.patient_name,
+        patientEmail: patient.patient_email ?? null,
+        assignedSurgeonEmail: surgeonEmail,
+        assignedSurgeonName: surgeonName,
+        clinicalSummary: patient.clinical_summary ?? null,
+        sharepointLink: patient.sharepoint_link ?? null,
+        formTypes: Array.isArray(patient.form_types) ? patient.form_types : undefined,
+        workflowStatus,
+      }),
+    })
+    return res.ok || res.status === 409
+  } catch {
+    return false
+  }
+}
 
 export type QuestionnaireSessionSummary = {
   id: string
@@ -33,7 +110,7 @@ export type QuestionnaireStatus = {
 export async function fetchQuestionnaireStatus(
   trackerPatientId: string,
 ): Promise<QuestionnaireStatus | null> {
-  const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
+  const token = getBridgeToken()
   if (!token) return null
   try {
     const res = await fetch(
@@ -48,7 +125,7 @@ export async function fetchQuestionnaireStatus(
 }
 
 export async function revokeQuestionnaireLink(trackerPatientId: string): Promise<boolean> {
-  const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
+  const token = getBridgeToken()
   if (!token) return false
   try {
     const res = await fetch(`${BASE}/questionnaire-revoke`, {
