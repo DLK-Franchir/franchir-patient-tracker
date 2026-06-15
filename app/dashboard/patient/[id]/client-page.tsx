@@ -7,6 +7,7 @@ import MessageThread, { type Message } from '@/components/patient/message-thread
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
 import DocumentsSection from '@/components/patient/documents-section'
+import SurgeonAssignmentCard from '@/components/patient/surgeon-assignment-card'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 import { useRouter } from 'next/navigation'
@@ -47,6 +48,12 @@ interface PatientData {
   proposed_date?: string | null
   quote_accepted?: boolean
   date_accepted?: boolean
+  assigned_surgeon_id?: string | null
+  assigned_surgeon?: {
+    id: string
+    full_name: string
+    email?: string | null
+  } | null
   current_status: {
     id: string
     code: string
@@ -139,6 +146,10 @@ export default function PatientDetailClient({
 
   const showCommercialTab = userRole !== 'gilles'
   const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
+  const canAssignSurgeon =
+    userRole === 'marcel' || userRole === 'franchir' || userRole === 'gilles' || userRole === 'admin'
+
+  const assignedSurgeon = patient.assigned_surgeon ?? null
 
   const handleAction = async (actionId: string, data?: any) => {
     try {
@@ -213,6 +224,21 @@ export default function PatientDetailClient({
               dateAccepted={patient.date_accepted || false}
               surgeons={surgeons}
               onAction={handleAction}
+            />
+          </div>
+          <div className="mt-4">
+            <SurgeonAssignmentCard
+              patientId={patient.id}
+              surgeons={surgeons}
+              assignedSurgeon={assignedSurgeon}
+              canManage={canAssignSurgeon && !isReadOnly}
+              onAssigned={(surgeon) =>
+                setPatient((current) => ({
+                  ...current,
+                  assigned_surgeon_id: surgeon.id,
+                  assigned_surgeon: surgeon,
+                }))
+              }
             />
           </div>
         </div>
@@ -341,6 +367,20 @@ export default function PatientDetailClient({
                 />
               </div>
             </div>
+
+            <SurgeonAssignmentCard
+              patientId={patient.id}
+              surgeons={surgeons}
+              assignedSurgeon={assignedSurgeon}
+              canManage={canAssignSurgeon && !isReadOnly}
+              onAssigned={(surgeon) =>
+                setPatient((current) => ({
+                  ...current,
+                  assigned_surgeon_id: surgeon.id,
+                  assigned_surgeon: surgeon,
+                }))
+              }
+            />
 
             <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Questionnaire patient</h3>

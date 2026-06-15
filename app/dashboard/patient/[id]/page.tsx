@@ -42,6 +42,11 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
         label,
         color
       ),
+      assigned_surgeon:surgeons!assigned_surgeon_id (
+        id,
+        full_name,
+        email
+      ),
       creator:profiles!created_by (
         full_name,
         role

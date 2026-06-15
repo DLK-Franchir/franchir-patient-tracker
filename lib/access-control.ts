@@ -63,6 +63,20 @@ export function canEditPatientSummary(profile?: ProfileAccess | null): boolean {
   return profile.role === 'marcel' || profile.role === 'admin'
 }
 
+/** Assignation / changement du chirurgien responsable (sync questionnaires). */
+export function canAssignSurgeon(profile?: ProfileAccess | null): boolean {
+  if (!assertStaffProfile(profile)) {
+    return false
+  }
+
+  return (
+    profile.role === 'marcel' ||
+    profile.role === 'franchir' ||
+    profile.role === 'gilles' ||
+    profile.role === 'admin'
+  )
+}
+
 export function requireStaffProfile(profile?: ProfileAccess | null): ProfileAccess & { email: string; role: StaffRole } {
   if (!assertStaffProfile(profile)) {
     throw new Error('Unauthorized profile')

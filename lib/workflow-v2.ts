@@ -388,14 +388,17 @@ export function getAvailableActions({
     }
   }
 
-  // Étape 3 (D6) — Assignation chirurgien réelle (écrit assigned_surgeon_id, ce
-  // qui déclenche l'enrichissement surgeon_email côté questionnaires via le
-  // webhook UPDATE). Disponible après validation médicale (commercial_in_progress)
-  // pour la revue médicale (gilles/admin) et la coordination (marcel/franchir).
-  if (
-    globalStatus === 'commercial_in_progress' &&
-    (role === 'gilles' || role === 'admin' || role === 'marcel' || role === 'franchir')
-  ) {
+  // Étape 3 (D6) — Assignation chirurgien via action workflow (complément de la
+  // carte « Chirurgien responsable » sur la fiche). Disponible dès que le
+  // questionnaire peut être soumis (draft+) pour marcel/franchir, et après
+  // validation médicale pour gilles/admin.
+  const canAssignViaWorkflow =
+    role === 'marcel' ||
+    role === 'franchir' ||
+    role === 'admin' ||
+    (role === 'gilles' && globalStatus === 'commercial_in_progress')
+
+  if (canAssignViaWorkflow && globalStatus !== 'scheduled') {
     result.secondaryActions.push({
       id: 'assign_surgeon',
       label: 'Assigner un chirurgien',
