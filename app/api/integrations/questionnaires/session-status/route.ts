@@ -23,6 +23,7 @@
 
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
+import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { Logger } from '@/lib/logger'
 
@@ -92,6 +93,13 @@ export async function POST(req: Request) {
       // rejeu automatique en V1.5).
       return NextResponse.json({ error: 'Patient Not Found' }, { status: 404 })
     }
+
+    // Rattrapage : si un chirurgien a été assigné entre-temps (ou si le webhook
+    // de sync a échoué), on repousse surgeon_email côté questionnaires pour que
+    // le dossier complété devienne visible du chirurgien assigné.
+    void syncPatientToQuestionnaires(trackerPatientId).catch((syncError) => {
+      log.error('Resync questionnaires après complétion non abouti', syncError)
+    })
 
     const response = NextResponse.json({ ok: true, patientId: updated.id }, { status: 200 })
     response.headers.set('Cache-Control', 'no-store')
