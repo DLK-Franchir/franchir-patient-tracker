@@ -15,11 +15,22 @@ Application web sécurisée de gestion de parcours patients pour le réseau FRAN
 ## Intégration & fonctionnalités récentes (juin 2026)
 
 Le tracker est l'**outil unique de pilotage multi-rôle** du parcours patient.
+**Gilles/Erik valident ici** — ils n'utilisent pas le portail clinicien
+questionnaires (`questionnaire.franchir.eu/clinician`).
 
-- **Email patient** à la création : déclenche l'envoi automatique du questionnaire (revue médicale d'abord, chirurgien assigné plus tard).
-- **Upload DICOM + documents** (PDF, comptes rendus) à la création et depuis la fiche patient — stockage privé Supabase (`patient-documents`), visionneuse DICOM et PDF intégrées. Remplace le lien SharePoint.
-- **Pont vers l'app questionnaires** (`vsnjahkrsqxbvspwhaka`) : à la création/MAJ d'un patient avec email, le dossier est synchronisé (Edge Function `sync-patient-to-questionnaires` + Database Webhook). Le chirurgien (optionnel) enrichit le dossier lors de l'assignation.
+- **Email patient** à la création : déclenche l'envoi automatique du questionnaire (revue médicale d'abord, chirurgien assigné plus tard). Rattrapage sync + renvoi de lien corrigés.
+- **Upload DICOM + documents** (PDF, comptes rendus) à la création et depuis la fiche patient — stockage privé Supabase (`patient-documents`), visionneuse DICOM et PDF intégrées. **Guidance délais/limites** affichée près de la zone d'upload (`lib/documents/upload-guidance.ts`).
+- **Pont vers l'app questionnaires** (`questionnaire.franchir.eu`) : à la création/MAJ d'un patient avec email, le dossier est synchronisé (Edge Function `sync-patient-to-questionnaires` + Database Webhook). Le chirurgien (optionnel) enrichit le dossier lors de l'assignation.
 - **Statut du questionnaire** remonté en retour (`questionnaire_status`/`_completed_at`/`_summary`) : Marcel voit quand le questionnaire est complété.
+- **Synthèse PDF questionnaire (P1)** : panneau sur la fiche patient — Gilles
+  (validation médicale), Marcel/admin (lecture seule). Proxy
+  `GET /api/patients/[id]/questionnaire-synthesis-pdf` → pont questionnaires
+  `patient-synthesis-pdf` (scores, drapeaux, imagerie).
+- **Mode validation Gilles (P0)** : `PatientDetailViewConfig` — fiche épurée
+  (masque SharePoint, assignation chir, upload docs, onglet commercial,
+  gestion questionnaire) ; conserve workflow + synthèse PDF.
+- **Carte Chirurgien responsable** (`surgeon-assignment-card`) : assignation
+  `assigned_surgeon_id` — visible/gérable par **Marcel** uniquement (pas Gilles).
 
 ## Imagerie & visionneuse DICOM
 
@@ -36,6 +47,9 @@ Le tracker est l'**outil unique de pilotage multi-rôle** du parcours patient.
   `DICOMDIR` / compagnons CD. Déduplication basename + taille à l'affichage
   clinicien (fusion avec le forward).
 - Signed upload direct Storage (DICOM volumineux — pas de transit via Vercel).
+- **Guidance utilisateur** : délais import CD (1–3 min), limites taille/lot,
+  note forward >50 Mo non transmis au portail chir, délais visionneuse
+  (`lib/documents/upload-guidance.ts`).
 
 ### Visionneuse DICOM (dwv 0.36.3)
 
@@ -74,6 +88,7 @@ Marcel fiche  → patient-documents + GET patient-images (questionnaire patient)
 |-----------|----------|------|
 | Tracker → questionnaires (forward) | `POST …/imaging-sign-upload` | `TRACKER_SYNC_SERVICE_TOKEN` |
 | Tracker → questionnaires (lecture) | `GET …/patient-images` | idem |
+| Tracker → questionnaires (synthèse PDF) | `GET …/patient-synthesis-pdf` | idem |
 | Questionnaires → tracker (complément clinicien) | `GET …/patient-documents` | `TRACKER_RETURN_TOKEN` |
 
 Corrélation : `patients.id` = `neuro_patients.external_tracker_id` (questionnaires).
@@ -95,10 +110,10 @@ NEXT_PUBLIC_APP_URL=https://patients.franchir.eu
 ```env
 # Sortant tracker → questionnaires
 TRACKER_SYNC_SERVICE_TOKEN=          # même valeur côté questionnaires (entrant)
-QUESTIONNAIRES_API_BASE=https://franchir-questionnaires-patients.vercel.app/api/integrations/tracker
+QUESTIONNAIRES_API_BASE=https://questionnaire.franchir.eu/api/integrations/tracker
 QUESTIONNAIRES_IMAGING_SIGN_URL=     # optionnel — défaut {API_BASE}/imaging-sign-upload
 QUESTIONNAIRES_IMAGING_URL=          # legacy multipart (~4 Mo)
-QUESTIONNAIRES_PORTAL_URL=https://franchir-questionnaires-patients.vercel.app
+QUESTIONNAIRES_PORTAL_URL=https://questionnaire.franchir.eu
 
 # Entrant questionnaires → tracker (callback + pont imagerie retour)
 TRACKER_RETURN_TOKEN=                # même valeur côté questionnaires (sortant)
@@ -132,6 +147,8 @@ franchir-patient-tracker/
 │   │   │       ├── commercial-data/
 │   │   │       ├── documents/           # liste + signed upload DICOM/docs
 │   │   │       ├── messages/
+│   │   │       ├── questionnaire-synthesis-pdf/  # proxy synthèse PDF (Gilles)
+│   │   │       ├── assign-surgeon/      # assignation chirurgien (Marcel)
 │   │   │       ├── questionnaires-imaging/  # lecture imagerie questionnaires
 │   │   │       └── update-summary/
 │   │   └── vitals/route.ts
@@ -147,13 +164,16 @@ franchir-patient-tracker/
 │   │   ├── dicom-viewer.tsx             # orchestrateur visionneuse DICOM
 │   │   ├── dicom-viewer/                # modules dwv (stack, pool, sequential…)
 │   │   ├── documents-section.tsx        # grille + viewer plein écran
-│   │   └── document-upload.tsx          # upload + import dossier CD
+│   │   ├── document-upload.tsx          # upload + import dossier CD
+│   │   ├── questionnaire-synthesis-panel.tsx  # synthèse PDF (Gilles P1)
+│   │   └── surgeon-assignment-card.tsx  # assignation chir (Marcel)
 │   ├── ui/
 │   └── workflow-actions.tsx
 ├── lib/
-│   ├── documents/                       # règles patient-documents, upload client
+│   ├── documents/                       # règles patient-documents, upload, guidance
 │   ├── imaging/                         # import CD, détection DICOM, séries
-│   ├── integrations/                    # forward-imaging, fetch questionnaires
+│   ├── integrations/                    # forward-imaging, fetch questionnaires, synthèse PDF
+│   ├── patient-detail-view-config.ts    # fiche épurée Gilles (P0)
 │   ├── email-config.ts
 │   ├── email-templates.ts
 │   ├── logger.ts
@@ -176,6 +196,11 @@ franchir-patient-tracker/
 | `marcel` | Marcel Mazaltarim | marcel.mazaltarim@gmail.com |
 | `gilles` | Dr Gilles Dubois | duboisgilles31@gmail.com |
 | `admin` / `franchir` | Erik Boulard | erik.boulard@franchir.eu |
+
+**Gilles (P0)** : fiche patient épurée via `getPatientDetailViewConfig('gilles')`
+— masque SharePoint, assignation chir, upload docs, onglet commercial ;
+conserve workflow médical + **synthèse PDF questionnaire (P1)**. Gilles
+**n'utilise pas** le portail clinicien questionnaires.
 
 L'expéditeur des emails est `yves.merillon@franchir.eu` (domaine vérifié sur Resend).
 
