@@ -9,7 +9,9 @@ import PatientSummaryCard from '@/components/patient-summary-card'
 import DocumentsSection from '@/components/patient/documents-section'
 import SurgeonAssignmentCard from '@/components/patient/surgeon-assignment-card'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
+import { getPatientDetailViewConfig } from '@/lib/patient-detail-view-config'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
+import QuestionnaireSynthesisPanel from '@/components/patient/questionnaire-synthesis-panel'
 import { useRouter } from 'next/navigation'
 
 function formatDateFr(iso: string | null | undefined): string | null {
@@ -84,7 +86,8 @@ export default function PatientDetailClient({
   const [activeTab, setActiveTab] = useState<'medical' | 'commercial'>('medical')
   const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
 
-  const canManageQuestionnaire = userRole !== 'gilles'
+  const viewConfig = getPatientDetailViewConfig(userRole)
+  const canManageQuestionnaire = viewConfig.canManageQuestionnaire
 
   const handleQuestionnaireLink = async (newSession: boolean) => {
     setQuestionnaireLoading(true)
@@ -144,10 +147,9 @@ export default function PatientDetailClient({
     m.topic === 'commercial'
   )
 
-  const showCommercialTab = userRole !== 'gilles'
+  const showCommercialTab = viewConfig.showCommercialTab
   const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
-  const canAssignSurgeon =
-    userRole === 'marcel' || userRole === 'franchir' || userRole === 'gilles' || userRole === 'admin'
+  const canAssignSurgeon = viewConfig.showSurgeonAssignment
 
   const assignedSurgeon = patient.assigned_surgeon ?? null
 
@@ -227,6 +229,7 @@ export default function PatientDetailClient({
             />
           </div>
           <div className="mt-4">
+            {viewConfig.showSurgeonAssignment && (
             <SurgeonAssignmentCard
               patientId={patient.id}
               surgeons={surgeons}
@@ -240,6 +243,7 @@ export default function PatientDetailClient({
                 }))
               }
             />
+            )}
           </div>
         </div>
       </div>
@@ -252,10 +256,11 @@ export default function PatientDetailClient({
             sharepointLink={patient.sharepoint_link}
             globalStatus={globalStatus}
             userRole={userRole}
+            showSharePoint={viewConfig.showSharePoint}
             onUpdate={handleUpdateSummary}
           />
 
-          <DocumentsSection patientId={patient.id} canManage={userRole !== 'gilles'} />
+          <DocumentsSection patientId={patient.id} canManage={viewConfig.canManageDocuments} />
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="border-b border-gray-200">
@@ -368,6 +373,7 @@ export default function PatientDetailClient({
               </div>
             </div>
 
+            {viewConfig.showSurgeonAssignment && (
             <SurgeonAssignmentCard
               patientId={patient.id}
               surgeons={surgeons}
@@ -381,6 +387,16 @@ export default function PatientDetailClient({
                 }))
               }
             />
+            )}
+
+            {viewConfig.showQuestionnairePdf && (
+              <QuestionnaireSynthesisPanel
+                patientId={patient.id}
+                questionnaireStatus={patient.questionnaire_status}
+                questionnaireCompletedAt={patient.questionnaire_completed_at}
+                bridgeSessions={questionnaireStatus?.sessions}
+              />
+            )}
 
             <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Questionnaire patient</h3>

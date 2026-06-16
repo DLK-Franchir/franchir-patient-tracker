@@ -23,6 +23,30 @@ export type ActionId =
   | 'add_budget'
   | 'propose_dates'
 
+/** Garde serveur : quel rôle peut exécuter quelle action workflow. */
+export function canPerformWorkflowAction(role: UserRole, actionId: ActionId): boolean {
+  switch (actionId) {
+    case 'approve_medical':
+    case 'request_more_info':
+    case 'reject_medical':
+      return role === 'gilles' || role === 'admin'
+    case 'submit_to_medical':
+    case 'resubmit_to_medical':
+    case 'confirm_quote':
+    case 'confirm_date':
+      return role === 'marcel' || role === 'admin'
+    case 'add_budget':
+    case 'propose_dates':
+      return role === 'franchir' || role === 'admin'
+    case 'assign_surgeon':
+      return role === 'marcel' || role === 'franchir' || role === 'admin'
+    case 'reopen_case':
+      return role === 'admin'
+    default:
+      return false
+  }
+}
+
 export type ActionStatus = 'urgent' | 'available' | 'in_progress' | 'completed'
 
 export const SURGEONS = [
@@ -389,14 +413,12 @@ export function getAvailableActions({
   }
 
   // Étape 3 (D6) — Assignation chirurgien via action workflow (complément de la
-  // carte « Chirurgien responsable » sur la fiche). Disponible dès que le
-  // questionnaire peut être soumis (draft+) pour marcel/franchir, et après
-  // validation médicale pour gilles/admin.
+  // carte « Chirurgien responsable » sur la fiche). Gilles recommande des noms
+  // dans approve_medical ; l'assignation réelle reste marcel/franchir/admin.
   const canAssignViaWorkflow =
     role === 'marcel' ||
     role === 'franchir' ||
-    role === 'admin' ||
-    (role === 'gilles' && globalStatus === 'commercial_in_progress')
+    role === 'admin'
 
   if (canAssignViaWorkflow && globalStatus !== 'scheduled') {
     result.secondaryActions.push({

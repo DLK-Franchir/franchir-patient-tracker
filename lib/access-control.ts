@@ -72,7 +72,6 @@ export function canAssignSurgeon(profile?: ProfileAccess | null): boolean {
   return (
     profile.role === 'marcel' ||
     profile.role === 'franchir' ||
-    profile.role === 'gilles' ||
     profile.role === 'admin'
   )
 }

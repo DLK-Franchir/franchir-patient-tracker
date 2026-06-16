@@ -10,6 +10,7 @@ interface PatientSummaryCardProps {
   sharepointLink: string | null
   globalStatus: GlobalStatus
   userRole: UserRole
+  showSharePoint?: boolean
   onUpdate: (summary: string, link: string) => Promise<void>
 }
 
@@ -19,6 +20,7 @@ export default function PatientSummaryCard({
   sharepointLink,
   globalStatus,
   userRole,
+  showSharePoint = true,
   onUpdate,
 }: PatientSummaryCardProps) {
   const [isEditing, setIsEditing] = useState(false)
@@ -87,6 +89,7 @@ export default function PatientSummaryCard({
           )}
         </div>
 
+        {showSharePoint && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Lien SharePoint</label>
           {isEditing ? (
@@ -111,6 +114,7 @@ export default function PatientSummaryCard({
             <p className="text-gray-400 italic text-sm">Aucun lien SharePoint fourni.</p>
           )}
         </div>
+        )}
 
         {isEditing && (
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">

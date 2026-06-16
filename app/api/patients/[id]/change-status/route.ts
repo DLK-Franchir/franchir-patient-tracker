@@ -1,12 +1,21 @@
-import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { createServerClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { revalidatePath } from 'next/cache'
-import { type ActionId } from '@/lib/workflow-v2'
+import { type ActionId, canPerformWorkflowAction } from '@/lib/workflow-v2'
 import { Logger } from '@/lib/logger'
-import { canUseWorkflow } from '@/lib/access-control'
+import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
 import { sendStatusChangeNotifications, sendSurgeonAssignmentEmail } from '@/lib/notifications'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const log = new Logger('api/change-status')
+
+function getWriteClient(role: StaffRole, sessionClient: SupabaseClient): SupabaseClient {
+  if (role === 'gilles') {
+    return createServiceRoleClient()
+  }
+  return sessionClient
+}
 
 export async function POST(
   req: Request,
@@ -41,9 +50,17 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const role = profile.role as StaffRole
+
+    if (!canPerformWorkflowAction(role, actionId as ActionId)) {
+      return NextResponse.json({ error: 'Action non autorisée pour ce rôle' }, { status: 403 })
+    }
+
     if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
+
+    const writeClient = getWriteClient(role, supabase)
 
   const currentStatus = Array.isArray(patient.current_status)
     ? patient.current_status[0]
@@ -78,18 +95,14 @@ export async function POST(
       if (data?.surgeons && data.surgeons.length > 0) {
         messageBody += `\n\nChirurgiens recommandés: ${data.surgeons.join(', ')}`
       }
-      // D6 : si un chirurgien réel (id annuaire) est fourni dès la validation,
-      // on l'assigne directement (écrit assigned_surgeon_id → enrichissement
-      // questionnaires via le webhook). L'assignation reste possible plus tard
-      // via l'action dédiée `assign_surgeon`.
       if (data?.surgeonId) {
-        const { data: approveSurgeon } = await supabase
+        const { data: approveSurgeon } = await writeClient
           .from('surgeons')
           .select('id, full_name, email')
           .eq('id', data.surgeonId)
           .single()
         if (approveSurgeon) {
-          const { error: assignError } = await supabase
+          const { error: assignError } = await writeClient
             .from('patients')
             .update({ assigned_surgeon_id: approveSurgeon.id })
             .eq('id', patientId)
@@ -104,14 +117,11 @@ export async function POST(
       break
 
     case 'assign_surgeon': {
-      // Étape 3 (D6) : écrit réellement assigned_surgeon_id. Le webhook UPDATE
-      // rejoue alors l'Edge Function qui enrichit surgeon_email côté
-      // questionnaires (le dossier devient visible du chirurgien assigné).
       const surgeonId = data?.surgeonId
       if (!surgeonId) {
         return NextResponse.json({ error: 'Chirurgien manquant' }, { status: 400 })
       }
-      const { data: assignSurgeon } = await supabase
+      const { data: assignSurgeon } = await writeClient
         .from('surgeons')
         .select('id, full_name, email')
         .eq('id', surgeonId)
@@ -119,7 +129,7 @@ export async function POST(
       if (!assignSurgeon) {
         return NextResponse.json({ error: 'Chirurgien introuvable' }, { status: 400 })
       }
-      const { error: surgeonUpdateError } = await supabase
+      const { error: surgeonUpdateError } = await writeClient
         .from('patients')
         .update({ assigned_surgeon_id: assignSurgeon.id })
         .eq('id', patientId)
@@ -128,9 +138,6 @@ export async function POST(
         return NextResponse.json({ error: surgeonUpdateError.message }, { status: 500 })
       }
       await sendSurgeonAssignmentEmail(assignSurgeon, patient.patient_name)
-      // Pas de changement de statut : le jeu de statuts de prod ne contient pas
-      // de "sent_to_surgeon". L'assignation est enregistrée via assigned_surgeon_id
-      // + message + email ; le dossier reste à son étape médicale courante.
       messageTitle = 'Chirurgien assigné'
       messageBody = `Chirurgien assigné : ${assignSurgeon.full_name}. Le dossier lui est transmis pour étude.`
       break
@@ -151,10 +158,15 @@ export async function POST(
     case 'confirm_quote':
       messageTitle = 'Devis confirmé'
       messageBody = 'Le devis a été confirmé par Marcel.'
-      const { error: quoteUpdateError } = await supabase.from('patients').update({ quote_accepted: true }).eq('id', patientId)
-      if (quoteUpdateError) {
-        log.error('Erreur confirmation devis', quoteUpdateError)
-        return NextResponse.json({ error: quoteUpdateError.message }, { status: 500 })
+      {
+        const { error: quoteUpdateError } = await writeClient
+          .from('patients')
+          .update({ quote_accepted: true })
+          .eq('id', patientId)
+        if (quoteUpdateError) {
+          log.error('Erreur confirmation devis', quoteUpdateError)
+          return NextResponse.json({ error: quoteUpdateError.message }, { status: 500 })
+        }
       }
       updatedPatient.quote_accepted = true
       if (patient.date_accepted) {
@@ -167,10 +179,15 @@ export async function POST(
     case 'confirm_date':
       messageTitle = 'Date confirmée'
       messageBody = 'La date de chirurgie a été confirmée par Marcel.'
-      const { error: dateUpdateError } = await supabase.from('patients').update({ date_accepted: true }).eq('id', patientId)
-      if (dateUpdateError) {
-        log.error('Erreur confirmation date', dateUpdateError)
-        return NextResponse.json({ error: dateUpdateError.message }, { status: 500 })
+      {
+        const { error: dateUpdateError } = await writeClient
+          .from('patients')
+          .update({ date_accepted: true })
+          .eq('id', patientId)
+        if (dateUpdateError) {
+          log.error('Erreur confirmation date', dateUpdateError)
+          return NextResponse.json({ error: dateUpdateError.message }, { status: 500 })
+        }
       }
       updatedPatient.date_accepted = true
       if (patient.quote_accepted) {
@@ -201,7 +218,7 @@ export async function POST(
   }
 
   if (newStatusCode) {
-    const { data: newStatus } = await supabase
+    const { data: newStatus } = await writeClient
       .from('workflow_statuses')
       .select('id, code, label, color')
       .eq('code', newStatusCode)
@@ -211,7 +228,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await writeClient
       .from('patients')
       .update({ current_status_id: newStatus.id })
       .eq('id', patientId)
