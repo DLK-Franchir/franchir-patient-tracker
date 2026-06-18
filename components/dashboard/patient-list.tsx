@@ -304,10 +304,10 @@ export default function PatientList({
                       size="sm"
                     />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-sm">
+                  <td className="max-w-[14rem] whitespace-normal px-4 py-4 text-sm">
                     {pendingAction ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border-2 border-amber-300 px-3 py-1 text-xs font-bold text-amber-900">
-                        <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                      <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-amber-300 bg-amber-100 px-3 py-1 text-xs font-bold leading-snug text-amber-900">
+                        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
                         {pendingAction}
                       </span>
                     ) : (
@@ -379,11 +379,25 @@ export default function PatientList({
                     />
                   </div>
                   {pendingAction && (
-                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-xs font-bold text-amber-900">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                      {pendingAction}
+                    <span className="mt-2 inline-flex max-w-full items-start gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-xs font-bold leading-snug text-amber-900">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                      <span className="whitespace-normal">{pendingAction}</span>
                     </span>
                   )}
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+                    {patient.confirmed_surgeon_name ? (
+                      <span className="inline-flex items-center rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 font-semibold text-purple-900">
+                        {patient.confirmed_surgeon_name}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">Chirurgien : —</span>
+                    )}
+                    {patient.proposed_date ? (
+                      <span className="font-semibold text-blue-700">
+                        Date : {formatDateShort(patient.proposed_date)}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <StatusBadge
                   label={patient.workflow_statuses?.label || 'Sans statut'}
