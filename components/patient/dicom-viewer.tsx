@@ -166,6 +166,22 @@ export default function DicomViewer({
     app.fitToContainer();
   }, []);
 
+  const handleZoomStep = useCallback(
+    (step: number) => {
+      const app = appRef.current;
+      const surface = surfaceRef.current;
+      if (!app || !surface) return;
+      const rect = surface.getBoundingClientRect();
+      app.zoom(step, rect.width / 2, rect.height / 2);
+      if (toolRef.current !== "ZoomAndPan") {
+        app.setTool("ZoomAndPan");
+        toolRef.current = "ZoomAndPan";
+        setTool("ZoomAndPan");
+      }
+    },
+    [],
+  );
+
   const getViewController = useCallback(() => {
     const app = appRef.current;
     if (!app) return undefined;
@@ -257,10 +273,42 @@ export default function DicomViewer({
     };
   }, [status]);
 
-  const tools: { id: DicomTool; label: string; available: boolean }[] = [
-    { id: "WindowLevel", label: "Fenêtrage", available: true },
-    { id: "ZoomAndPan", label: "Zoom / Déplacement", available: true },
-    { id: "Scroll", label: "Coupes", available: isReady && sliceCount > 1 && navMode === "stack" },
+  useEffect(() => {
+    if (status !== "ready") return;
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      activateTool("ZoomAndPan");
+    }
+  }, [status, activateTool]);
+
+  useEffect(() => {
+    if (status !== "ready") return;
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const onResize = () => {
+      const app = appRef.current;
+      if (!app) return;
+      try {
+        app.fitToContainer();
+        app.onResize();
+      } catch {
+        /* canvas may not be ready */
+      }
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
+    ro?.observe(surface);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      ro?.disconnect();
+    };
+  }, [status]);
+
+  const tools: { id: DicomTool; label: string; shortLabel: string; available: boolean }[] = [
+    { id: "WindowLevel", label: "Fenêtrage", shortLabel: "Fenêt.", available: true },
+    { id: "ZoomAndPan", label: "Zoom / Déplacement", shortLabel: "Zoom", available: true },
+    { id: "Scroll", label: "Coupes", shortLabel: "Coupes", available: isReady && sliceCount > 1 && navMode === "stack" },
   ];
 
   const viewportMessage =
@@ -279,23 +327,31 @@ export default function DicomViewer({
               : "Chargement de l'image…";
 
   const displaySliceIndex = navMode === "sequential" ? fileIndex : sliceIndex;
-  const canNavigateSlices = isReady && sliceCount > 1;
+  const displayTotal = navMode === "sequential" && fileCount > 1 ? fileCount : sliceCount;
+  const canNavigateSlices = isReady && (sliceCount > 1 || (navMode === "sequential" && fileCount > 1));
   const preloadMode =
     (navMode === "sequential" && fileCount > 1) ||
     (navMode === "stack" && fileCount > 1 && preloadLoaded > 0);
 
   const hint =
-    navMode === "sequential" && sliceCount > 1
+    navMode === "sequential" && fileCount > 1
       ? "← → : fichier précédent / suivant"
       : tool === "Scroll" && sliceCount > 1
         ? "Molette ou ← → : changer de coupe"
         : tool === "ZoomAndPan"
-          ? "Glisser : déplacer · molette : zoom"
+          ? "Glisser : déplacer · pincement ou +/- : zoom"
           : "Glisser : ajuster le fenêtrage (activez Coupes pour naviguer)";
+
+  const mobileHint =
+    tool === "ZoomAndPan"
+      ? "Pincez ou utilisez +/- pour zoomer · glissez pour déplacer"
+      : tool === "Scroll" && sliceCount > 1
+        ? "Balayez ou utilisez Préc./Suiv. pour changer de coupe"
+        : "Choisissez Zoom pour agrandir l'image";
 
   return (
     <div
-      className="flex h-full w-full flex-col"
+      className="flex h-full min-h-0 w-full flex-col overflow-x-hidden"
       style={{ backgroundColor: embedded && !fullscreen ? "transparent" : "#0B1020" }}
       onKeyDown={handleKeyDown}
       data-testid="dicom-viewer-root"
@@ -365,7 +421,7 @@ export default function DicomViewer({
       ) : null}
 
       <div
-        className="flex flex-wrap items-center gap-2 border-b px-3 py-2"
+        className="flex max-w-full flex-wrap items-center gap-2 overflow-x-auto border-b px-3 py-2"
         style={{ borderColor: "rgba(255,255,255,0.1)" }}
       >
         {tools
@@ -377,18 +433,41 @@ export default function DicomViewer({
               onClick={() => activateTool(t.id)}
               disabled={!isReady}
               aria-pressed={tool === t.id}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:opacity-30"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-3 py-2 text-xs font-medium transition disabled:opacity-30"
               style={{
                 backgroundColor: tool === t.id ? "#38B2AC" : "rgba(255,255,255,0.08)",
                 color: "#FFFFFF",
               }}
             >
-              {t.label}
+              <span className="sm:hidden">{t.shortLabel}</span>
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
           ))}
 
+        <div className="flex items-center gap-1 sm:hidden">
+          <button
+            type="button"
+            onClick={() => handleZoomStep(0.15)}
+            disabled={!isReady}
+            aria-label="Zoom avant"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-white/10 text-lg font-bold text-white transition disabled:opacity-30"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => handleZoomStep(-0.15)}
+            disabled={!isReady}
+            aria-label="Zoom arrière"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-white/10 text-lg font-bold text-white transition disabled:opacity-30"
+          >
+            −
+          </button>
+        </div>
+
         <span className="mx-1 hidden h-4 w-px bg-white/15 sm:block" aria-hidden="true" />
 
+        <div className="hidden max-w-full flex-wrap items-center gap-2 sm:flex">
         {WL_PRESETS.map((preset) => (
           <button
             key={preset.id}
@@ -407,24 +486,25 @@ export default function DicomViewer({
             {preset.label}
           </button>
         ))}
+        </div>
 
         <button
           type="button"
           onClick={handleReset}
           disabled={!isReady}
-          className="rounded-lg px-3 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
+          className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
         >
-          Réinitialiser
+          Réinit.
         </button>
 
         {canNavigateSlices ? (
-          <div className="ml-2 flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1 sm:ml-2">
             <button
               type="button"
               onClick={() => navigateSlice(-1)}
               disabled={displaySliceIndex <= 0}
               aria-label={navMode === "sequential" ? "Fichier précédent" : "Coupe précédente"}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
               Préc.
@@ -434,14 +514,14 @@ export default function DicomViewer({
               aria-live="polite"
               data-testid="dicom-slice-indicator"
             >
-              {displaySliceIndex + 1} / {sliceCount}
+              {displaySliceIndex + 1} / {displayTotal}
             </span>
             <button
               type="button"
               onClick={() => navigateSlice(1)}
-              disabled={displaySliceIndex >= sliceCount - 1}
+              disabled={displaySliceIndex >= displayTotal - 1}
               aria-label={navMode === "sequential" ? "Fichier suivant" : "Coupe suivante"}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
             >
               Suiv.
               <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -464,9 +544,13 @@ export default function DicomViewer({
         <span className="ml-auto hidden text-[11px] text-white/40 sm:block">{hint}</span>
       </div>
 
+      <p className="shrink-0 border-b border-white/5 px-3 py-1.5 text-center text-[11px] text-white/50 sm:hidden">
+        {mobileHint}
+      </p>
+
       <div
         ref={surfaceRef}
-        className="relative min-h-[360px] flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30"
+        className="relative min-h-[240px] flex-1 touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30 sm:min-h-[360px]"
         role="application"
         tabIndex={0}
         aria-label={`Visionneuse DICOM : ${name}. Flèches gauche/droite : changer de coupe.`}
