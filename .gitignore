@@ -47,3 +47,4 @@ next-env.d.ts
 
 # Local prod env check files
 .env.prod.*
+.env.purge-tracker
