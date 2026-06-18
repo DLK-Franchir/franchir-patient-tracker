@@ -15,6 +15,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { canManagePatientDocuments } from '@/lib/access-control'
 import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
+import { parseQuestionnaireLanguageFromLinkBody } from '@/lib/integrations/questionnaire-language'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('api/patients/questionnaire-link')
@@ -60,6 +61,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const body = await req.json().catch(() => ({}))
   const newSession = Boolean(body?.newSession)
+  const language = parseQuestionnaireLanguageFromLinkBody(body)
 
   // Règle métier (item 7) : un dossier dont le questionnaire est déjà complété
   // ne peut PLUS recevoir de lien (ni renvoi, ni nouveau questionnaire de suivi).
@@ -81,6 +83,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
+    if (language) {
+      const { error: langError } = await guard
+        .from('patients')
+        .update({ questionnaire_language: language })
+        .eq('id', patientId)
+      if (langError) {
+        log.error('Mise a jour langue questionnaire echouee', { patientId, langError })
+        return NextResponse.json({ error: 'Erreur mise a jour langue questionnaire' }, { status: 502 })
+      }
+    }
+
+    // Synchronise langue (et identité) côté questionnaires avant émission du lien.
+    const preSynced = await syncPatientToQuestionnaires(patientId)
+    if (!preSynced) {
+      log.error('Pre-sync questionnaires echouee avant emission lien', { patientId })
+      return NextResponse.json(
+        {
+          error:
+            'Synchronisation du dossier vers le portail questionnaire impossible. Reessayez dans un instant.',
+        },
+        { status: 502 },
+      )
+    }
+
     let response = await fetch(QUESTIONNAIRE_LINK_URL, {
       method: 'POST',
       headers: {

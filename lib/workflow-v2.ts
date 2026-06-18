@@ -23,8 +23,17 @@ export type ActionId =
   | 'add_budget'
   | 'propose_dates'
 
+/** Dossier validé médicalement (assignation chirurgien autorisée). */
+export function isMedicallyValidated(globalStatus: GlobalStatus): boolean {
+  return globalStatus === 'commercial_in_progress' || globalStatus === 'scheduled'
+}
+
 /** Garde serveur : quel rôle peut exécuter quelle action workflow. */
-export function canPerformWorkflowAction(role: UserRole, actionId: ActionId): boolean {
+export function canPerformWorkflowAction(
+  role: UserRole,
+  actionId: ActionId,
+  globalStatus?: GlobalStatus,
+): boolean {
   switch (actionId) {
     case 'approve_medical':
     case 'request_more_info':
@@ -39,6 +48,9 @@ export function canPerformWorkflowAction(role: UserRole, actionId: ActionId): bo
     case 'propose_dates':
       return role === 'franchir' || role === 'admin'
     case 'assign_surgeon':
+      if (globalStatus && !isMedicallyValidated(globalStatus)) {
+        return false
+      }
       return role === 'marcel' || role === 'franchir' || role === 'admin'
     case 'reopen_case':
       return role === 'admin'
@@ -153,51 +165,135 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
   return 'draft'
 }
 
-export function getGuidance(globalStatus: GlobalStatus, role: UserRole): string {
+export type WorkflowHandoff = {
+  /** Rôle qui doit agir maintenant (null si l'utilisateur courant agit). */
+  pendingActor: UserRole | null
+  pendingActorLabel: string
+  /** Message court pour la zone « Prochaine étape ». */
+  guidance: string
+  /** Détail affiché quand l'utilisateur attend une action d'un autre rôle. */
+  waitingDetail?: string
+}
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  marcel: 'Marcel (coordinateur)',
+  gilles: 'Dr Dubois (revue médicale)',
+  franchir: 'Franchir (commercial)',
+  admin: 'Administrateur',
+}
+
+export function getWorkflowHandoff(globalStatus: GlobalStatus, role: UserRole): WorkflowHandoff {
   if (globalStatus === 'rejected') {
-    return role === 'admin'
-      ? 'Ce dossier est refusé. Vous pouvez le réouvrir si nécessaire.'
-      : 'Ce dossier a été refusé et est en lecture seule.'
+    const guidance =
+      role === 'admin'
+        ? 'Ce dossier est refusé. Vous pouvez le réouvrir si nécessaire.'
+        : 'Ce dossier a été refusé et est en lecture seule.'
+    return { pendingActor: role === 'admin' ? role : null, pendingActorLabel: ROLE_LABELS.admin, guidance }
   }
 
-  if (role === 'marcel') {
-    if (globalStatus === 'draft') {
-      return 'Soumettez ce dossier à la validation médicale du Dr Dubois.'
+  if (globalStatus === 'draft') {
+    if (role === 'marcel' || role === 'admin') {
+      return {
+        pendingActor: role,
+        pendingActorLabel: ROLE_LABELS.marcel,
+        guidance: 'Soumettez ce dossier à la validation médicale du Dr Dubois.',
+      }
     }
-    if (globalStatus === 'medical_more_info') {
-      return 'Le Dr Dubois demande des informations complémentaires. Consultez les messages.'
+    return {
+      pendingActor: 'marcel',
+      pendingActorLabel: ROLE_LABELS.marcel,
+      guidance: 'En attente de soumission à la revue médicale.',
+      waitingDetail: 'Marcel doit soumettre le dossier au Dr Dubois pour validation.',
     }
-    if (globalStatus === 'commercial_in_progress') {
-      return 'Confirmez le devis et la date proposée pour finaliser le dossier.'
-    }
-    if (globalStatus === 'scheduled') {
-      return 'Le dossier est programmé. Aucune action requise.'
-    }
-    return 'Le dossier est en cours de traitement.'
   }
 
-  if (role === 'gilles') {
-    if (globalStatus === 'medical_review') {
-      return 'Examinez le dossier et prenez une décision médicale.'
+  if (globalStatus === 'medical_review') {
+    if (role === 'gilles' || role === 'admin') {
+      return {
+        pendingActor: role,
+        pendingActorLabel: ROLE_LABELS.gilles,
+        guidance: 'Examinez le dossier et prenez une décision médicale.',
+      }
     }
-    if (globalStatus === 'medical_more_info') {
-      return 'En attente de compléments d\'information de Marcel.'
+    return {
+      pendingActor: 'gilles',
+      pendingActorLabel: ROLE_LABELS.gilles,
+      guidance: 'En attente de la revue médicale du Dr Dubois.',
+      waitingDetail:
+        'Le Dr Dubois va valider, demander un complément ou refuser le dossier. Vous serez notifié de sa décision.',
     }
-    return 'Aucune action médicale requise pour le moment.'
   }
 
-  if (role === 'franchir') {
-    if (globalStatus === 'commercial_in_progress') {
-      return 'Gérez le devis et proposez des dates de chirurgie.'
+  if (globalStatus === 'medical_more_info') {
+    if (role === 'marcel' || role === 'admin') {
+      return {
+        pendingActor: role,
+        pendingActorLabel: ROLE_LABELS.marcel,
+        guidance:
+          'Complétez le dossier (messages ci-contre) puis renvoyez-le au Dr Dubois avec le bouton ci-dessous.',
+      }
     }
-    return 'Suivez l\'évolution du dossier.'
+    return {
+      pendingActor: 'marcel',
+      pendingActorLabel: ROLE_LABELS.marcel,
+      guidance: 'En attente des compléments d\'information de Marcel.',
+      waitingDetail:
+        'Marcel doit compléter le dossier et le renvoyer à validation. Vous recevrez une notification pour reprendre la revue médicale.',
+    }
   }
 
-  if (role === 'admin') {
-    return 'Vous avez accès complet à toutes les actions.'
+  if (globalStatus === 'commercial_in_progress') {
+    if (role === 'marcel' || role === 'admin') {
+      return {
+        pendingActor: role,
+        pendingActorLabel: ROLE_LABELS.marcel,
+        guidance: 'Confirmez le devis et la date proposée pour finaliser le dossier.',
+      }
+    }
+    if (role === 'franchir') {
+      return {
+        pendingActor: role,
+        pendingActorLabel: ROLE_LABELS.franchir,
+        guidance: 'Gérez le devis et proposez des dates de chirurgie.',
+      }
+    }
+    return {
+      pendingActor: null,
+      pendingActorLabel: ROLE_LABELS.marcel,
+      guidance: 'Phase commerciale en cours (devis et planification).',
+      waitingDetail: 'Marcel et Franchir finalisent le devis et la date de chirurgie.',
+    }
   }
 
-  return 'Suivez l\'évolution du dossier.'
+  if (globalStatus === 'scheduled') {
+    return {
+      pendingActor: null,
+      pendingActorLabel: '',
+      guidance: 'Le dossier est programmé. Aucune action requise.',
+    }
+  }
+
+  return {
+    pendingActor: null,
+    pendingActorLabel: '',
+    guidance: 'Suivez l\'évolution du dossier.',
+  }
+}
+
+export function isWaitingOnOther(handoff: WorkflowHandoff, userRole: UserRole): boolean {
+  if (!handoff.waitingDetail) {
+    return false
+  }
+  // pendingActor null : attente collective (ex. Gilles en phase commerciale).
+  if (handoff.pendingActor === null) {
+    return true
+  }
+  return handoff.pendingActor !== userRole
+}
+
+/** @deprecated Préférer getWorkflowHandoff — conservé pour compatibilité. */
+export function getGuidance(globalStatus: GlobalStatus, role: UserRole): string {
+  return getWorkflowHandoff(globalStatus, role).guidance
 }
 
 export interface Action {
@@ -207,6 +303,9 @@ export interface Action {
   variant: 'primary' | 'secondary' | 'danger'
   targetGlobalStatus: GlobalStatus | 'stay'
   actionStatus?: ActionStatus
+  /** Visible mais non cliquable (ex. assignation avant validation médicale). */
+  disabled?: boolean
+  disabledReason?: string
   requiresInput?: {
     type: 'surgeons' | 'surgeon_select' | 'message' | 'justification' | 'budget' | 'dates'
     label: string
@@ -263,8 +362,8 @@ export function getAvailableActions({
     return result
   }
 
-  if (role === 'marcel') {
-    console.log('🔍 [getAvailableActions] Role is marcel, checking status...')
+  if (role === 'marcel' || role === 'admin') {
+    console.log('🔍 [getAvailableActions] Role is marcel or admin, checking status...')
     if (globalStatus === 'draft') {
       result.primaryAction = {
         id: 'submit_to_medical',
@@ -293,6 +392,14 @@ export function getAvailableActions({
           },
         ],
       }
+      result.futureSteps = [
+        { label: 'Revue médicale (Dr Dubois)', reason: 'Après renvoi du dossier complété' },
+        { label: 'Proposition commerciale', reason: 'Après validation médicale' },
+      ]
+    } else if (globalStatus === 'medical_review') {
+      result.futureSteps = [
+        { label: 'Décision médicale', reason: 'En cours chez le Dr Dubois' },
+      ]
     } else if (globalStatus === 'commercial_in_progress') {
       const actions: Action[] = []
 
@@ -412,21 +519,29 @@ export function getAvailableActions({
     }
   }
 
-  // Étape 3 (D6) — Assignation chirurgien via action workflow (complément de la
-  // carte « Chirurgien responsable » sur la fiche). Gilles recommande des noms
-  // dans approve_medical ; l'assignation réelle reste marcel/franchir/admin.
+  // Étape 3 (D6) — Assignation chirurgien via action workflow (sidebar Actions
+  // disponibles). Gilles recommande des noms dans approve_medical ; l'assignation
+  // réelle reste marcel/franchir/admin.
   const canAssignViaWorkflow =
     role === 'marcel' ||
     role === 'franchir' ||
     role === 'admin'
 
-  if (canAssignViaWorkflow && globalStatus !== 'scheduled') {
+  if (
+    canAssignViaWorkflow &&
+    globalStatus !== 'scheduled'
+  ) {
+    const assignEnabled = isMedicallyValidated(globalStatus)
     result.secondaryActions.push({
       id: 'assign_surgeon',
       label: 'Assigner un chirurgien',
       description: 'Désigner le chirurgien qui prend en charge le dossier (transmet le dossier au chirurgien)',
       variant: 'secondary',
       targetGlobalStatus: 'stay',
+      disabled: !assignEnabled,
+      disabledReason: assignEnabled
+        ? undefined
+        : 'Disponible après validation médicale',
       requiresInput: [
         {
           type: 'surgeon_select',

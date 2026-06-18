@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { canAssignSurgeon } from '@/lib/access-control'
+import { globalStatusFromWorkflowStatus, isMedicallyValidated } from '@/lib/workflow-v2'
 import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
 import { sendSurgeonAssignmentEmail } from '@/lib/notifications'
 import { Logger } from '@/lib/logger'
@@ -32,7 +33,12 @@ export async function PATCH(
 
     const [{ data: profile }, { data: patient }] = await Promise.all([
       supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single(),
-      supabase.from('patients').select('id, patient_name, assigned_surgeon_id').eq('id', patientId).single(),
+      supabase.from('patients').select(`
+        id,
+        patient_name,
+        assigned_surgeon_id,
+        current_status:workflow_statuses!current_status_id (id, code, label)
+      `).eq('id', patientId).single(),
     ])
 
     if (!canAssignSurgeon(profile)) {
@@ -41,6 +47,18 @@ export async function PATCH(
 
     if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    }
+
+    const currentStatus = Array.isArray(patient.current_status)
+      ? patient.current_status[0]
+      : patient.current_status
+    const globalStatus = globalStatusFromWorkflowStatus(currentStatus)
+
+    if (!isMedicallyValidated(globalStatus)) {
+      return NextResponse.json(
+        { error: 'Assignation chirurgien disponible uniquement après validation médicale' },
+        { status: 403 },
+      )
     }
 
     const { data: surgeon } = await supabase

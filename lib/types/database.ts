@@ -33,6 +33,8 @@ export interface Patient {
   id: string
   patient_name: string
   patient_email: string | null
+  patient_phone: string | null
+  questionnaire_language: 'fr' | 'en'
   clinical_summary: string | null
   sharepoint_link: string | null
   form_types: ('cervical' | 'lombaire')[]

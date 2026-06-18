@@ -17,9 +17,19 @@ describe('canAssignSurgeon', () => {
 })
 
 describe('getAvailableActions assign_surgeon', () => {
-  it('propose l\'assignation pour marcel en brouillon', () => {
+  it('affiche assignation désactivée pour marcel en brouillon', () => {
     const actions = getAvailableActions({ globalStatus: 'draft', role: 'marcel' })
-    expect(actions.secondaryActions.some((a) => a.id === 'assign_surgeon')).toBe(true)
+    const assign = actions.secondaryActions.find((a) => a.id === 'assign_surgeon')
+    expect(assign).toBeDefined()
+    expect(assign?.disabled).toBe(true)
+    expect(assign?.disabledReason).toBe('Disponible après validation médicale')
+  })
+
+  it('active assignation pour marcel après validation médicale', () => {
+    const actions = getAvailableActions({ globalStatus: 'commercial_in_progress', role: 'marcel' })
+    const assign = actions.secondaryActions.find((a) => a.id === 'assign_surgeon')
+    expect(assign).toBeDefined()
+    expect(assign?.disabled).toBe(false)
   })
 
   it('ne propose pas l\'assignation pour gilles en brouillon', () => {
@@ -33,6 +43,18 @@ describe('getAvailableActions assign_surgeon', () => {
   })
 })
 
+describe('canPerformWorkflowAction assign_surgeon status gate', () => {
+  it('refuse assignation avant validation médicale', () => {
+    expect(canPerformWorkflowAction('marcel', 'assign_surgeon', 'draft')).toBe(false)
+    expect(canPerformWorkflowAction('admin', 'assign_surgeon', 'medical_review')).toBe(false)
+  })
+
+  it('autorise assignation après validation médicale', () => {
+    expect(canPerformWorkflowAction('marcel', 'assign_surgeon', 'commercial_in_progress')).toBe(true)
+    expect(canPerformWorkflowAction('admin', 'assign_surgeon', 'scheduled')).toBe(true)
+  })
+})
+
 describe('canPerformWorkflowAction', () => {
   it('autorise Gilles sur les actions médicales uniquement', () => {
     expect(canPerformWorkflowAction('gilles', 'approve_medical')).toBe(true)
@@ -42,9 +64,10 @@ describe('canPerformWorkflowAction', () => {
     expect(canPerformWorkflowAction('gilles', 'submit_to_medical')).toBe(false)
   })
 
-  it('autorise admin sur toutes les actions', () => {
+  it('autorise admin sur toutes les actions (hors gate statut assign_surgeon)', () => {
     expect(canPerformWorkflowAction('admin', 'approve_medical')).toBe(true)
-    expect(canPerformWorkflowAction('admin', 'assign_surgeon')).toBe(true)
+    expect(canPerformWorkflowAction('admin', 'assign_surgeon', 'commercial_in_progress')).toBe(true)
     expect(canPerformWorkflowAction('admin', 'submit_to_medical')).toBe(true)
+    expect(canPerformWorkflowAction('admin', 'assign_surgeon', 'draft')).toBe(false)
   })
 })

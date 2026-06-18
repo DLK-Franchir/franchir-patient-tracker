@@ -2,13 +2,14 @@ import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { Logger } from '@/lib/logger'
 import { canCreatePatient } from '@/lib/access-control'
+import { parseQuestionnaireLanguage } from '@/lib/integrations/questionnaire-language'
 import { sendNewPatientNotifications } from '@/lib/notifications'
 
 const log = new Logger('api/patients')
 
 export async function POST(req: Request) {
   try {
-    const { patient_name, patient_email, clinical_summary, sharepoint_link, form_types } =
+    const { patient_name, patient_email, patient_phone, clinical_summary, sharepoint_link, form_types, questionnaire_language } =
       await req.json()
 
     if (!patient_name) {
@@ -22,6 +23,20 @@ export async function POST(req: Request) {
       : ['cervical']
     const formTypes =
       normalizedFormTypes.length > 0 ? [...new Set(normalizedFormTypes)] : (['cervical'] as const)
+
+    const language = parseQuestionnaireLanguage(questionnaire_language, 'fr')
+
+    const normalizedPhone =
+      typeof patient_phone === 'string' && patient_phone.trim().length > 0
+        ? patient_phone.trim()
+        : null
+
+    if (normalizedPhone && normalizedPhone.length > 50) {
+      return NextResponse.json(
+        { error: 'Numero de telephone trop long (50 caracteres maximum)' },
+        { status: 400 },
+      )
+    }
 
     // Email patient (D1) : requis pour l'envoi automatique du questionnaire.
     // Validation minimale (format) — la saisie complète est validée côté UI.
@@ -54,6 +69,8 @@ export async function POST(req: Request) {
       .insert({
         patient_name,
         patient_email,
+        patient_phone: normalizedPhone,
+        questionnaire_language: language,
         clinical_summary,
         sharepoint_link: sharepoint_link ?? null,
         form_types: formTypes,

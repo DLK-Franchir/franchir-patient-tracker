@@ -27,7 +27,7 @@ function TimelineStep({ label, isActive, isCompleted, isRejected, icon }: Timeli
         </span>
       </div>
       <span className={`
-        mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-center font-medium max-w-[50px] sm:max-w-[70px] md:max-w-[80px] leading-tight
+        mt-2 sm:mt-2.5 text-xs sm:text-sm text-center font-bold max-w-[55px] sm:max-w-[75px] md:max-w-[90px] leading-tight
         ${isActive ? 'text-[#2563EB]' : ''}
         ${isCompleted && !isActive ? 'text-green-700' : ''}
         ${isRejected ? 'text-red-700' : ''}
@@ -81,7 +81,7 @@ export default function WorkflowTimeline({ currentStatus }: WorkflowTimelineProp
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 shadow-sm">
-      <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-3 sm:mb-4 md:mb-6">Parcours du dossier</h3>
+      <h3 className="text-sm sm:text-base font-bold text-gray-800 mb-3 sm:mb-4 md:mb-6">Parcours du dossier</h3>
       <div className="flex items-start justify-between gap-0.5 sm:gap-1 md:gap-2">
         {steps.map((step, index) => {
           const stepIndex = statusOrder.indexOf(step.status)
