@@ -6,7 +6,6 @@ describe('getPatientDetailViewConfig', () => {
     const view = getPatientDetailViewConfig('gilles')
     expect(view).toEqual({
       showSharePoint: false,
-      showSurgeonAssignment: false,
       canManageDocuments: false,
       showCommercialTab: false,
       canManageQuestionnaire: false,
@@ -17,7 +16,6 @@ describe('getPatientDetailViewConfig', () => {
   it('conserve le comportement standard pour marcel avec synthèse PDF en lecture', () => {
     const view = getPatientDetailViewConfig('marcel')
     expect(view.showSharePoint).toBe(true)
-    expect(view.showSurgeonAssignment).toBe(true)
     expect(view.canManageDocuments).toBe(true)
     expect(view.showCommercialTab).toBe(true)
     expect(view.canManageQuestionnaire).toBe(true)

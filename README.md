@@ -27,10 +27,10 @@ questionnaires (`questionnaire.franchir.eu/clinician`).
   `GET /api/patients/[id]/questionnaire-synthesis-pdf` → pont questionnaires
   `patient-synthesis-pdf` (scores, drapeaux, imagerie).
 - **Mode validation Gilles (P0)** : `PatientDetailViewConfig` — fiche épurée
-  (masque SharePoint, assignation chir, upload docs, onglet commercial,
-  gestion questionnaire) ; conserve workflow + synthèse PDF.
-- **Carte Chirurgien responsable** (`surgeon-assignment-card`) : assignation
-  `assigned_surgeon_id` — visible/gérable par **Marcel** uniquement (pas Gilles).
+  (masque SharePoint, upload docs, onglet commercial, gestion questionnaire) ;
+  conserve workflow + synthèse PDF.
+- **Assignation chirurgien** : via `WorkflowActions` → `change-status`
+  (`assign_surgeon`) — Marcel, Franchir ou admin après validation médicale.
 
 ## Imagerie & visionneuse DICOM
 
@@ -148,7 +148,6 @@ franchir-patient-tracker/
 │   │   │       ├── documents/           # liste + signed upload DICOM/docs
 │   │   │       ├── messages/
 │   │   │       ├── questionnaire-synthesis-pdf/  # proxy synthèse PDF (Gilles)
-│   │   │       ├── assign-surgeon/      # assignation chirurgien (Marcel)
 │   │   │       ├── questionnaires-imaging/  # lecture imagerie questionnaires
 │   │   │       └── update-summary/
 │   │   └── vitals/route.ts
@@ -163,10 +162,8 @@ franchir-patient-tracker/
 │   ├── patient/
 │   │   ├── dicom-viewer.tsx             # orchestrateur visionneuse DICOM
 │   │   ├── dicom-viewer/                # modules dwv (stack, pool, sequential…)
-│   │   ├── documents-section.tsx        # grille + viewer plein écran
 │   │   ├── document-upload.tsx          # upload + import dossier CD
-│   │   ├── questionnaire-synthesis-panel.tsx  # synthèse PDF (Gilles P1)
-│   │   └── surgeon-assignment-card.tsx  # assignation chir (Marcel)
+│   │   └── documents-section.tsx        # grille + viewer plein écran
 │   ├── ui/
 │   └── workflow-actions.tsx
 ├── lib/

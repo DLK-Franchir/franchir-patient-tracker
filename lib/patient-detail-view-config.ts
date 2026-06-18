@@ -2,7 +2,6 @@ import type { UserRole } from '@/lib/workflow-v2'
 
 export type PatientDetailViewConfig = {
   showSharePoint: boolean
-  showSurgeonAssignment: boolean
   canManageDocuments: boolean
   showCommercialTab: boolean
   canManageQuestionnaire: boolean
@@ -12,7 +11,6 @@ export type PatientDetailViewConfig = {
 
 const DEFAULT_VIEW: PatientDetailViewConfig = {
   showSharePoint: true,
-  showSurgeonAssignment: true,
   canManageDocuments: true,
   showCommercialTab: true,
   canManageQuestionnaire: true,
@@ -21,7 +19,6 @@ const DEFAULT_VIEW: PatientDetailViewConfig = {
 
 const GILLES_VIEW: PatientDetailViewConfig = {
   showSharePoint: false,
-  showSurgeonAssignment: false,
   canManageDocuments: false,
   showCommercialTab: false,
   canManageQuestionnaire: false,
