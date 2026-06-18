@@ -11,6 +11,7 @@ import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 export default function NewPatientPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [summary, setSummary] = useState('')
   const [formTypes, setFormTypes] = useState<Array<'cervical' | 'lombaire'>>(['cervical'])
   const [files, setFiles] = useState<File[]>([])
@@ -29,6 +30,7 @@ export default function NewPatientPage() {
         body: JSON.stringify({
           patient_name: name,
           patient_email: email,
+          patient_phone: phone.trim() || null,
           clinical_summary: summary,
           form_types: formTypes,
         }),
@@ -122,6 +124,20 @@ export default function NewPatientPage() {
             <p className="text-xs text-gray-500 mt-1">
               Le questionnaire est envoyé automatiquement à cette adresse dès la création du dossier
               (revue médicale). Aucun chirurgien n&apos;est requis à ce stade.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Téléphone</label>
+            <input
+              type="tel"
+              value={phone}
+              maxLength={50}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 text-base focus:ring-2 focus:ring-[#2563EB] outline-none"
+              placeholder="Ex: +33 6 12 34 56 78"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Optionnel — pré-rempli dans le questionnaire patient (50 caractères max.).
             </p>
           </div>
           <div>

@@ -6,6 +6,8 @@
  * sans casser le rendu de la fiche.
  */
 
+import { parseQuestionnaireLanguage } from '@/lib/integrations/questionnaire-language'
+
 const BASE =
   process.env.QUESTIONNAIRES_API_BASE ||
   'https://questionnaire.franchir.eu/api/integrations/tracker'
@@ -25,7 +27,7 @@ export async function syncPatientToQuestionnaires(patientId: string): Promise<bo
   const { data: patient, error } = await supabase
     .from('patients')
     .select(
-      'id, patient_name, patient_email, clinical_summary, sharepoint_link, form_types, current_status_id, assigned_surgeon_id',
+      'id, patient_name, patient_email, patient_phone, questionnaire_language, clinical_summary, sharepoint_link, form_types, current_status_id, assigned_surgeon_id',
     )
     .eq('id', patientId)
     .maybeSingle()
@@ -73,12 +75,14 @@ export async function syncPatientToQuestionnaires(patientId: string): Promise<bo
         trackerPatientId: patient.id,
         patientName: patient.patient_name,
         patientEmail: patient.patient_email ?? null,
+        patientPhone: patient.patient_phone ?? null,
         assignedSurgeonEmail: surgeonEmail,
         assignedSurgeonName: surgeonName,
         clinicalSummary: patient.clinical_summary ?? null,
         sharepointLink: patient.sharepoint_link ?? null,
         formTypes: Array.isArray(patient.form_types) ? patient.form_types : undefined,
         workflowStatus,
+        language: parseQuestionnaireLanguage(patient.questionnaire_language),
       }),
     })
     return res.ok || res.status === 409

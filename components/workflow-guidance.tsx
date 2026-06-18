@@ -1,7 +1,13 @@
 'use client'
 
-import { getGuidance, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
-import { Info } from 'lucide-react'
+import {
+  getAvailableActions,
+  getWorkflowHandoff,
+  isWaitingOnOther,
+  type GlobalStatus,
+  type UserRole,
+} from '@/lib/workflow-v2'
+import { Clock, Info } from 'lucide-react'
 
 interface WorkflowGuidanceProps {
   globalStatus: GlobalStatus
@@ -9,7 +15,13 @@ interface WorkflowGuidanceProps {
 }
 
 export function WorkflowGuidance({ globalStatus, userRole }: WorkflowGuidanceProps) {
-  const guidance = getGuidance(globalStatus, userRole)
+  const handoff = getWorkflowHandoff(globalStatus, userRole)
+  const { primaryAction, secondaryActions } = getAvailableActions({
+    globalStatus,
+    role: userRole,
+  })
+  const hasActions = Boolean(primaryAction) || secondaryActions.length > 0
+  const waitingOnOther = !hasActions && isWaitingOnOther(handoff, userRole)
 
   const bgColor = {
     draft: 'bg-gray-50 border-gray-200 text-gray-700',
@@ -21,12 +33,18 @@ export function WorkflowGuidance({ globalStatus, userRole }: WorkflowGuidancePro
   }[globalStatus]
 
   return (
-    <div className={`p-4 rounded-lg border ${bgColor} text-sm`}>
-      <div className="flex items-center gap-2 font-semibold mb-2">
-        <Info className="w-4 h-4" />
+    <div className={`p-4 rounded-lg border ${bgColor} text-sm space-y-2`}>
+      <div className="flex items-center gap-2 font-semibold">
+        {waitingOnOther ? <Clock className="w-4 h-4 shrink-0" /> : <Info className="w-4 h-4 shrink-0" />}
         Prochaine étape
       </div>
-      <div className="leading-relaxed">{guidance}</div>
+      <div className="leading-relaxed">{handoff.guidance}</div>
+      {waitingOnOther && (
+        <div className="pt-2 border-t border-current/10 text-xs leading-relaxed opacity-90">
+          <span className="font-semibold">Action requise : {handoff.pendingActorLabel}</span>
+          <p className="mt-1">{handoff.waitingDetail}</p>
+        </div>
+      )}
     </div>
   )
 }

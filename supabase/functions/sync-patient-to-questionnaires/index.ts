@@ -14,11 +14,13 @@
 //     lien de questionnaire.
 //
 // Schéma tracker utilisé :
-//   patients(id, patient_name, patient_email, clinical_summary,
-//            sharepoint_link, form_types, current_status_id, assigned_surgeon_id)
+//   patients(id, patient_name, patient_email, patient_phone, questionnaire_language,
+//            clinical_summary, sharepoint_link, form_types, current_status_id,
+//            assigned_surgeon_id)
 //   surgeons(id, full_name, email)
 //   workflow_statuses(id, code)
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { parseQuestionnaireLanguage } from "../_shared/questionnaire-language.ts";
 
 const BRIDGE_URL = Deno.env.get("QUESTIONNAIRES_BRIDGE_URL")!;
 const BRIDGE_TOKEN = Deno.env.get("TRACKER_SYNC_SERVICE_TOKEN")!;
@@ -81,14 +83,14 @@ Deno.serve(async (req) => {
       trackerPatientId: record.id,
       patientName: record.patient_name,
       patientEmail: record.patient_email ?? null,
-      // null tant qu'aucun chirurgien n'est assigné (revue médicale) ; posé à
-      // l'enrichissement (étape 3).
+      patientPhone: record.patient_phone ?? null,
       assignedSurgeonEmail: surgeonEmail,
       assignedSurgeonName: surgeonName,
       clinicalSummary: record.clinical_summary ?? null,
       sharepointLink: record.sharepoint_link ?? null,
       formTypes: Array.isArray(record.form_types) ? record.form_types : undefined,
       workflowStatus: status?.code ?? null,
+      language: parseQuestionnaireLanguage(record.questionnaire_language),
     }),
   });
 

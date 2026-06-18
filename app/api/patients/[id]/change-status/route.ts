@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { revalidatePath } from 'next/cache'
-import { type ActionId, canPerformWorkflowAction } from '@/lib/workflow-v2'
+import { type ActionId, canPerformWorkflowAction, globalStatusFromWorkflowStatus } from '@/lib/workflow-v2'
 import { Logger } from '@/lib/logger'
 import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
 import { sendStatusChangeNotifications, sendSurgeonAssignmentEmail } from '@/lib/notifications'
@@ -38,7 +38,7 @@ export async function POST(
         patient_name,
         quote_accepted,
         date_accepted,
-        current_status:workflow_statuses!current_status_id (code, label)
+        current_status:workflow_statuses!current_status_id (id, code, label)
       `).eq('id', patientId).single(),
     ])
 
@@ -52,19 +52,20 @@ export async function POST(
 
     const role = profile.role as StaffRole
 
-    if (!canPerformWorkflowAction(role, actionId as ActionId)) {
-      return NextResponse.json({ error: 'Action non autorisée pour ce rôle' }, { status: 403 })
-    }
-
     if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
 
-    const writeClient = getWriteClient(role, supabase)
+    const currentStatus = Array.isArray(patient.current_status)
+      ? patient.current_status[0]
+      : patient.current_status
+    const globalStatus = globalStatusFromWorkflowStatus(currentStatus)
 
-  const currentStatus = Array.isArray(patient.current_status)
-    ? patient.current_status[0]
-    : patient.current_status
+    if (!canPerformWorkflowAction(role, actionId as ActionId, globalStatus)) {
+      return NextResponse.json({ error: 'Action non autorisée pour ce rôle' }, { status: 403 })
+    }
+
+    const writeClient = getWriteClient(role, supabase)
 
   let messageBody = ''
   let newStatusCode = ''

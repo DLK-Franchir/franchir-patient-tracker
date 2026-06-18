@@ -3,11 +3,15 @@
 import { useState } from 'react'
 import {
   getAvailableActions,
+  getWorkflowHandoff,
+  isWaitingOnOther,
   type GlobalStatus,
   type UserRole,
   type Action,
   SURGEONS,
 } from '@/lib/workflow-v2'
+import { GuidanceBanner } from '@/components/ui/guidance-banner'
+import { Clock } from 'lucide-react'
 
 export interface SurgeonOption {
   id: string
@@ -22,6 +26,8 @@ interface WorkflowActionsProps {
   /** Annuaire chirurgiens (id annuaire) pour l'assignation réelle — D6. */
   surgeons?: SurgeonOption[]
   onAction: (actionId: string, data?: any) => Promise<void>
+  /** Intégrer le bandeau de guidance (défaut: true). */
+  showGuidance?: boolean
 }
 
 export function WorkflowActions({
@@ -31,6 +37,7 @@ export function WorkflowActions({
   dateAccepted = false,
   surgeons = [],
   onAction,
+  showGuidance = true,
 }: WorkflowActionsProps) {
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState<Action | null>(null)
@@ -43,17 +50,14 @@ export function WorkflowActions({
     dateAccepted,
   })
 
-  console.log('🎯 [WorkflowActions] Rendered with:', {
-    globalStatus,
-    userRole,
-    quoteAccepted,
-    dateAccepted,
-    primaryAction: primaryAction?.label,
-    secondaryActionsCount: secondaryActions.length,
-    futureStepsCount: futureSteps.length
-  })
+  const handoff = getWorkflowHandoff(globalStatus, userRole)
+  const enabledSecondary = secondaryActions.filter((a) => !a.disabled)
+  const disabledSecondary = secondaryActions.filter((a) => a.disabled)
+  const hasActions = Boolean(primaryAction) || enabledSecondary.length > 0
+  const waitingOnOther = !hasActions && isWaitingOnOther(handoff, userRole)
 
   const handleActionClick = (action: Action) => {
+    if (action.disabled) return
     if (action.requiresInput && action.requiresInput.length > 0) {
       setShowModal(action)
       setFormData({})
@@ -63,6 +67,7 @@ export function WorkflowActions({
   }
 
   const executeAction = async (action: Action) => {
+    if (action.disabled) return
     setLoading(true)
     try {
       await onAction(action.id, formData)
@@ -188,58 +193,119 @@ export function WorkflowActions({
     return null
   }
 
-  const buttonVariantClass = (variant: Action['variant']) => {
-    switch (variant) {
-      case 'primary':
-        return 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-sm'
-      case 'secondary':
-        return 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300'
-      case 'danger':
+  const actionButtonClass = (action: Action, isDisabled = false) => {
+    if (isDisabled) {
+      if (action.id === 'assign_surgeon') {
+        return 'bg-green-900/25 text-green-900/50 border border-green-800/20 cursor-not-allowed'
+      }
+      return 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
+    }
+
+    switch (action.id) {
+      case 'reject_medical':
         return 'bg-red-600 hover:bg-red-700 text-white shadow-sm'
+      case 'approve_medical':
+        return 'bg-teal-600 hover:bg-teal-700 text-white shadow-sm'
+      case 'request_more_info':
+        return 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300'
+      case 'assign_surgeon':
+        return 'bg-green-800 hover:bg-green-900 text-white shadow-sm'
+      case 'confirm_quote':
+        return 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+      case 'confirm_date':
+        return 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+      case 'submit_to_medical':
+      case 'resubmit_to_medical':
+        return 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+      case 'reopen_case':
+        return 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm'
+      case 'add_budget':
+        return 'bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-300'
+      case 'propose_dates':
+        return 'bg-violet-50 hover:bg-violet-100 text-violet-900 border border-violet-300'
+      default:
+        switch (action.variant) {
+          case 'danger':
+            return 'bg-red-600 hover:bg-red-700 text-white shadow-sm'
+          case 'secondary':
+            return 'bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-300'
+          default:
+            return 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+        }
     }
   }
 
-  return (
-    <div className="space-y-3 sm:space-y-4">
-      {primaryAction && (
+  const renderActionButton = (action: Action) => {
+    const isDisabled = Boolean(action.disabled)
+    return (
+      <div key={action.id} className="space-y-1">
         <button
-          onClick={() => handleActionClick(primaryAction)}
-          disabled={loading}
-          className={`w-full py-3 px-4 rounded-lg font-medium transition disabled:opacity-50 text-sm sm:text-base min-h-[48px] ${buttonVariantClass(
-            primaryAction.variant
-          )}`}
+          type="button"
+          onClick={() => handleActionClick(action)}
+          disabled={loading || isDisabled}
+          title={action.disabledReason}
+          aria-disabled={isDisabled}
+          className={`w-full py-2.5 sm:py-3 px-4 rounded-lg font-semibold transition text-sm sm:text-base min-h-[44px] ${actionButtonClass(
+            action,
+            isDisabled,
+          )} ${isDisabled ? 'opacity-60' : ''}`}
         >
-          {primaryAction.label}
+          {action.label}
         </button>
+        {isDisabled && action.disabledReason && (
+          <p className="text-xs text-gray-500 text-center px-2">{action.disabledReason}</p>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 sm:space-y-5">
+      {showGuidance && (
+        <GuidanceBanner
+          globalStatus={globalStatus}
+          guidance={handoff.guidance}
+          waitingOnOther={waitingOnOther}
+          pendingActorLabel={handoff.pendingActorLabel}
+          waitingDetail={handoff.waitingDetail}
+        />
       )}
 
-      {secondaryActions.length > 0 && (
-        <div className="space-y-2">
-          {secondaryActions.map((action) => (
-            <button
-              key={action.id}
-              onClick={() => handleActionClick(action)}
-              disabled={loading}
-              className={`w-full py-2.5 sm:py-2 px-4 rounded-lg font-medium transition disabled:opacity-50 text-sm min-h-[44px] ${buttonVariantClass(
-                action.variant
-              )}`}
-            >
-              {action.label}
-            </button>
-          ))}
+      {waitingOnOther && (
+        <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 px-4 py-4 text-base text-amber-900">
+          <div className="flex items-center gap-2 font-bold">
+            <Clock className="w-5 h-5 shrink-0" aria-hidden />
+            Aucune action de votre part pour le moment
+          </div>
+          <p className="mt-2 text-sm leading-relaxed">{handoff.waitingDetail}</p>
+        </div>
+      )}
+
+      {primaryAction && renderActionButton(primaryAction)}
+
+      {enabledSecondary.length > 0 && (
+        <div className="space-y-2">{enabledSecondary.map(renderActionButton)}</div>
+      )}
+
+      {disabledSecondary.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-gray-100">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Prochainement
+          </p>
+          {disabledSecondary.map(renderActionButton)}
         </div>
       )}
 
       {futureSteps.length > 0 && (
-        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Prochaines étapes</div>
-          <div className="space-y-2">
+        <div className="mt-2 p-4 bg-slate-50 rounded-xl border-2 border-slate-200">
+          <div className="text-sm font-bold text-slate-600 uppercase mb-3">Étapes suivantes</div>
+          <div className="space-y-3">
             {futureSteps.map((step, idx) => (
-              <div key={idx} className="flex items-start space-x-2 text-sm">
-                <span className="text-gray-400 font-medium">{idx + 1}.</span>
+              <div key={idx} className="flex items-start space-x-3 text-base">
+                <span className="text-slate-400 font-bold">{idx + 1}.</span>
                 <div>
-                  <div className="font-medium text-gray-700">{step.label}</div>
-                  <div className="text-xs text-gray-500">{step.reason}</div>
+                  <div className="font-semibold text-slate-800">{step.label}</div>
+                  <div className="text-sm text-slate-500">{step.reason}</div>
                 </div>
               </div>
             ))}
@@ -273,8 +339,8 @@ export function WorkflowActions({
               <button
                 onClick={() => executeAction(showModal)}
                 disabled={loading}
-                className={`w-full sm:flex-1 py-3 px-4 rounded-lg font-medium transition disabled:opacity-50 min-h-[48px] ${buttonVariantClass(
-                  showModal.variant
+                className={`w-full sm:flex-1 py-3 px-4 rounded-lg font-medium transition disabled:opacity-50 min-h-[48px] ${actionButtonClass(
+                  showModal
                 )}`}
               >
                 Confirmer
