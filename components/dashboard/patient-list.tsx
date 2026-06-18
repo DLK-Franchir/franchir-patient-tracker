@@ -3,7 +3,13 @@
 import { FormEvent, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { globalStatusFromWorkflowStatus, type GlobalStatus } from '@/lib/workflow-v2'
+import {
+  globalStatusFromWorkflowStatus,
+  getWorkflowHandoff,
+  isWaitingOnOther,
+  type GlobalStatus,
+  type UserRole,
+} from '@/lib/workflow-v2'
 import {
   StatusBadge,
   questionnaireStatusLabel,
@@ -12,7 +18,6 @@ import {
 
 type SortColumn = 'created_at' | 'patient_name' | 'current_status_id'
 type SortDirection = 'asc' | 'desc'
-type UserRole = 'marcel' | 'gilles' | 'franchir' | 'admin'
 
 type Patient = {
   id: string
@@ -48,23 +53,9 @@ type PatientListProps = {
 }
 
 function pendingActionLabel(globalStatus: GlobalStatus, role: UserRole): string | null {
-  if (globalStatus === 'draft') {
-    if (role === 'marcel' || role === 'admin') return 'Soumettre à Gilles'
-    return null
-  }
-  if (globalStatus === 'medical_review') {
-    if (role === 'gilles' || role === 'admin') return 'Décision médicale'
-    return null
-  }
-  if (globalStatus === 'medical_more_info') {
-    if (role === 'marcel' || role === 'admin') return 'Compléter le dossier'
-    return null
-  }
-  if (globalStatus === 'commercial_in_progress') {
-    if (role === 'franchir' || role === 'admin') return 'Gérer devis / dates'
-    if (role === 'marcel') return 'Confirmer devis & date'
-    return null
-  }
+  const handoff = getWorkflowHandoff(globalStatus, role)
+  if (isWaitingOnOther(handoff, role)) return null
+  if (handoff.pendingActor === role) return handoff.guidance
   return null
 }
 

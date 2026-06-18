@@ -11,7 +11,6 @@ import {
   SURGEONS,
 } from '@/lib/workflow-v2'
 import { GuidanceBanner } from '@/components/ui/guidance-banner'
-import { Clock } from 'lucide-react'
 
 export interface SurgeonOption {
   id: string
@@ -269,16 +268,6 @@ export function WorkflowActions({
           pendingActorLabel={handoff.pendingActorLabel}
           waitingDetail={handoff.waitingDetail}
         />
-      )}
-
-      {waitingOnOther && (
-        <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 px-4 py-4 text-base text-amber-900">
-          <div className="flex items-center gap-2 font-bold">
-            <Clock className="w-5 h-5 shrink-0" aria-hidden />
-            Aucune action de votre part pour le moment
-          </div>
-          <p className="mt-2 text-sm leading-relaxed">{handoff.waitingDetail}</p>
-        </div>
       )}
 
       {primaryAction && renderActionButton(primaryAction)}
