@@ -1,10 +1,5 @@
-import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 import { SynthesisCard } from '@/components/patient/synthesis/synthesis-card'
-
-type FunctionalScoresCardProps = {
-  scores: QuestionnaireSynthesisPreview['scores']
-  staggerIndex?: number
-}
+import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 
 function ScoreBar({
   label,
@@ -22,7 +17,7 @@ function ScoreBar({
   const pct = value !== null ? Math.round((value / max) * 100) : 0
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-neutral-text">{label}</span>
         <span className="text-sm text-neutral-text-muted">
           {value !== null ? `${value}/${max}` : '—'} · {interpretation}
@@ -41,7 +36,7 @@ function ScoreBar({
 function ndiSeverityClass(pct: number | null): string {
   if (pct === null) return 'bg-neutral-text-subtle'
   if (pct <= 20) return 'bg-dash-teal'
-  if (pct <= 40) return 'bg-brand'
+  if (pct <= 40) return 'bg-[#2563EB]'
   if (pct <= 60) return 'bg-dash-gold'
   return 'bg-dash-coral'
 }
@@ -49,12 +44,18 @@ function ndiSeverityClass(pct: number | null): string {
 function evaSeverityClass(value: number | null): string {
   if (value === null) return 'bg-neutral-text-subtle'
   if (value <= 3) return 'bg-dash-teal'
-  if (value <= 5) return 'bg-brand'
+  if (value <= 5) return 'bg-[#2563EB]'
   if (value <= 7) return 'bg-dash-gold'
   return 'bg-dash-coral'
 }
 
-export function FunctionalScoresCard({ scores, staggerIndex = 0 }: FunctionalScoresCardProps) {
+export function FunctionalScoresCard({
+  scores,
+  staggerIndex = 0,
+}: {
+  scores: QuestionnaireSynthesisPreview['scores']
+  staggerIndex?: number
+}) {
   return (
     <SynthesisCard title="Scores fonctionnels" staggerIndex={staggerIndex}>
       <div className="space-y-5">

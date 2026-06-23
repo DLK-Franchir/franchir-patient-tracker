@@ -1,6 +1,6 @@
 /**
  * Proxy cockpit → pont questionnaires : apercu JSON synthese Anamneze.
- * Staff authentifie uniquement (Gilles validation, Marcel/admin lecture).
+ * Staff authentifie uniquement.
  */
 
 import { NextResponse } from 'next/server'

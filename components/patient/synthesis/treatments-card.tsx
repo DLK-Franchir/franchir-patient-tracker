@@ -1,21 +1,26 @@
-import type { TreatmentItem } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 import { SynthesisCard } from '@/components/patient/synthesis/synthesis-card'
+import type { TreatmentItem } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 
-type TreatmentsCardProps = {
+export function TreatmentsCard({
+  items,
+  staggerIndex = 0,
+}: {
   items: TreatmentItem[]
   staggerIndex?: number
-}
-
-export function TreatmentsCard({ items, staggerIndex = 0 }: TreatmentsCardProps) {
+}) {
   return (
-    <SynthesisCard title="Traitements en cours" staggerIndex={staggerIndex}>
+    <SynthesisCard
+      title="Traitements"
+      description={items.length === 0 ? 'Non renseignes' : `${items.length} entree(s)`}
+      staggerIndex={staggerIndex}
+    >
       {items.length === 0 ? (
-        <p className="text-sm italic text-neutral-text-subtle">Aucun traitement renseigne</p>
+        <p className="text-sm text-neutral-text-muted">Aucun traitement declare.</p>
       ) : (
-        <ul className="space-y-3">
-          {items.map((item, idx) => (
+        <ul className="space-y-2">
+          {items.map((item) => (
             <li
-              key={`${item.name}-${idx}`}
+              key={`${item.name}-${item.detail ?? ''}`}
               className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-neutral-border/50 bg-neutral-surface-muted/30 px-4 py-3"
             >
               <div className="min-w-0">
@@ -26,13 +31,13 @@ export function TreatmentsCard({ items, staggerIndex = 0 }: TreatmentsCardProps)
               </div>
               {item.status ? (
                 <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                     item.status === 'actif'
-                      ? 'bg-dash-teal/15 text-dash-charcoal'
+                      ? 'bg-info-soft text-info border border-info-border'
                       : 'bg-neutral-surface-muted text-neutral-text-muted'
                   }`}
                 >
-                  {item.status === 'actif' ? 'actif' : 'historique'}
+                  {item.status === 'actif' ? 'Actif' : 'Historique'}
                 </span>
               ) : null}
             </li>

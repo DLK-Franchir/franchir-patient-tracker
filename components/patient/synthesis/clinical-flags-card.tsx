@@ -1,11 +1,6 @@
-import { Activity, AlertCircle, AlertTriangle, Stethoscope } from 'lucide-react'
-import type { ClinicalFlag } from '@/lib/integrations/questionnaire-synthesis-preview.types'
+import { AlertTriangle, Activity, Heart, Stethoscope, CheckCircle2 } from 'lucide-react'
 import { SynthesisCard } from '@/components/patient/synthesis/synthesis-card'
-
-type ClinicalFlagsCardProps = {
-  flags: ClinicalFlag[]
-  staggerIndex?: number
-}
+import type { ClinicalFlag } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 
 const SEVERITY_STYLES: Record<ClinicalFlag['severity'], string> = {
   critical: 'border-danger-border bg-danger-soft text-danger-strong',
@@ -14,13 +9,13 @@ const SEVERITY_STYLES: Record<ClinicalFlag['severity'], string> = {
 }
 
 function FlagIcon({ flag }: { flag: ClinicalFlag }) {
-  if (flag.icon === 'allergy') return <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-  if (flag.icon === 'medication') return <Stethoscope className="size-4 shrink-0" aria-hidden="true" />
-  if (flag.icon === 'heart') return <Activity className="size-4 shrink-0" aria-hidden="true" />
-  return <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+  if (flag.icon === 'allergy') return <AlertTriangle className="size-4 shrink-0" aria-hidden />
+  if (flag.icon === 'medication') return <Stethoscope className="size-4 shrink-0" aria-hidden />
+  if (flag.icon === 'heart') return <Heart className="size-4 shrink-0" aria-hidden />
+  return <Activity className="size-4 shrink-0" aria-hidden />
 }
 
-export function ClinicalFlagsCard({ flags, staggerIndex = 0 }: ClinicalFlagsCardProps) {
+export function ClinicalFlagsCard({ flags, staggerIndex = 0 }: { flags: ClinicalFlag[]; staggerIndex?: number }) {
   return (
     <SynthesisCard
       title="Drapeaux cliniques"
@@ -31,7 +26,7 @@ export function ClinicalFlagsCard({ flags, staggerIndex = 0 }: ClinicalFlagsCard
     >
       {flags.length === 0 ? (
         <div className="flex items-center gap-3 rounded-xl border border-success-border bg-success-soft px-4 py-3">
-          <AlertCircle className="size-5 text-success" aria-hidden="true" />
+          <CheckCircle2 className="size-5 text-success" aria-hidden />
           <p className="text-sm font-medium text-success-strong">Aucun drapeau clinique prioritaire</p>
         </div>
       ) : (

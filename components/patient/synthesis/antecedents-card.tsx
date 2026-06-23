@@ -1,18 +1,23 @@
-import type { AntecedentGroup } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 import { SynthesisCard } from '@/components/patient/synthesis/synthesis-card'
+import type { AntecedentGroup } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 
-type AntecedentsCardProps = {
+export function AntecedentsCard({
+  groups,
+  staggerIndex = 0,
+}: {
   groups: AntecedentGroup[]
   staggerIndex?: number
-}
-
-export function AntecedentsCard({ groups, staggerIndex = 0 }: AntecedentsCardProps) {
+}) {
   return (
-    <SynthesisCard title="Antecedents" staggerIndex={staggerIndex}>
+    <SynthesisCard
+      title="Antecedents"
+      description={groups.length === 0 ? 'Non renseignes' : `${groups.length} categorie(s)`}
+      staggerIndex={staggerIndex}
+    >
       {groups.length === 0 ? (
-        <p className="text-sm italic text-neutral-text-subtle">Non renseignes</p>
+        <p className="text-sm text-neutral-text-muted">Aucun antecedent declare.</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-3">
           {groups.map((group) => (
             <div
               key={group.title}
@@ -21,9 +26,9 @@ export function AntecedentsCard({ groups, staggerIndex = 0 }: AntecedentsCardPro
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-text-muted">
                 {group.title}
               </p>
-              <ul className="mt-2 space-y-1.5">
+              <ul className="mt-2 space-y-1">
                 {group.items.map((item) => (
-                  <li key={item} className="text-sm font-medium text-neutral-text">
+                  <li key={item} className="text-sm text-neutral-text">
                     {item}
                   </li>
                 ))}

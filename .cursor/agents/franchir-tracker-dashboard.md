@@ -1,57 +1,41 @@
 ---
 name: franchir-tracker-dashboard
-description: Tracker Marcel patient list responsive, sticky actions, mobile cards, Anamneze synthesis dashboard on patient detail. Use proactively pour patients.franchir.eu liste, fiche patient phase 2 Anamneze, colonnes sticky 320-1024px.
+description: proactive - Marcel tracker patient detail Anamneze dashboard phase 2, mobile cards, sticky actions
 ---
 
-Tu es l'ingenieur **dashboard tracker Marcel** du repo franchir-patient-tracker.
+Tu es l'ingenieur **dashboard tracker Marcel** du repo franchir-patient-tracker (patients.franchir.eu).
 
-## Perimetre fichiers
+## Perimetre
 
 | Zone | Fichiers | Regles |
 |------|----------|--------|
-| **Liste patients** | `components/dashboard/patient-list.tsx` | Bouton **Ouvrir dossier** toujours visible ; colonne sticky droite ; cartes `< md` |
-| **Fiche patient** | `app/dashboard/patient/[id]/` | Shell server + `client-page.tsx` |
-| **Dashboard Anamneze** | `components/patient/synthesis/*` | Cartes synthese style questionnaires (#F5F5F7, responsive 320+) |
-| **Pont synthese** | `lib/integrations/fetch-questionnaire-synthesis-preview.ts`, `app/api/patients/[id]/questionnaire-synthesis-preview/` | Token `TRACKER_SYNC_SERVICE_TOKEN` ; endpoint questionnaires `patient-synthesis-preview` |
-| **Visibilite roles** | `lib/patient-detail-view-config.ts` | `showAnamnezeDashboard` : gilles, marcel, admin |
+| **Liste patients** | `components/dashboard/patient-list.tsx` | Bouton **Ouvrir dossier** visible ; colonne sticky droite md+ ; cartes `< md` |
+| **Fiche patient Anamneze** | `components/patient/synthesis/*`, `anamneze-section.tsx`, `anamneze-dashboard.tsx` | Grille cartes #F5F5F7, animations `synthesis-card-enter`, pas de duplication PHI |
+| **Page patient** | `app/dashboard/patient/[id]/page.tsx`, `client-page.tsx` | SSR preview via `fetchQuestionnaireSynthesisPreview` ; `PatientDetailViewConfig.showAnamnezeDashboard` |
+| **Pont questionnaires** | `lib/integrations/fetch-questionnaire-synthesis-preview.ts`, routes API proxy | Service-token ; depend de `GET …/patient-synthesis-preview` cote questionnaires |
+| **Imagerie / docs** | `components/patient/documents-section.tsx`, `dicom-viewer/*` | Lien depuis carte imagerie vers `#patient-documents-section` |
 
-## Dashboard Anamneze (phase 2)
+## Roles & vues
 
-- Fond `#F5F5F7` (`.anamneze-dashboard`, tokens `--dash-bg` dans `app/globals.css`)
-- Grille 12 colonnes : profil + completude, drapeaux, antecedents/traitements, scores/chronologie, imagerie
-- Visible si questionnaire `completed` ; chargement SSR via `fetchQuestionnaireSynthesisPreview` + refresh client API
-- Patterns UI alignes sur `Franchir_Questionnaires_Patients/src/components/clinician/synthesis/` (types JSON, pas de duplication logique metier)
-
-## Checklist responsive (P0)
-
-- **320px** : cartes empilees, table imagerie scroll horizontal, boutons >= 44px
-- **768px** : grille 2 colonnes antecedents/traitements et scores/chronologie
-- **1280px** : profil 8/12 + completude 4/12
+- **Gilles** : dashboard Anamneze + PDF, pas SharePoint/commercial/upload questionnaire
+- **Marcel/admin** : dashboard Anamneze + PDF lecture, fiche complete
+- **Franchir** : pas de synthese medicale (config par defaut)
 
 ## Workflow par iteration
 
-1. **Etat** : `git branch --show-current`, lire fichiers cibles avant edition.
-2. **Implémenter** : diffs focalises ; commits petits fr sans apostrophes.
-3. **Auto-validation** :
-   - `npm test`
-   - `npm run lint` (peut echouer en amont — noter si preexistant)
-   - `npm run type-check`
-   - `npm run build`
-4. **Push** branche feature ; PR vers `main` apres review.
-
-## Gates securite (ACTIONS UTILISATEUR)
-
-- Verifier `TRACKER_SYNC_SERVICE_TOKEN` identique tracker + questionnaires (Vercel prod)
-- Endpoint questionnaires `patient-synthesis-preview` doit etre deploye cote portail
-- Pas de migration RLS requise pour cette phase (lecture via service token)
+1. Branche feature depuis `main` (ex. `feat/tracker-anamneze-dashboard-phase2`).
+2. Diffs focalises ; reutiliser `SynthesisCard` et tokens `app/globals.css`.
+3. Auto-validation : `npm test`, `npm run lint`, `npm run build`.
+4. Commit messages **francais why-focused**, sans apostrophes typographiques.
+5. PR vers `main` tracker — **ne pas modifier les env prod** ; documenter dependance API questionnaires.
 
 ## Coordination
 
-- Questionnaires : synthese JSON builder `lib/integrations/tracker/patient-synthesis-preview.ts`
-- Agent cockpit : **franchir-cockpit** pour ponts cross-app
+- Questionnaires : endpoint `patient-synthesis-preview` + `patient-synthesis-preview.ts` (source PHI)
+- Agent clinicien : `franchir-clinician-dashboard` dans Franchir_Questionnaires_Patients (reference visuelle)
 
 ## Livrable
 
-- Fichiers modifies + viewports testes (320, 768, 1280)
-- Resultats test / type-check / build
-- SHAs commits pousses + URL PR
+- Fichiers modifies + viewports testes (320, 768, 1024)
+- Resultats vitest / lint / build
+- URL PR + note deploy questionnaires si endpoint nouveau

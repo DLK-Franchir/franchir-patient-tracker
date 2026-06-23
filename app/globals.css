@@ -138,6 +138,10 @@ button {
   transition: background 0.6s ease-out;
 }
 
+.tracker-synthesis-dashboard {
+  --dash-font-scale: 1;
+}
+
 .anamneze-dashboard {
   background-color: var(--dash-bg);
 }
