@@ -65,4 +65,22 @@ describe('fetchQuestionnaireSynthesisPreview', () => {
       message: 'Aucune synthese disponible pour ce patient',
     })
   })
+
+  it('signale un endpoint questionnaires non deploye si la reponse est HTML', async () => {
+    process.env.TRACKER_SYNC_SERVICE_TOKEN = 'test-token'
+    vi.mocked(fetch).mockResolvedValue(
+      new Response('<html>404</html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    )
+
+    const result = await fetchQuestionnaireSynthesisPreview('00000000-0000-4000-8000-000000000001')
+    expect(result).toEqual({
+      ok: false,
+      status: 503,
+      message:
+        'Endpoint synthese absent cote questionnaires — redeployer patient-synthesis-preview',
+    })
+  })
 })

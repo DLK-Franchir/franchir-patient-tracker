@@ -49,6 +49,16 @@ export async function fetchQuestionnaireSynthesisPreview(
       }
     }
 
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!contentType.includes('application/json')) {
+      return {
+        ok: false,
+        status: 503,
+        message:
+          'Endpoint synthese absent cote questionnaires — redeployer patient-synthesis-preview',
+      }
+    }
+
     const preview = (await res.json()) as QuestionnaireSynthesisPreview
     return { ok: true, preview }
   } catch {
