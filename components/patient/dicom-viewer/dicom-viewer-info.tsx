@@ -6,6 +6,7 @@ export function ViewerInfoBubble({
   sliceCount,
   fileCount,
   errorMessage,
+  infoNote,
   preloadLoaded,
   preloadTotal,
   preloadMode,
@@ -14,6 +15,7 @@ export function ViewerInfoBubble({
   sliceCount: number;
   fileCount: number;
   errorMessage?: string | null;
+  infoNote?: string | null;
   preloadLoaded?: number;
   preloadTotal?: number;
   preloadMode?: boolean;
@@ -73,7 +75,10 @@ export function ViewerInfoBubble({
         data-testid="dicom-info-bubble"
       >
         <Info className="size-3.5 shrink-0 text-sky-300" strokeWidth={1.75} aria-hidden="true" />
-        Série de {fileCount} fichiers — navigation fichier par fichier (← →)
+        <span>
+          Série de {fileCount} fichiers — navigation fichier par fichier (← →)
+          {infoNote ? ` — ${infoNote}` : ''}
+        </span>
       </span>
     )
   }

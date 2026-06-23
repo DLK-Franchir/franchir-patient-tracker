@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import DocumentUpload from '@/components/patient/document-upload'
+import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
@@ -378,7 +379,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
         (selectedItem.kind === 'dicom-series' ||
           selectedItem.kind === 'questionnaire-dicom-series' ? (
           <div
-            className="fixed inset-0 z-50 flex flex-col bg-[#0B1020]"
+            className="fixed inset-0 z-50 flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#0B1020]"
             role="dialog"
             aria-modal="true"
             aria-label="Visionneuse DICOM"
@@ -405,7 +406,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           </div>
         ) : (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center"
+            className="fixed inset-0 z-50 flex h-dvh max-h-dvh items-stretch justify-center overflow-hidden"
             style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
             onClick={() => setSelectedIndex(null)}
             role="dialog"
@@ -413,12 +414,12 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             aria-label="Visionneuse"
           >
             <div
-              className="relative max-w-5xl w-full mx-4 rounded-2xl overflow-hidden shadow-2xl bg-[#0B1020]"
+              className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden bg-[#0B1020] sm:mx-4 sm:my-4 sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                <p className="text-sm font-medium text-white truncate flex-1">{selectedName}</p>
-                <div className="flex items-center gap-2 shrink-0">
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">{selectedName}</p>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   {selectedItem.kind === 'file' && (
                     <a
                       href={selectedItem.doc.url}
@@ -470,39 +471,37 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     type="button"
                     onClick={() => setSelectedIndex(null)}
                     aria-label="Fermer"
-                    className="ml-2 inline-flex items-center justify-center rounded-lg p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition"
+                    className="ml-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center min-h-[400px] max-h-[75vh] bg-[#0B1020]">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0B1020]">
                 {selectedItem.kind === 'file' && selectedItem.doc.renderType === 'image' ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <PinchZoomImage
                     src={selectedItem.doc.url}
                     alt={selectedItem.doc.fileName}
-                    className="max-w-full max-h-[70vh] object-contain"
+                    className="max-h-full max-w-full object-contain"
                   />
                 ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'image' ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <PinchZoomImage
                     src={selectedItem.url}
                     alt={selectedItem.name}
-                    className="max-w-full max-h-[70vh] object-contain"
+                    className="max-h-full max-w-full object-contain"
                   />
                 ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'pdf' ? (
                   <iframe
                     src={selectedItem.doc.url}
                     title={selectedItem.doc.fileName}
-                    className="w-full h-[70vh] bg-white"
+                    className="h-full min-h-[50dvh] w-full flex-1 bg-white sm:min-h-0"
                   />
                 ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'pdf' ? (
                   <iframe
                     src={selectedItem.url}
                     title={selectedItem.name}
-                    className="w-full h-[70vh] bg-white"
+                    className="h-full min-h-[50dvh] w-full flex-1 bg-white sm:min-h-0"
                   />
                 ) : selectedItem.kind === 'file' ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">

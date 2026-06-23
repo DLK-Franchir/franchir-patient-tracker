@@ -41,8 +41,18 @@ Vous supervisez l'ensemble de l'activité.
 
 ## 🔐 Vos Accès
 
-| Utilisateur | Rôle | Email | Mot de passe |
-| :--- | :--- | :--- | :--- |
-| **Marcel** | Coordinateur | `marcel@franchir.eu` | `Marcel123` |
-| **Gilles** | Médecin | `gilles@franchir.eu` | `Gilles123` |
-| **Erik** | Admin | `erik.boulard@franchir.eu` | `Erik123` |
+| Utilisateur | Rôle | Email de connexion |
+| :--- | :--- | :--- |
+| **Marcel** | Coordinateur | `marcel.mazaltarim@gmail.com` |
+| **Gilles** | Médecin | `duboisgilles31@gmail.com` |
+| **Erik** | Admin | `erik.boulard@franchir.eu` |
+
+> **Mot de passe** : utilisez le mot de passe personnel de votre compte Supabase Auth.
+> Les anciens identifiants `@franchir.eu` (`Marcel123`, etc.) ne sont **plus valides** — ces comptes n'existent pas dans la base.
+
+### Connexion en local (`http://localhost:3001`)
+
+1. Vérifiez que `.env.local` pointe bien vers le projet tracker (`zdmeidekszdrzmjuasee`).
+2. Sur `/login`, saisissez votre **email réel** (colonne ci-dessus) et votre mot de passe.
+3. Si vous ne connaissez pas le mot de passe : **Supabase Dashboard** → projet tracker → **Authentication** → **Users** → sélectionner l'utilisateur → **Send password recovery** ou **Reset password**.
+4. Tous les comptes staff existants ont l'email déjà confirmé ; aucune validation par lien n'est requise avant la connexion.

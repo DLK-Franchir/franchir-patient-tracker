@@ -2,10 +2,12 @@ import { useEffect, type RefObject } from "react";
 import type { App } from "dwv";
 import type { DicomTool, DwvLoadEvent, NavMode } from "./dicom-viewer-types";
 import {
+  SEQUENTIAL_ORIENTATION_FALLBACK_MSG,
   STACK_LOAD_FAIL_MS,
   STACK_PROGRESS_FALLBACK_MS,
   STACK_RENDER_READY_MS,
   formatDicomLoadError,
+  isStackOrientationMismatch,
 } from "./dicom-viewer-types";
 import {
   addWindowLevelPresets,
@@ -32,6 +34,7 @@ type StackModeParams = {
   setPreloadLoaded: (value: number) => void;
   setErrorMessage: (value: string | null) => void;
   setPoolWarning: (value: string | null) => void;
+  setSequentialFallbackNote: (value: string | null) => void;
   setSliceIndex: (value: number) => void;
   setSliceCount: (value: number) => void;
   setTool: (tool: DicomTool) => void;
@@ -55,6 +58,7 @@ export function useDicomStackMode(params: StackModeParams) {
     setPreloadLoaded,
     setErrorMessage,
     setPoolWarning,
+    setSequentialFallbackNote,
     setSliceIndex,
     setSliceCount,
     setTool,
@@ -98,6 +102,14 @@ export function useDicomStackMode(params: StackModeParams) {
       return !hasImage || dwvCount < seriesUrls.length;
     };
 
+    const switchToSequentialFallback = (orientationNote?: string) => {
+      pendingSequentialSwitch = true;
+      setErrorMessage(null);
+      if (orientationNote) setSequentialFallbackNote(orientationNote);
+      setNavMode("sequential");
+      setFileIndex(0);
+    };
+
     const markReady = () => {
       if (disposed) return;
       publishSliceCount(readSliceCount(app));
@@ -110,9 +122,7 @@ export function useDicomStackMode(params: StackModeParams) {
       if (disposed || loadSucceeded) return;
 
       if (needsSequentialFallback()) {
-        pendingSequentialSwitch = true;
-        setNavMode("sequential");
-        setFileIndex(0);
+        switchToSequentialFallback();
         return;
       }
 
@@ -132,9 +142,7 @@ export function useDicomStackMode(params: StackModeParams) {
       if (index !== null) setSliceIndex(index);
       renderReadyId = window.setTimeout(() => {
         if (!hasRenderableImage(app) && seriesUrls.length > 1) {
-          pendingSequentialSwitch = true;
-          setNavMode("sequential");
-          setFileIndex(0);
+          switchToSequentialFallback();
           return;
         }
         if (!hasRenderableImage(app)) {
@@ -187,19 +195,28 @@ export function useDicomStackMode(params: StackModeParams) {
       if (disposed) return;
       const message =
         typeof event.error === "string" ? event.error : event.error?.message ?? null;
+
+      if (isStackOrientationMismatch(message) && seriesUrls.length > 1) {
+        switchToSequentialFallback(SEQUENTIAL_ORIENTATION_FALLBACK_MSG);
+        return;
+      }
+
       console.error("[DicomViewer] load error", message ?? event);
-      if (message) setErrorMessage(formatDicomLoadError(message));
-      if (!loadSucceeded) {
-        const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
-        const hasImage = Boolean(viewLayer && app.getData(viewLayer.getDataId())?.image);
-        if (hasImage) {
-          finalizeLoad();
-        } else if (seriesUrls.length > 1) {
-          setNavMode("sequential");
-          setFileIndex(0);
-        } else {
-          setStatus("error");
-        }
+
+      if (loadSucceeded) {
+        if (message) setErrorMessage(formatDicomLoadError(message));
+        return;
+      }
+
+      const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
+      const hasImage = Boolean(viewLayer && app.getData(viewLayer.getDataId())?.image);
+      if (hasImage) {
+        finalizeLoad();
+      } else if (seriesUrls.length > 1) {
+        switchToSequentialFallback();
+      } else {
+        if (message) setErrorMessage(formatDicomLoadError(message));
+        setStatus("error");
       }
     };
 
@@ -212,8 +229,7 @@ export function useDicomStackMode(params: StackModeParams) {
     const failTimer = window.setTimeout(() => {
       if (!disposed && !loadSucceeded && !pendingSequentialSwitch) {
         if (seriesUrls.length > 1) {
-          setNavMode("sequential");
-          setFileIndex(0);
+          switchToSequentialFallback();
         } else {
           setStatus("error");
           setErrorMessage("délai de chargement dépassé");
@@ -266,6 +282,7 @@ export function useDicomStackMode(params: StackModeParams) {
     setFileIndex,
     setNavMode,
     setPoolWarning,
+    setSequentialFallbackNote,
     setPreloadLoaded,
     setProgress,
     setSliceCount,
