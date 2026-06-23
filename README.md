@@ -266,6 +266,15 @@ Les variables d'environnement sont configurées dans le dashboard Vercel.
 **DICOM en production** : vérifier que `/dwv-workers/*` reste accessible sans
 session (`proxy.ts` — requis pour décoder JPEG Lossless / JPEG-LS).
 
+## Documentation écosystème
+
+Architecture prod et checklist déploiement (deux apps) — repo **questionnaires** :
+
+- [`docs/ARCHITECTURE_PROD.md`](https://github.com/DLK-Franchir/franchir-questionnaires-patients/blob/main/docs/ARCHITECTURE_PROD.md)
+- [`docs/DEPLOY_PROD.md`](https://github.com/DLK-Franchir/franchir-questionnaires-patients/blob/main/docs/DEPLOY_PROD.md)
+
+Guide utilisateur tracker : [`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md)
+
 ## Développement
 
 ```bash
