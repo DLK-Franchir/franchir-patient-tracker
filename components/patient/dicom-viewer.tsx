@@ -59,6 +59,7 @@ export default function DicomViewer({
   const [navMode, setNavMode] = useState<NavMode>("stack");
   const [fileIndex, setFileIndex] = useState(0);
   const [poolWarning, setPoolWarning] = useState<string | null>(null);
+  const [sequentialFallbackNote, setSequentialFallbackNote] = useState<string | null>(null);
 
   useEffect(() => {
     fileIndexRef.current = fileIndex;
@@ -97,6 +98,7 @@ export default function DicomViewer({
     setActivePreset(null);
     setErrorMessage(null);
     setPoolWarning(null);
+    setSequentialFallbackNote(null);
   }
 
   useDicomStackMode({
@@ -114,6 +116,7 @@ export default function DicomViewer({
     setPreloadLoaded,
     setErrorMessage,
     setPoolWarning,
+    setSequentialFallbackNote,
     setSliceIndex,
     setSliceCount,
     setTool,
@@ -349,6 +352,9 @@ export default function DicomViewer({
         ? "Balayez ou utilisez Préc./Suiv. pour changer de coupe"
         : "Choisissez Zoom pour agrandir l'image";
 
+  const infoNote =
+    navMode === "sequential" ? sequentialFallbackNote ?? poolWarning : null;
+
   return (
     <div
       className="flex h-full min-h-0 w-full flex-col overflow-x-hidden"
@@ -375,6 +381,7 @@ export default function DicomViewer({
               sliceCount={sliceCount}
               fileCount={fileCount}
               errorMessage={errorMessage}
+              infoNote={infoNote}
               preloadLoaded={preloadLoaded}
               preloadTotal={fileCount}
               preloadMode={preloadMode}
@@ -535,6 +542,7 @@ export default function DicomViewer({
             sliceCount={sliceCount}
             fileCount={fileCount}
             errorMessage={errorMessage}
+            infoNote={infoNote}
             preloadLoaded={preloadLoaded}
             preloadTotal={fileCount}
             preloadMode={preloadMode}

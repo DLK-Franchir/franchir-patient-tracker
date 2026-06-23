@@ -56,6 +56,20 @@ export const STACK_RENDER_READY_MS = 550;
 export const STACK_PROGRESS_FALLBACK_MS = 600;
 export const LAYOUT_RETRY_DELAYS_MS = [0, 50, 150, 400, 800] as const;
 
+/** dwv refuse d'empiler des coupes dont l'orientation ImageOrientationPatient diffère. */
+export function isStackOrientationMismatch(message: string | null | undefined): boolean {
+  if (!message?.trim()) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("different orientation") ||
+    lower.includes("orientation mismatch") ||
+    lower.includes("orientations différentes")
+  );
+}
+
+export const SEQUENTIAL_ORIENTATION_FALLBACK_MSG =
+  "Orientations d'images incompatibles — affichage fichier par fichier.";
+
 /** Messages utilisateur pour échecs dwv / transfer syntax non supportée. */
 export function formatDicomLoadError(message: string | null | undefined): string {
   if (!message?.trim()) {
