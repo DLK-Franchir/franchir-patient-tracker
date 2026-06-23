@@ -7,9 +7,11 @@ import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
 import DocumentsSection from '@/components/patient/documents-section'
 import QuestionnairePatientCard from '@/components/patient/questionnaire-patient-card'
+import AnamnezeSection from '@/components/patient/synthesis/anamneze-section'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import { getPatientDetailViewConfig } from '@/lib/patient-detail-view-config'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
+import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 import { useRouter } from 'next/navigation'
 
 const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
@@ -63,12 +65,16 @@ export default function PatientDetailClient({
   userRole,
   surgeons = [],
   questionnaireStatus = null,
+  synthesisPreview = null,
+  synthesisPreviewError = null,
 }: {
   initialPatient: PatientData
   initialMessages: Message[]
   userRole: UserRole
   surgeons?: SurgeonOption[]
   questionnaireStatus?: QuestionnaireStatus | null
+  synthesisPreview?: QuestionnaireSynthesisPreview | null
+  synthesisPreviewError?: string | null
 }) {
   const router = useRouter()
   const [patient, setPatient] = useState(initialPatient)
@@ -138,6 +144,7 @@ export default function PatientDetailClient({
 
   const showCommercialTab = viewConfig.showCommercialTab
   const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
+  const latestCompletedSession = questionnaireStatus?.sessions?.find((s) => s.status === 'completed')
 
   const handleAction = async (actionId: string, data?: any) => {
     try {
@@ -189,18 +196,32 @@ export default function PatientDetailClient({
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-      <WorkflowTimeline currentStatus={globalStatus} />
+    <div className="anamneze-dashboard min-h-[calc(100dvh-4rem)]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <WorkflowTimeline currentStatus={globalStatus} />
 
-      {isReadOnly && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
-          <p className="text-xs sm:text-sm text-yellow-800">
-            ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.
-          </p>
-        </div>
-      )}
+        {isReadOnly && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+            <p className="text-xs sm:text-sm text-yellow-800">
+              ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.
+            </p>
+          </div>
+        )}
 
-      <div className="lg:hidden mb-4">
+        {viewConfig.showAnamnezeDashboard && (
+          <div className="mb-4 sm:mb-6">
+            <AnamnezeSection
+              patientId={patient.id}
+              patientName={patient.patient_name}
+              questionnaireStatus={patient.questionnaire_status}
+              initialPreview={synthesisPreview}
+              initialError={synthesisPreviewError}
+              sessionId={latestCompletedSession?.id ?? null}
+            />
+          </div>
+        )}
+
+        <div className="lg:hidden mb-4 space-y-4">
         <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-4">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Actions disponibles</h2>
           <WorkflowActions
@@ -212,19 +233,35 @@ export default function PatientDetailClient({
             onAction={handleAction}
           />
         </div>
+
+        <QuestionnairePatientCard
+          patientId={patient.id}
+          patientEmail={patient.patient_email}
+          questionnaireStatus={patient.questionnaire_status}
+          questionnaireCompletedAt={patient.questionnaire_completed_at}
+          questionnaireSummary={patient.questionnaire_summary}
+          bridgeStatus={questionnaireStatus}
+          canManage={canManageQuestionnaire}
+          initialLanguage={questionnaireLanguage}
+          onSendLink={sendQuestionnaireLink}
+          onRevokeLink={revokeQuestionnaireLink}
+          showPdfDownload={viewConfig.showQuestionnairePdf}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-          <PatientSummaryCard
-            patientName={patient.patient_name}
-            clinicalSummary={patient.clinical_summary}
-            sharepointLink={patient.sharepoint_link}
-            globalStatus={globalStatus}
-            userRole={userRole}
-            showSharePoint={viewConfig.showSharePoint}
-            onUpdate={handleUpdateSummary}
-          />
+          {viewConfig.showSharePoint && (
+            <PatientSummaryCard
+              patientName={patient.patient_name}
+              clinicalSummary={patient.clinical_summary}
+              sharepointLink={patient.sharepoint_link}
+              globalStatus={globalStatus}
+              userRole={userRole}
+              showSharePoint={viewConfig.showSharePoint}
+              onUpdate={handleUpdateSummary}
+            />
+          )}
 
           <DocumentsSection patientId={patient.id} canManage={viewConfig.canManageDocuments} />
 
@@ -365,6 +402,7 @@ export default function PatientDetailClient({
           </div>
         </div>
       </div>
+    </div>
     </div>
   )
 }

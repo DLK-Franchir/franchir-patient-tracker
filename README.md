@@ -26,6 +26,12 @@ questionnaires (`questionnaire.franchir.eu/clinician`).
   (validation médicale), Marcel/admin (lecture seule). Proxy
   `GET /api/patients/[id]/questionnaire-synthesis-pdf` → pont questionnaires
   `patient-synthesis-pdf` (scores, drapeaux, imagerie).
+- **Dashboard Anamneze fiche patient (phase 2)** : cartes synthese (profil,
+  drapeaux, scores EVA/NDI, chronologie, imagerie) pour Gilles/Marcel/admin via
+  `GET /api/patients/[id]/questionnaire-synthesis-preview` → pont questionnaires
+  `patient-synthesis-preview` (JSON construit par `synthesis-data.ts`, pas de
+  duplication PHI cote tracker). Fond `#F5F5F7`, responsive mobile, actions
+  sticky conservees.
 - **Mode validation Gilles (P0)** : `PatientDetailViewConfig` — fiche épurée
   (masque SharePoint, upload docs, onglet commercial, gestion questionnaire) ;
   conserve workflow + synthèse PDF.
@@ -89,6 +95,7 @@ Marcel fiche  → patient-documents + GET patient-images (questionnaire patient)
 | Tracker → questionnaires (forward) | `POST …/imaging-sign-upload` | `TRACKER_SYNC_SERVICE_TOKEN` |
 | Tracker → questionnaires (lecture) | `GET …/patient-images` | idem |
 | Tracker → questionnaires (synthèse PDF) | `GET …/patient-synthesis-pdf` | idem |
+| Tracker → questionnaires (aperçu Anamneze JSON) | `GET …/patient-synthesis-preview` | idem — **dépendance phase 2** ; déployer côté questionnaires avant prod |
 | Questionnaires → tracker (complément clinicien) | `GET …/patient-documents` | `TRACKER_RETURN_TOKEN` |
 
 Corrélation : `patients.id` = `neuro_patients.external_tracker_id` (questionnaires).

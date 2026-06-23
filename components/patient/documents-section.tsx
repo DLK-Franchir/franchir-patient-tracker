@@ -231,7 +231,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           : selectedItem.name
 
   return (
-    <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+    <section id="patient-documents-section" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg sm:text-xl font-bold text-gray-900">Imagerie & documents</h2>
         {canManage && !showUpload && (

@@ -8,6 +8,9 @@ import {
   fetchQuestionnaireStatus,
   reconcileQuestionnaireCompletion,
 } from '@/lib/integrations/questionnaire-portal'
+import { fetchQuestionnaireSynthesisPreview } from '@/lib/integrations/fetch-questionnaire-synthesis-preview'
+import { getPatientDetailViewConfig } from '@/lib/patient-detail-view-config'
+import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 
 export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -86,6 +89,23 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     patient.questionnaire_status = 'completed'
   }
 
+  const viewConfig = getPatientDetailViewConfig(userRole)
+  let synthesisPreview: QuestionnaireSynthesisPreview | null = null
+  let synthesisPreviewError: string | null = null
+
+  if (viewConfig.showAnamnezeDashboard && patient.questionnaire_status === 'completed') {
+    const latestCompletedSession = questionnaireStatus?.sessions?.find((s) => s.status === 'completed')
+    const previewResult = await fetchQuestionnaireSynthesisPreview(
+      id,
+      latestCompletedSession?.id,
+    )
+    if (previewResult.ok) {
+      synthesisPreview = previewResult.preview
+    } else {
+      synthesisPreviewError = previewResult.message
+    }
+  }
+
   return (
     <>
       <AppHeader userRole={userRole} userName={staffProfile.full_name ?? undefined} showActions={true} />
@@ -95,6 +115,8 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
         userRole={userRole}
         surgeons={surgeons || []}
         questionnaireStatus={questionnaireStatus}
+        synthesisPreview={synthesisPreview}
+        synthesisPreviewError={synthesisPreviewError}
       />
     </>
   )
