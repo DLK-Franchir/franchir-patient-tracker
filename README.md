@@ -279,6 +279,8 @@ Architecture prod et checklist déploiement (deux apps) — repo **questionnaire
 
 - [`docs/ARCHITECTURE_PROD.md`](https://github.com/DLK-Franchir/franchir-questionnaires-patients/blob/main/docs/ARCHITECTURE_PROD.md)
 - [`docs/DEPLOY_PROD.md`](https://github.com/DLK-Franchir/franchir-questionnaires-patients/blob/main/docs/DEPLOY_PROD.md)
+- [`docs/ops/BRANCH_HYGIENE.md`](https://github.com/DLK-Franchir/franchir-questionnaires-patients/blob/main/docs/ops/BRANCH_HYGIENE.md) — branches Git post-release (juin 2026)
+- [`docs/ops/VERCEL_HYGIENE.md`](https://github.com/DLK-Franchir/franchir-questionnaires-patients/blob/main/docs/ops/VERCEL_HYGIENE.md) — variables Vercel legacy tracker (`POSTGRES_*`, doublons `SUPABASE_*`)
 
 Guide utilisateur tracker : [`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md)
 
