@@ -44,7 +44,10 @@ describe('fetchQuestionnaireSynthesisPreview', () => {
     }
 
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(preview), { status: 200 }),
+      new Response(JSON.stringify(preview), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
     )
 
     const result = await fetchQuestionnaireSynthesisPreview('00000000-0000-4000-8000-000000000001')
