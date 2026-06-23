@@ -68,6 +68,27 @@ function formatDateShort(dateStr: string | null | undefined): string {
   })
 }
 
+const STICKY_ACTION_HEAD =
+  'sticky right-0 z-20 bg-gray-50 px-3 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700 shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.12)]'
+const STICKY_ACTION_CELL =
+  'sticky right-0 z-10 bg-white px-3 py-4 text-right text-sm font-medium shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.12)] group-hover:bg-gray-50'
+const DOSSIER_LINK_CLASS =
+  'inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#2563EB] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]'
+
+function TruncatedCell({
+  text,
+  className = '',
+}: {
+  text: string
+  className?: string
+}) {
+  return (
+    <span className={`block truncate ${className}`} title={text}>
+      {text}
+    </span>
+  )
+}
+
 export default function PatientList({
   initialPatients,
   total,
@@ -240,10 +261,10 @@ export default function PatientList({
       </div>
 
       <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm md:block">
-        <table className="min-w-full divide-y divide-gray-200">
+        <table className="w-full table-fixed divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="w-[22%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:px-4">
                 <button
                   type="button"
                   onClick={() => sortBy('patient_name')}
@@ -252,7 +273,7 @@ export default function PatientList({
                   Patient {sortIndicator('patient_name')}
                 </button>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="w-[18%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:px-4">
                 <button
                   type="button"
                   onClick={() => sortBy('current_status_id')}
@@ -261,83 +282,86 @@ export default function PatientList({
                   Statut {sortIndicator('current_status_id')}
                 </button>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="w-[16%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:w-[14%] lg:px-4">
                 Questionnaire
               </th>
-              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="hidden w-[20%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:table-cell lg:px-4">
                 Action en attente
               </th>
-              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[12%] xl:px-4">
                 Chirurgien
               </th>
-              <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700">
+              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[11%] xl:px-4">
                 Date prévue
               </th>
-              <th className="px-4 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700">
-                Dossier
-              </th>
+              <th className={`w-[7.5rem] ${STICKY_ACTION_HEAD}`}>Dossier</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
             {initialPatients.map((patient) => {
               const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
               const pendingAction = pendingActionLabel(globalStatus, userRole)
+              const creatorName = patient.profiles?.full_name || '—'
               return (
-                <tr key={patient.id} className="transition-colors hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-4 py-4 font-semibold text-gray-900">
-                    {patient.patient_name}
-                    <p className="text-xs font-normal text-gray-400 mt-0.5">
-                      {patient.profiles?.full_name || '—'}
-                    </p>
+                <tr key={patient.id} className="group transition-colors hover:bg-gray-50">
+                  <td className="px-3 py-4 lg:px-4">
+                    <TruncatedCell
+                      text={patient.patient_name}
+                      className="font-semibold text-gray-900"
+                    />
+                    <TruncatedCell text={creatorName} className="mt-0.5 text-xs font-normal text-gray-400" />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4">
+                  <td className="px-3 py-4 lg:px-4">
                     <StatusBadge
                       label={patient.workflow_statuses?.label || 'Sans statut'}
                       color={patient.workflow_statuses?.color || '#6B7280'}
                       size="sm"
                     />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4">
+                  <td className="px-3 py-4 lg:px-4">
                     <StatusBadge
                       label={questionnaireStatusLabel(patient.questionnaire_status)}
                       variant={questionnaireStatusVariant(patient.questionnaire_status)}
                       size="sm"
                     />
                   </td>
-                  <td className="max-w-[14rem] whitespace-normal px-4 py-4 text-sm">
+                  <td className="hidden px-3 py-4 lg:table-cell lg:px-4">
                     {pendingAction ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-amber-300 bg-amber-100 px-3 py-1 text-xs font-bold leading-snug text-amber-900">
+                      <span
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border-2 border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-bold leading-snug text-amber-900"
+                        title={pendingAction}
+                      >
                         <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
-                        {pendingAction}
+                        <span className="line-clamp-2">{pendingAction}</span>
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-sm">
+                  <td className="hidden px-3 py-4 xl:table-cell xl:px-4">
                     {patient.confirmed_surgeon_name ? (
-                      <span className="inline-flex items-center rounded-full bg-purple-100 border border-purple-300 px-2.5 py-1 text-xs font-bold text-purple-900">
+                      <span
+                        className="inline-flex max-w-full items-center truncate rounded-full border border-purple-300 bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-900"
+                        title={patient.confirmed_surgeon_name}
+                      >
                         {patient.confirmed_surgeon_name}
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700">
+                  <td className="hidden px-3 py-4 text-sm text-gray-700 xl:table-cell xl:px-4">
                     {patient.proposed_date ? (
-                      <span className="text-blue-700 font-semibold">
+                      <span className="font-semibold text-blue-700">
                         {formatDateShort(patient.proposed_date)}
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-right text-sm font-medium">
-                    <Link
-                      href={`/dashboard/patient/${patient.id}`}
-                      className="rounded-md bg-blue-50 px-3 py-2 font-semibold text-[#2563EB] transition hover:text-[#1d4ed8]"
-                    >
-                      Voir →
+                  <td className={STICKY_ACTION_CELL}>
+                    <Link href={`/dashboard/patient/${patient.id}`} className={DOSSIER_LINK_CLASS}>
+                      Ouvrir dossier
                     </Link>
                   </td>
                 </tr>
@@ -359,10 +383,9 @@ export default function PatientList({
           const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
           const pendingAction = pendingActionLabel(globalStatus, userRole)
           return (
-            <Link
+            <article
               key={patient.id}
-              href={`/dashboard/patient/${patient.id}`}
-              className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md active:bg-gray-50"
+              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -386,7 +409,7 @@ export default function PatientList({
                   )}
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
                     {patient.confirmed_surgeon_name ? (
-                      <span className="inline-flex items-center rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 font-semibold text-purple-900">
+                      <span className="inline-flex max-w-full items-center truncate rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 font-semibold text-purple-900">
                         {patient.confirmed_surgeon_name}
                       </span>
                     ) : (
@@ -405,7 +428,13 @@ export default function PatientList({
                   size="sm"
                 />
               </div>
-            </Link>
+              <Link
+                href={`/dashboard/patient/${patient.id}`}
+                className={`mt-4 w-full ${DOSSIER_LINK_CLASS}`}
+              >
+                Ouvrir dossier
+              </Link>
+            </article>
           )
         })}
         {initialPatients.length === 0 && (
