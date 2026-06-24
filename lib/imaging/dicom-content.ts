@@ -83,6 +83,61 @@ function readTag(
   return { tag, valueOffset, valueLength: length, nextOffset: valueOffset + length }
 }
 
+const UNDEFINED_LENGTH = 0xffffffff
+
+/**
+ * Fin (offset après) d'un data element, en gérant les séquences à longueur
+ * indéfinie (FFFE,E0DD) et leurs items imbriqués.
+ */
+function endOfDataElement(view: Uint8Array, pos: number, implicit: boolean): number {
+  if (pos + 8 > view.length) return view.length
+  if (implicit) {
+    const length = readU32LE(view, pos + 4)
+    const valueOffset = pos + 8
+    if (length === UNDEFINED_LENGTH) return skipUndefinedSequence(view, valueOffset, implicit)
+    return valueOffset + length
+  }
+  const vr = String.fromCharCode(view[pos + 4]!, view[pos + 5]!)
+  if (EXPLICIT_VR_LONG_LENGTH.has(vr)) {
+    const length = readU32LE(view, pos + 8)
+    const valueOffset = pos + 12
+    if (length === UNDEFINED_LENGTH) return skipUndefinedSequence(view, valueOffset, implicit)
+    return valueOffset + length
+  }
+  const length = readU16LE(view, pos + 6)
+  return pos + 8 + length
+}
+
+/** Saute un item à longueur indéfinie ; pos = début de son contenu. */
+function skipUndefinedItem(view: Uint8Array, pos: number, implicit: boolean): number {
+  while (pos + 8 <= view.length) {
+    const group = readU16LE(view, pos)
+    const element = readU16LE(view, pos + 2)
+    if (group === 0xfffe && element === 0xe00d) return pos + 8 // fin d'item
+    const next = endOfDataElement(view, pos, implicit)
+    if (next <= pos) return view.length
+    pos = next
+  }
+  return view.length
+}
+
+/** Saute une séquence à longueur indéfinie ; pos = début du 1er item. */
+function skipUndefinedSequence(view: Uint8Array, pos: number, implicit: boolean): number {
+  while (pos + 8 <= view.length) {
+    const group = readU16LE(view, pos)
+    const element = readU16LE(view, pos + 2)
+    const length = readU32LE(view, pos + 4)
+    pos += 8
+    if (group === 0xfffe && element === 0xe0dd) return pos // fin de séquence
+    if (group === 0xfffe && element === 0xe000) {
+      pos = length === UNDEFINED_LENGTH ? skipUndefinedItem(view, pos, implicit) : pos + length
+    } else {
+      return pos // structure inattendue : on s'arrête proprement
+    }
+  }
+  return view.length
+}
+
 function readUidValue(view: Uint8Array, offset: number, length: number): string {
   const slice = view.subarray(offset, offset + length)
   return new TextDecoder('ascii').decode(slice).replace(/\0+$/, '').trim()
@@ -239,7 +294,19 @@ export function parseDicomContentInfo(bytes: ArrayBuffer | Uint8Array): DicomCon
   while (offset + 8 <= scanLimit) {
     const implicit = inMeta ? false : isImplicitVrTransferSyntax(transferSyntax)
     const parsed = readTag(view, offset, implicit)
-    if (!parsed || parsed.valueLength < 0 || parsed.nextOffset <= offset) break
+    if (!parsed) break
+
+    // Séquence à longueur indéfinie (ex. 0008,1110) : on saute proprement ses
+    // items au lieu de casser le scan (sinon SeriesInstanceUID/BodyPart/
+    // InstanceNumber, situés après, ne sont jamais lus).
+    if (!inMeta && parsed.valueLength === UNDEFINED_LENGTH) {
+      const skipped = skipUndefinedSequence(view, parsed.valueOffset, implicit)
+      if (skipped <= offset) break
+      offset = skipped
+      continue
+    }
+
+    if (parsed.valueLength < 0 || parsed.nextOffset <= offset) break
 
     if (inMeta) {
       if ((parsed.tag & 0xffff) !== 0x0002) {

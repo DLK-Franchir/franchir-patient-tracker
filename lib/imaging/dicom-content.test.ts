@@ -97,6 +97,30 @@ describe('parseDicomContentInfo — tags étendus', () => {
   it('renvoie null pour des octets non-DICOM', () => {
     expect(extractDicomPersistedMetadata(new Uint8Array([1, 2, 3, 4]))).toBeNull()
   })
+
+  it('lit les tags situés APRÈS une séquence à longueur indéfinie (0008,1110)', () => {
+    const chunks: number[] = new Array(128).fill(0)
+    chunks.push(0x44, 0x49, 0x43, 0x4d)
+    appendExplicitTag(chunks, 0x0002, 0x0010, 'UI', '1.2.840.10008.1.2.1')
+    appendExplicitTag(chunks, 0x0008, 0x0018, 'UI', '1.1.1.1')
+    appendExplicitTag(chunks, 0x0008, 0x103e, 'LO', 'T2 SAG')
+    // Séquence référencée (0008,1110) à longueur indéfinie avec un item imbriqué.
+    chunks.push(0x08, 0x00, 0x10, 0x11, 'S'.charCodeAt(0)!, 'Q'.charCodeAt(0)!, 0, 0)
+    chunks.push(0xff, 0xff, 0xff, 0xff) // longueur indéfinie
+    chunks.push(0xfe, 0xff, 0x00, 0xe0, 0xff, 0xff, 0xff, 0xff) // item (FFFE,E000) indéfini
+    appendExplicitTag(chunks, 0x0008, 0x1150, 'UI', '1.2.840.10008.5.1.4.1.1.4') // élément imbriqué
+    chunks.push(0xfe, 0xff, 0x0d, 0xe0, 0, 0, 0, 0) // fin d'item (FFFE,E00D)
+    chunks.push(0xfe, 0xff, 0xdd, 0xe0, 0, 0, 0, 0) // fin de séquence (FFFE,E0DD)
+    appendExplicitTag(chunks, 0x0018, 0x0015, 'CS', 'LSPINE')
+    appendExplicitTag(chunks, 0x0020, 0x000e, 'UI', '9.9.9.9')
+    appendExplicitTag(chunks, 0x0020, 0x0013, 'IS', '42')
+
+    const meta = extractDicomPersistedMetadata(new Uint8Array(chunks))
+    expect(meta?.sopInstanceUid).toBe('1.1.1.1')
+    expect(meta?.seriesInstanceUid).toBe('9.9.9.9')
+    expect(meta?.bodyPart).toBe('LSPINE')
+    expect(meta?.instanceNumber).toBe(42)
+  })
 })
 
 describe('normalizeAcquisitionDateTime', () => {
