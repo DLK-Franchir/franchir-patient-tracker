@@ -6,6 +6,7 @@ import {
   STACK_LOAD_FAIL_MS,
   STACK_PROGRESS_FALLBACK_MS,
   STACK_RENDER_READY_MS,
+  RENDER_READY_DELAYS_MS,
   formatDicomLoadError,
   isStackOrientationMismatch,
 } from "./dicom-viewer-types";
@@ -16,6 +17,7 @@ import {
   hasRenderableImage,
   readSliceCount,
   readSliceIndex,
+  waitForRenderableImage,
 } from "./dicom-viewer-app";
 import { clearLayoutTimers, scheduleLayoutRetries } from "./dicom-viewer-layout";
 
@@ -141,16 +143,23 @@ export function useDicomStackMode(params: StackModeParams) {
       const index = readSliceIndex(app);
       if (index !== null) setSliceIndex(index);
       renderReadyId = window.setTimeout(() => {
-        if (!hasRenderableImage(app) && seriesUrls.length > 1) {
-          switchToSequentialFallback();
-          return;
-        }
-        if (!hasRenderableImage(app)) {
-          setStatus("error");
-          setErrorMessage(formatDicomLoadError("fichier illisible ou format non pris en charge"));
-          return;
-        }
-        markReady();
+        void waitForRenderableImage(app, RENDER_READY_DELAYS_MS).then((ready) => {
+          if (!ready && seriesUrls.length > 1) {
+            switchToSequentialFallback();
+            return;
+          }
+          if (!ready) {
+            // Géométrie présente mais aucun pixel décodé → échec silencieux du
+            // codec (worker manquant / format non géré). On affiche une erreur
+            // explicite plutôt qu'un canvas noir « prêt ».
+            setStatus("error");
+            setErrorMessage(
+              formatDicomLoadError("décodage du flux compressé impossible (codec)"),
+            );
+            return;
+          }
+          markReady();
+        });
       }, STACK_RENDER_READY_MS);
     };
 
