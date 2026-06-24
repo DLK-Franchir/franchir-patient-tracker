@@ -6,6 +6,7 @@ import {
   MAX_SEQUENTIAL_POOL,
   STACK_LOAD_FAIL_MS,
   formatDicomLoadError,
+  isUnsupportedJpeg2000Error,
   RENDER_READY_DELAYS_MS,
 } from "./dicom-viewer-types";
 import {
@@ -27,6 +28,7 @@ type PoolModeParams = {
   fileIndexRef: RefObject<number>;
   toolRef: RefObject<DicomTool>;
   onSliceCountResolvedRef: RefObject<((count: number) => void) | undefined>;
+  onJpeg2000UnsupportedRef: RefObject<(() => void) | undefined>;
   setStatus: (status: "loading" | "rendering" | "ready" | "error") => void;
   setProgress: (value: number) => void;
   setPreloadLoaded: (value: number) => void;
@@ -90,6 +92,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
     fileIndexRef,
     toolRef,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     setStatus,
     setProgress,
     setPreloadLoaded,
@@ -125,6 +128,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
     }
 
     let disposed = false;
+    let jpeg2000FallbackTriggered = false;
     let processedCount = 0;
     let firstActivated = false;
     let resizeRaf: number | null = null;
@@ -219,6 +223,13 @@ export function useDicomSequentialPool(params: PoolModeParams) {
         if (disposed) return;
         const message =
           typeof event.error === "string" ? event.error : event.error?.message ?? null;
+        if (isUnsupportedJpeg2000Error(message)) {
+          if (!jpeg2000FallbackTriggered) {
+            jpeg2000FallbackTriggered = true;
+            onJpeg2000UnsupportedRef.current?.();
+          }
+          return;
+        }
         console.error(`[DicomViewer] pool load error file ${index + 1}`, message ?? event);
         finalizeEntry(false, formatDicomLoadError(message ?? "erreur de chargement"));
       };
@@ -306,6 +317,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
     appRef,
     fileIndexRef,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     poolHostRef,
     poolRef,
     setErrorMessage,
