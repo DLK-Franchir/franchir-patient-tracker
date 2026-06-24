@@ -1,4 +1,5 @@
 import { App, AppOptions, ToolConfig, ViewConfig } from "dwv";
+import { hasPixelSignal } from "@/lib/imaging/dicom-pixel-signal";
 
 export function createDwvApp(layerGroupId: string): App {
   const app = new App();
@@ -17,7 +18,15 @@ export function hasRenderableImage(app: App): boolean {
   try {
     const viewLayer = app.getActiveLayerGroup()?.getActiveViewLayer();
     if (!viewLayer) return false;
-    return Boolean(app.getData(viewLayer.getDataId())?.image);
+    const image = app.getData(viewLayer.getDataId())?.image;
+    if (!image) return false;
+    const size = image.getGeometry().getSize();
+    const width = size.get(0);
+    const height = size.get(1);
+    if (width <= 0 || height <= 0) return false;
+    // Géométrie OK ne suffit pas : on vérifie des pixels réellement décodés pour
+    // ne pas marquer « prêt » un canvas noir (worker codec manquant / échec).
+    return hasPixelSignal(image.getBuffer());
   } catch {
     return false;
   }
