@@ -158,6 +158,11 @@ export function dedupeDicomFilesByBasename<T extends NamedImagingFile>(files: T[
   return result.sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/** Vrai si le groupId désigne un lot de DOC PDF encapsulés (rendu iframe). */
+export function isEncapsulatedPdfGroupId(groupId: string): boolean {
+  return groupId === 'patient-im-doc' || groupId.startsWith('patient-im-doc-band-')
+}
+
 export function dicomSeriesLabel(groupId: string, count: number, singleName: string): string {
   const stripped = stripStorageTimestampPrefix(singleName)
   if (count <= 1) return stripped
@@ -385,4 +390,146 @@ export function groupDicomFilesIntoSeries<T extends NamedImagingFile>(
   }
 
   return splitDocFromImageGroups(result)
+}
+
+// ── Regroupement par métadonnées DICOM (SeriesInstanceUID) ─────────────────────
+// Préféré dès que les fichiers portent des métadonnées persistées (cf. migration
+// patient_documents_dicom_metadata). Sépare cervical/lombaire par série au lieu
+// de s'appuyer sur les noms/tailles. Repli sur le grouping historique pour les
+// fichiers legacy sans métadonnées (pas encore backfillés).
+
+export type MetaImagingFile = NamedImagingFile & {
+  sopInstanceUid?: string | null
+  seriesInstanceUid?: string | null
+  seriesDescription?: string | null
+  bodyPart?: string | null
+  instanceNumber?: number | null
+  acquisitionDatetime?: string | null
+}
+
+export type DicomMetaSeriesGroup<T extends MetaImagingFile> = {
+  groupId: string
+  label: string
+  isEncapsulatedPdf: boolean
+  files: T[]
+}
+
+function fileHasDicomMetadata(file: MetaImagingFile): boolean {
+  return Boolean(
+    (file.seriesInstanceUid && file.seriesInstanceUid.length > 0) ||
+      (file.sopInstanceUid && file.sopInstanceUid.length > 0) ||
+      (file.acquisitionDatetime && file.acquisitionDatetime.length > 0),
+  )
+}
+
+/** Déduplique par SOPInstanceUID (garde la première occurrence). */
+function dedupeBySopInstanceUid<T extends MetaImagingFile>(files: T[]): T[] {
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const file of files) {
+    const sop = file.sopInstanceUid
+    if (sop && sop.length > 0) {
+      if (seen.has(sop)) continue
+      seen.add(sop)
+    }
+    out.push(file)
+  }
+  return out
+}
+
+/** Tri intra-série : InstanceNumber, puis AcquisitionDateTime, puis nom. */
+function compareByInstance<T extends MetaImagingFile>(a: T, b: T): number {
+  const ia = a.instanceNumber
+  const ib = b.instanceNumber
+  if (ia != null && ib != null && ia !== ib) return ia - ib
+  if (ia != null && ib == null) return -1
+  if (ia == null && ib != null) return 1
+  const da = a.acquisitionDatetime ?? ''
+  const db = b.acquisitionDatetime ?? ''
+  if (da !== db) return da < db ? -1 : 1
+  return a.name.localeCompare(b.name)
+}
+
+function metaSeriesLabel(file: MetaImagingFile | undefined, count: number): string {
+  const desc = (file?.seriesDescription ?? '').trim()
+  const body = (file?.bodyPart ?? '').trim()
+  const base = desc || body || 'Série DICOM'
+  return `${base} (${count} image${count > 1 ? 's' : ''})`
+}
+
+function toMetaGroup<T extends MetaImagingFile>(groupId: string, files: T[]): DicomMetaSeriesGroup<T> {
+  const sorted = [...files].sort(compareByInstance)
+  return {
+    groupId,
+    label: metaSeriesLabel(sorted[0], sorted.length),
+    isEncapsulatedPdf: isLikelyEncapsulatedPdfBand(sorted),
+    files: sorted,
+  }
+}
+
+/** Repli date/time : sépare au moins par session d'acquisition (YYYYMMDD). */
+function groupByAcquisitionDate<T extends MetaImagingFile>(files: T[]): Array<DicomMetaSeriesGroup<T>> {
+  const byDate = new Map<string, T[]>()
+  for (const file of files) {
+    const key = (file.acquisitionDatetime ?? '').slice(0, 8) || 'inconnu'
+    const list = byDate.get(key) ?? []
+    list.push(file)
+    byDate.set(key, list)
+  }
+  if (byDate.size <= 1) {
+    return [toMetaGroup('series:unique', files)]
+  }
+  return [...byDate.keys()].sort().map((key) => toMetaGroup(`date:${key}`, byDate.get(key) ?? []))
+}
+
+/**
+ * Regroupe des fichiers DICOM en séries à partir des métadonnées persistées.
+ * - ≥2 SeriesInstanceUID distincts → un groupe par série (cervical vs lombaire) ;
+ * - 0/1 série distincte → repli sur la hiérarchie date/heure d'acquisition ;
+ * - aucune métadonnée → repli sur le grouping historique (noms/tailles).
+ */
+export function groupDicomFilesByMetadata<T extends MetaImagingFile>(
+  files: T[],
+): Array<DicomMetaSeriesGroup<T>> {
+  if (files.length === 0) return []
+
+  if (!files.some(fileHasDicomMetadata)) {
+    return groupDicomFilesIntoSeries(files).map((group) => ({
+      groupId: group.groupId,
+      label: dicomSeriesLabel(group.groupId, group.files.length, group.files[0]?.name ?? ''),
+      isEncapsulatedPdf: isEncapsulatedPdfGroupId(group.groupId),
+      files: group.files,
+    }))
+  }
+
+  const deduped = dedupeBySopInstanceUid(files)
+  const distinctSeries = new Set(
+    deduped
+      .map((file) => file.seriesInstanceUid)
+      .filter((uid): uid is string => Boolean(uid && uid.length > 0)),
+  )
+
+  if (distinctSeries.size < 2) {
+    return groupByAcquisitionDate(deduped)
+  }
+
+  const bySeries = new Map<string, T[]>()
+  const noSeries: T[] = []
+  for (const file of deduped) {
+    const uid = file.seriesInstanceUid
+    if (uid && uid.length > 0) {
+      const list = bySeries.get(uid) ?? []
+      list.push(file)
+      bySeries.set(uid, list)
+    } else {
+      noSeries.push(file)
+    }
+  }
+
+  const groups = [...bySeries.entries()].map(([uid, list]) => toMetaGroup(`suid:${uid}`, list))
+  groups.sort((a, b) => a.label.localeCompare(b.label))
+  if (noSeries.length > 0) {
+    groups.push(toMetaGroup('series:sans-uid', noSeries))
+  }
+  return groups
 }

@@ -16,8 +16,13 @@
  */
 
 import { createClient } from '@/lib/supabase/client'
-import { PATIENT_DOCUMENTS_BUCKET } from '@/lib/documents/patient-documents'
+import { PATIENT_DOCUMENTS_BUCKET, inferRenderType } from '@/lib/documents/patient-documents'
 import { putFileToSignedUploadUrl } from '@/lib/integrations/signed-upload-put'
+import { DICOM_HEADER_SCAN_BYTES } from '@/lib/imaging/dicom-detection'
+import {
+  extractDicomPersistedMetadata,
+  type DicomPersistedMetadata,
+} from '@/lib/imaging/dicom-content'
 
 /** Taille des sous-lots d'émission d'URLs signées (équilibre latence / charge). */
 const SIGN_BATCH_SIZE = 50
@@ -35,16 +40,42 @@ type SignedUpload = {
   signedUrl: string
 }
 
+type SignUploadResult =
+  | { status: 'signed'; fileName: string; path: string; token: string; signedUrl: string }
+  | { status: 'skipped'; fileName: string; reason: 'duplicate' }
+
 type FinalizeDocument = {
   path: string
   fileName: string
   size: number
   type: string | null
+  dicom: DicomPersistedMetadata | null
 }
 
 export type UploadProgress = {
   total: number
   uploaded: number
+}
+
+export type UploadResultSummary = {
+  count: number
+  skipped: number
+}
+
+/**
+ * Lit l'en-tête DICOM côté navigateur (octets déjà nécessaires à l'upload) pour
+ * en extraire les métadonnées persistées (SOPInstanceUID, série, etc.). Renvoie
+ * null pour les fichiers non-DICOM ou illisibles.
+ */
+async function readDicomMetadata(file: File): Promise<DicomPersistedMetadata | null> {
+  if (inferRenderType(file.name, file.type) !== 'dicom') return null
+  try {
+    const head = file.slice(0, Math.min(file.size, DICOM_HEADER_SCAN_BYTES))
+    const buffer = await head.arrayBuffer()
+    return extractDicomPersistedMetadata(buffer)
+  } catch {
+    return null
+  }
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -128,34 +159,59 @@ export async function uploadPatientDocuments(
   patientId: string,
   files: File[],
   onProgress?: (progress: UploadProgress) => void,
-): Promise<{ count: number }> {
-  if (files.length === 0) return { count: 0 }
+): Promise<UploadResultSummary> {
+  if (files.length === 0) return { count: 0, skipped: 0 }
 
   const supabase = createClient()
   const finalized: FinalizeDocument[] = []
-  let uploadedCount = 0
+  let processedCount = 0
+  let skippedDuplicates = 0
 
   for (const batch of chunk(files, SIGN_BATCH_SIZE)) {
-    // 1. Demande les URLs signées pour ce sous-lot.
+    // 0. Extrait les métadonnées DICOM (SOPInstanceUID + série) pour ce lot.
+    const metas = await Promise.all(batch.map((f) => readDicomMetadata(f)))
+
+    // 1. Demande les URLs signées (le serveur saute les SOPInstanceUID connus).
     const signRes = await fetch(`/api/patients/${patientId}/documents/sign-upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        files: batch.map((f) => ({ name: f.name, size: f.size, type: f.type || null })),
+        files: batch.map((f, i) => ({
+          name: f.name,
+          size: f.size,
+          type: f.type || null,
+          sopInstanceUid: metas[i]?.sopInstanceUid ?? null,
+        })),
       }),
     })
     if (!signRes.ok) {
       throw new Error(await parseError(signRes, "Échec de la préparation de l'upload"))
     }
-    const { uploads } = (await signRes.json()) as { uploads: SignedUpload[] }
+    const { results } = (await signRes.json()) as { results: SignUploadResult[] }
 
-    // Apparie chaque URL signée à son fichier (même ordre que la requête).
-    const pairs = uploads.map((upload, index) => ({ upload, file: batch[index] }))
+    // Apparie chaque décision à son fichier (même ordre que la requête).
+    const signedPairs: Array<{ upload: SignedUpload; file: File; meta: DicomPersistedMetadata | null }> = []
+    for (let index = 0; index < results.length; index += 1) {
+      const result = results[index]
+      const file = batch[index]
+      if (!result || !file) continue
+      if (result.status === 'skipped') {
+        skippedDuplicates += 1
+        processedCount += 1
+        onProgress?.({ total: files.length, uploaded: processedCount })
+        continue
+      }
+      signedPairs.push({
+        upload: { fileName: result.fileName, path: result.path, token: result.token, signedUrl: result.signedUrl },
+        file,
+        meta: metas[index] ?? null,
+      })
+    }
 
     // 2. Upload DIRECT vers Storage, avec une concurrence bornée.
-    for (const group of chunk(pairs, UPLOAD_CONCURRENCY)) {
+    for (const group of chunk(signedPairs, UPLOAD_CONCURRENCY)) {
       await Promise.all(
-        group.map(async ({ upload, file }) => {
+        group.map(async ({ upload, file, meta }) => {
           const { error } = await supabase.storage
             .from(PATIENT_DOCUMENTS_BUCKET)
             .uploadToSignedUrl(upload.path, upload.token, file, {
@@ -169,18 +225,23 @@ export async function uploadPatientDocuments(
             fileName: file.name,
             size: file.size,
             type: file.type || null,
+            dicom: meta,
           })
-          uploadedCount += 1
-          onProgress?.({ total: files.length, uploaded: uploadedCount })
+          processedCount += 1
+          onProgress?.({ total: files.length, uploaded: processedCount })
         }),
       )
     }
 
-    // Cross-portail : attendu avant finalisation pour que le chirurgien voie
-    // l'imagerie dès le prochain chargement (le serveur re-forward aussi).
-    for (const qBatch of chunk(batch, QUESTIONNAIRES_SIGN_BATCH_SIZE)) {
+    // Cross-portail : seuls les fichiers réellement uploadés (non-doublons).
+    const acceptedFiles = signedPairs.map((p) => p.file)
+    for (const qBatch of chunk(acceptedFiles, QUESTIONNAIRES_SIGN_BATCH_SIZE)) {
       await forwardBatchToQuestionnaires(patientId, qBatch)
     }
+  }
+
+  if (finalized.length === 0) {
+    return { count: 0, skipped: skippedDuplicates }
   }
 
   // 3. Enregistre les métadonnées (route légère : aucun octet).
@@ -192,6 +253,9 @@ export async function uploadPatientDocuments(
   if (!finalizeRes.ok) {
     throw new Error(await parseError(finalizeRes, "Échec de l'enregistrement des fichiers"))
   }
-  const data = (await finalizeRes.json()) as { count?: number }
-  return { count: data.count ?? finalized.length }
+  const data = (await finalizeRes.json()) as { count?: number; skipped?: number }
+  return {
+    count: data.count ?? finalized.length,
+    skipped: skippedDuplicates + (data.skipped ?? 0),
+  }
 }

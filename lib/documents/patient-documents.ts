@@ -284,11 +284,27 @@ export const DOCUMENT_VALIDATION_MESSAGES: Record<DocumentValidationError, strin
  * (jamais les octets) : `path` est la clé Storage retournée par la signature,
  * re-validée serveur (anti-IDOR) avant l'INSERT dans patient_documents.
  */
+/**
+ * Métadonnées DICOM extraites côté navigateur (en-tête déjà lu) et persistées
+ * pour le grouping/dedup serveur. Toutes optionnelles (fichiers non-DICOM).
+ */
+export const dicomMetadataSchema = z.object({
+  sopInstanceUid: z.string().max(128).nullable().optional(),
+  seriesInstanceUid: z.string().max(128).nullable().optional(),
+  seriesDescription: z.string().max(255).nullable().optional(),
+  bodyPart: z.string().max(64).nullable().optional(),
+  instanceNumber: z.number().int().nullable().optional(),
+  acquisitionDatetime: z.string().max(32).nullable().optional(),
+})
+
+export type DicomMetadataInput = z.infer<typeof dicomMetadataSchema>
+
 export const finalizeDocumentSchema = z.object({
   path: z.string().min(1).max(500),
   fileName: z.string().min(1).max(255),
   size: z.number().int().nonnegative(),
   type: z.string().max(255).nullable().optional(),
+  dicom: dicomMetadataSchema.nullable().optional(),
 })
 
 export type FinalizeDocumentInput = z.infer<typeof finalizeDocumentSchema>
@@ -309,4 +325,11 @@ export type PatientDocument = {
   url: string
   /** Type de rendu UI déduit du nom/mime. */
   renderType: DocumentRenderType
+  /** Métadonnées DICOM persistées (null pour les non-DICOM / legacy). */
+  sopInstanceUid: string | null
+  seriesInstanceUid: string | null
+  seriesDescription: string | null
+  bodyPart: string | null
+  instanceNumber: number | null
+  acquisitionDatetime: string | null
 }

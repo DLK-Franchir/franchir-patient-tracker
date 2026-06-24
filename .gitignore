@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Local patient DICOM CDs (PHI)
 IMAGES_Husain/
+
+# Sauvegardes locales de la déduplication DICOM (PHI : métadonnées patient)
+.dicom-dedupe-backups/

@@ -25,7 +25,9 @@ export async function listPatientDocuments(
 ): Promise<PatientDocument[]> {
   const { data: rows, error } = await supabase
     .from('patient_documents')
-    .select('id, kind, file_path, file_name, mime_type, size_bytes, created_at')
+    .select(
+      'id, kind, file_path, file_name, mime_type, size_bytes, created_at, sop_instance_uid, series_instance_uid, series_description, body_part, instance_number, acquisition_datetime',
+    )
     .eq('patient_id', patientId)
     .order('created_at', { ascending: true })
     .limit(MAX_DOCUMENTS_LISTED)
@@ -62,6 +64,12 @@ export async function listPatientDocuments(
       createdAt: row.created_at as string,
       url: signed.signedUrl,
       renderType: inferRenderType(row.file_name as string, row.mime_type as string | null),
+      sopInstanceUid: (row.sop_instance_uid as string | null) ?? null,
+      seriesInstanceUid: (row.series_instance_uid as string | null) ?? null,
+      seriesDescription: (row.series_description as string | null) ?? null,
+      bodyPart: (row.body_part as string | null) ?? null,
+      instanceNumber: (row.instance_number as number | null) ?? null,
+      acquisitionDatetime: (row.acquisition_datetime as string | null) ?? null,
     })
   }
 
