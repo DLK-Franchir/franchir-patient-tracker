@@ -18,14 +18,7 @@ import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
-import {
-  dicomSeriesLabel,
-  groupDicomFilesIntoSeries,
-} from '@/lib/imaging/dicom-series-group'
-
-function isEncapsulatedPdfGroupId(groupId: string): boolean {
-  return groupId === 'patient-im-doc' || groupId.startsWith('patient-im-doc-band-')
-}
+import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
@@ -89,16 +82,26 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
     }
   }
 
-  for (const series of groupDicomFilesIntoSeries(
+  for (const series of groupDicomFilesByMetadata(
     docs
       .filter((d) => d.renderType === 'dicom')
-      .map((d) => ({ name: d.fileName, url: d.url, size: d.sizeBytes })),
+      .map((d) => ({
+        name: d.fileName,
+        url: d.url,
+        size: d.sizeBytes,
+        sopInstanceUid: d.sopInstanceUid,
+        seriesInstanceUid: d.seriesInstanceUid,
+        seriesDescription: d.seriesDescription,
+        bodyPart: d.bodyPart,
+        instanceNumber: d.instanceNumber,
+        acquisitionDatetime: d.acquisitionDatetime,
+      })),
   )) {
     const first = series.files[0]
     if (!first) continue
     items.push({
-      kind: isEncapsulatedPdfGroupId(series.groupId) ? 'dicom-pdf-series' : 'dicom-series',
-      name: dicomSeriesLabel(series.groupId, series.files.length, first.name),
+      kind: series.isEncapsulatedPdf ? 'dicom-pdf-series' : 'dicom-series',
+      name: series.label,
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
     })
@@ -120,16 +123,16 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
     }
   }
 
-  for (const series of groupDicomFilesIntoSeries(
+  for (const series of groupDicomFilesByMetadata(
     files.filter((f) => f.type === 'dicom').map((f) => ({ name: f.name, url: f.url, size: f.size ?? null })),
   )) {
     const first = series.files[0]
     if (!first) continue
     items.push({
-      kind: isEncapsulatedPdfGroupId(series.groupId)
+      kind: series.isEncapsulatedPdf
         ? 'questionnaire-dicom-pdf-series'
         : 'questionnaire-dicom-series',
-      name: dicomSeriesLabel(series.groupId, series.files.length, first.name),
+      name: series.label,
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
     })
