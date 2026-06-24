@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import type { App } from "dwv";
 import type { DicomTool, NavMode, PoolEntry } from "./dicom-viewer-types";
-import { refreshDwvLayout, setPoolContainerVisible } from "./dicom-viewer-layout";
+import { ensureDwvVisible, setPoolContainerVisible } from "./dicom-viewer-layout";
 
 type SequentialNavParams = {
   navMode: NavMode;
@@ -44,7 +44,7 @@ export function useDicomSequentialNavigation(params: SequentialNavParams) {
       appRef.current = entry.app;
       try {
         entry.app.setTool(toolRef.current);
-        refreshDwvLayout(entry.app);
+        ensureDwvVisible(entry.app, () => entry.status === "ready");
       } catch {
         /* layout may fail before canvas is ready */
       }

@@ -23,6 +23,29 @@ export function hasRenderableImage(app: App): boolean {
   }
 }
 
+/** Poll after dwv "load" — image pixels may lag behind the event (workers / layout). */
+export function waitForRenderableImage(
+  app: App,
+  delaysMs: readonly number[],
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let step = 0;
+    const tryCheck = () => {
+      if (hasRenderableImage(app)) {
+        resolve(true);
+        return;
+      }
+      if (step >= delaysMs.length) {
+        resolve(false);
+        return;
+      }
+      window.setTimeout(tryCheck, delaysMs[step]!);
+      step += 1;
+    };
+    tryCheck();
+  });
+}
+
 export function addWindowLevelPresets(app: App) {
   const controller = app.getActiveLayerGroup()?.getActiveViewLayer()?.getViewController();
   if (!controller) return;

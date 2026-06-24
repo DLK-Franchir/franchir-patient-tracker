@@ -12,9 +12,10 @@ import {
   addWindowLevelPresets,
   createDwvApp,
   destroyDwvApp,
-  hasRenderableImage,
+  waitForRenderableImage,
 } from "./dicom-viewer-app";
-import { refreshDwvLayout, setPoolContainerVisible } from "./dicom-viewer-layout";
+import { ensureDwvVisible, setPoolContainerVisible } from "./dicom-viewer-layout";
+import { nextPoolLoadIndex, POOL_BOOTSTRAP_INDEX } from "./dicom-viewer-pool-plan";
 
 type PoolModeParams = {
   navMode: NavMode;
@@ -56,7 +57,7 @@ function activatePoolFile(
     appRef.current = entry.app;
     try {
       entry.app.setTool(toolRef.current);
-      refreshDwvLayout(entry.app);
+      ensureDwvVisible(entry.app, () => entry.status === "ready");
     } catch {
       /* layout may fail before canvas is ready */
     }
@@ -139,6 +140,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
 
     let poolLoadCursor = 0;
     let poolLoadsInFlight = 0;
+    let bootstrapComplete = poolSize <= 1;
 
     const markEntryProcessed = (index: number, app: App, success: boolean, errMsg?: string) => {
       if (disposed) return;
@@ -157,6 +159,10 @@ export function useDicomSequentialPool(params: PoolModeParams) {
       poolLoadsInFlight = Math.max(0, poolLoadsInFlight - 1);
       processedCount += 1;
       updatePreloadProgress();
+
+      if (index === POOL_BOOTSTRAP_INDEX) {
+        bootstrapComplete = true;
+      }
 
       const activeIndex = fileIndexRef.current;
       if (!firstActivated) {
@@ -182,18 +188,26 @@ export function useDicomSequentialPool(params: PoolModeParams) {
       if (!url) return;
 
       const app = entry.app;
+      if (index === POOL_BOOTSTRAP_INDEX) {
+        setPoolContainerVisible(entry.container, true);
+      }
 
       const finalizeEntry = (success: boolean, errMsg?: string) => {
-        window.setTimeout(() => {
-          if (disposed) return;
-          markEntryProcessed(index, app, success, errMsg);
-          pumpPoolLoads();
-        }, STACK_RENDER_READY_MS);
+        if (disposed) return;
+        markEntryProcessed(
+          index,
+          app,
+          success,
+          errMsg ?? (success ? undefined : "fichier illisible ou format non pris en charge"),
+        );
+        pumpPoolLoads();
       };
 
       const onLoad = () => {
         if (disposed) return;
-        finalizeEntry(hasRenderableImage(app));
+        void waitForRenderableImage(app, [STACK_RENDER_READY_MS, 150, 400, 800]).then((ready) => {
+          finalizeEntry(ready);
+        });
       };
 
       const onError = (event: DwvLoadEvent) => {
@@ -212,9 +226,10 @@ export function useDicomSequentialPool(params: PoolModeParams) {
 
     const pumpPoolLoads = () => {
       if (disposed) return;
-      while (poolLoadsInFlight < MAX_POOL_LOAD_CONCURRENCY && poolLoadCursor < poolSize) {
-        const index = poolLoadCursor;
-        poolLoadCursor += 1;
+      while (poolLoadsInFlight < MAX_POOL_LOAD_CONCURRENCY) {
+        const index = nextPoolLoadIndex(poolLoadCursor, poolSize, bootstrapComplete);
+        if (index === null) break;
+        poolLoadCursor = index + 1;
         poolLoadsInFlight += 1;
         startPoolLoad(index);
       }
@@ -225,7 +240,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
       const fileContainer = document.createElement("div");
       fileContainer.id = fileLayerGroupId;
       fileContainer.className = "absolute inset-0";
-      setPoolContainerVisible(fileContainer, false);
+      setPoolContainerVisible(fileContainer, i === POOL_BOOTSTRAP_INDEX);
       poolHost.appendChild(fileContainer);
 
       const app = createDwvApp(fileLayerGroupId);
