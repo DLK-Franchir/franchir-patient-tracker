@@ -34,8 +34,8 @@ export const MAX_DOCUMENTS_PER_REQUEST = 1000
 /** TTL URLs signées imagerie — séries volumineuses JPEG-LS. */
 export const SIGNED_URL_TTL_SECONDS = 1800
 
-/** Plafond de fichiers listés par patient. */
-export const MAX_DOCUMENTS_LISTED = 200
+/** Plafond de fichiers listés par patient (séries DICOM CD = centaines de coupes). */
+export const MAX_DOCUMENTS_LISTED = 2000
 
 /**
  * Catégorie de stockage persistée dans patient_documents.kind :

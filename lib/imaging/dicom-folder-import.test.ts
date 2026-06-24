@@ -163,4 +163,34 @@ describe('dicom-series-group SE prefix', () => {
     expect(groups).toHaveLength(2)
     expect(groups.find((g) => g.groupId === 'series:SE000005')?.files).toHaveLength(2)
   })
+
+  it('groupe DICOMS_IM en patient-im et non series:DICOMS', () => {
+    expect(dicomSeriesGroupId('1781451087388_DICOMS_IM000001.dcm')).toBe('patient-im')
+    expect(dicomSeriesGroupId('1781451087388_DICOMS_IM000042')).toBe('patient-im')
+    const groups = groupDicomFilesIntoSeries([
+      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'a1', size: 100_000 },
+      { name: '1781451087388_DICOMS_IM000002.dcm', url: 'a2', size: 100_000 },
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.groupId).toBe('patient-im')
+    expect(groups[0]?.files).toHaveLength(2)
+  })
+
+  it('conserve les homonymes CD quand les tailles divergent (>10%)', () => {
+    const groups = groupDicomFilesIntoSeries([
+      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'seq-a', size: 100_000 },
+      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'seq-b', size: 500_000 },
+      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'seq-b-dup', size: 510_000 },
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.files).toHaveLength(2)
+  })
+
+  it('deduplique les re-uploads homonymes de taille proche', () => {
+    const groups = groupDicomFilesIntoSeries([
+      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'old', size: 100_000 },
+      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'new', size: 102_000 },
+    ])
+    expect(groups[0]?.files).toHaveLength(1)
+  })
 })
