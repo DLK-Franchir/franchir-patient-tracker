@@ -168,8 +168,8 @@ describe('dicom-series-group SE prefix', () => {
     expect(dicomSeriesGroupId('1781451087388_DICOMS_IM000001.dcm')).toBe('patient-im')
     expect(dicomSeriesGroupId('1781451087388_DICOMS_IM000042')).toBe('patient-im')
     const groups = groupDicomFilesIntoSeries([
-      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'a1', size: 100_000 },
-      { name: '1781451087388_DICOMS_IM000002.dcm', url: 'a2', size: 100_000 },
+      { name: '1781451087388_DICOMS_IM000001.dcm', url: 'a1', size: 200_000 },
+      { name: '1781451087388_DICOMS_IM000002.dcm', url: 'a2', size: 210_000 },
     ])
     expect(groups).toHaveLength(1)
     expect(groups[0]?.groupId).toBe('patient-im')

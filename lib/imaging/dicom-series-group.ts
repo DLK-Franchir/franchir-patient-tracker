@@ -2,6 +2,8 @@
  * Regroupe les fichiers DICOM listés depuis Storage en séries distinctes.
  */
 
+import { isLikelyEncapsulatedPdfBand } from '@/lib/imaging/dicom-content'
+
 export type NamedImagingFile = {
   name: string
   url: string
@@ -164,10 +166,16 @@ export function dicomSeriesLabel(groupId: string, count: number, singleName: str
   if (seFromName) return `Série ${seFromName[1]!.toUpperCase()} (${count} fichiers)`
 
   if (groupId === 'patient-im') return `Série DICOM patient (${count} fichiers)`
+  if (groupId === 'patient-im-doc') return `Documents PDF encapsulés (${count} fichiers)`
   const bandMatch = groupId.match(/^patient-im-band-(\d+)$/)
   if (bandMatch) {
     const bandNum = Number(bandMatch[1]!) + 1
     return `Série DICOM patient — lot ${bandNum} (${count} fichiers)`
+  }
+  const docBandMatch = groupId.match(/^patient-im-doc-band-(\d+)$/)
+  if (docBandMatch) {
+    const bandNum = Number(docBandMatch[1]!) + 1
+    return `Documents PDF encapsulés — lot ${bandNum} (${count} fichiers)`
   }
   if (groupId === 'series:DICOMOBJ') return `Série DICOMOBJ (${count} fichiers)`
   return `Série DICOM (${count} fichiers)`
@@ -236,11 +244,13 @@ function clusterBySizeGaps<T extends NamedImagingFile>(files: T[]): T[][] {
   return clusters
 }
 
-const BOOTSTRAP_MIN_BYTES = 50_000
+const BOOTSTRAP_MIN_BYTES = 150_000
 const BOOTSTRAP_MAX_BYTES = 20_000_000
 
-/** Évite de démarrer sur DOC encapsulé (<50 Ko) ; préfère une coupe proche de la médiane du lot. */
+/** Évite DOC encapsulé (~80 Ko) ; préfère une coupe JPEG2000 proche de la médiane du lot. */
 export function pickPreferredBootstrapIndex<T extends NamedImagingFile>(files: T[]): number {
+  if (isLikelyEncapsulatedPdfBand(files)) return 0
+
   const sizes = files
     .map((file) => fileSizeBytes(file))
     .filter((size): size is number => size !== null)
@@ -309,9 +319,32 @@ function splitPatientImIfHeterogeneous<T extends NamedImagingFile>(
     .sort((a, b) => b.median - a.median)
 
   return bands.map((band, index) => ({
-    groupId: `patient-im-band-${index}`,
+    groupId: isLikelyEncapsulatedPdfBand(band.files)
+      ? `patient-im-doc-band-${index}`
+      : `patient-im-band-${index}`,
     files: band.files,
   }))
+}
+
+function splitDocFromImageGroups<T extends NamedImagingFile>(
+  groups: Array<{ groupId: string; files: T[] }>,
+): Array<{ groupId: string; files: T[] }> {
+  const result: Array<{ groupId: string; files: T[] }> = []
+  for (const group of groups) {
+    if (!group.groupId.startsWith('patient-im')) {
+      result.push(group)
+      continue
+    }
+    if (isLikelyEncapsulatedPdfBand(group.files)) {
+      result.push({
+        groupId: group.groupId.replace(/^patient-im-band-/, 'patient-im-doc-band-').replace(/^patient-im$/, 'patient-im-doc'),
+        files: group.files,
+      })
+    } else {
+      result.push(group)
+    }
+  }
+  return result
 }
 
 const GROUP_ORDER = ['patient-im', 'marcel-cd'] as const
@@ -351,5 +384,5 @@ export function groupDicomFilesIntoSeries<T extends NamedImagingFile>(
     }
   }
 
-  return result
+  return splitDocFromImageGroups(result)
 }
