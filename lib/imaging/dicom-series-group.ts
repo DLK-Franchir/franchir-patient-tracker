@@ -32,7 +32,9 @@ export function dicomSeriesGroupId(storageName: string): string {
 
   if (/^0+\d+\.(dcm|dicom)$/i.test(stripped)) return 'marcel-cd'
 
-  if (/^IM\d+\.(dcm|dicom)$/i.test(stripped)) return 'patient-im'
+  // CD patient : IM* ou DICOMS_IM* (export plat) — une série commune, pas series:DICOMS.
+  if (/^IM\d+(\.(dcm|dicom))?$/i.test(stripped)) return 'patient-im'
+  if (/^DICOMS_IM\d+(\.(dcm|dicom))?$/i.test(stripped)) return 'patient-im'
 
   const stem = stripped.replace(/\.(dcm|dicom)$/i, '')
   const prefixMatch = stem.match(/^([A-Za-z0-9]+)_/)
@@ -50,6 +52,36 @@ function medianSize(values: number[]): number | null {
   if (values.length === 0) return null
   const sorted = [...values].sort((a, b) => a - b)
   return sorted[Math.floor(sorted.length / 2)] ?? null
+}
+
+/** Écart relatif de taille au-delà duquel deux fichiers homonymes sont des séquences distinctes. */
+const SIZE_DEDUPE_THRESHOLD = 0.1
+
+function sizesAreDistinct(a: number, b: number): boolean {
+  const max = Math.max(a, b)
+  if (max <= 0) return false
+  return Math.abs(a - b) / max > SIZE_DEDUPE_THRESHOLD
+}
+
+function clusterBySimilarSize<T extends NamedImagingFile>(candidates: T[]): T[][] {
+  const clusters: T[][] = []
+  for (const file of candidates) {
+    const size = fileSizeBytes(file)
+    if (size === null) {
+      clusters.push([file])
+      continue
+    }
+    const cluster = clusters.find((group) => {
+      const ref = fileSizeBytes(group[0]!)
+      return ref !== null && !sizesAreDistinct(size, ref)
+    })
+    if (cluster) {
+      cluster.push(file)
+    } else {
+      clusters.push([file])
+    }
+  }
+  return clusters
 }
 
 function pickDuplicateVersion<T extends NamedImagingFile>(
@@ -101,7 +133,9 @@ function dedupeSeriesGroupFiles<T extends NamedImagingFile>(files: T[]): T[] {
   const referenceSize = medianSize(singletonSizes)
   const deduped: T[] = []
   for (const candidates of byBasename.values()) {
-    deduped.push(pickDuplicateVersion(candidates, referenceSize))
+    for (const cluster of clusterBySimilarSize(candidates)) {
+      deduped.push(pickDuplicateVersion(cluster, referenceSize))
+    }
   }
   return deduped.sort((a, b) => a.name.localeCompare(b.name))
 }
