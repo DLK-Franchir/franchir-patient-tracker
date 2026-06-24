@@ -6,8 +6,11 @@
  * marqueur COD) présentes sur les radios DX de certains constructeurs. OpenJPEG
  * décode ces flux sans problème : on l'utilise comme repli côté navigateur.
  *
- * Module client uniquement (WASM embarqué en base64 dans le glue Emscripten,
- * aucun asset .wasm séparé à servir).
+ * Le glue Emscripten (@cornerstonejs/codec-openjpeg, WASM embarqué en base64)
+ * contient une branche Node (`require("fs")`) que le bundler navigateur ne sait
+ * pas résoudre. On le charge donc comme asset statique via une balise <script>
+ * (sa variable globale `OpenJPEGJS` devient accessible sur window), ce qui évite
+ * tout import bundlé. Module client uniquement.
  */
 
 export type DecodedFrame = {
@@ -33,24 +36,40 @@ type J2KDecoder = {
   delete?: () => void;
 };
 
-type OpenJpegModule = {
-  J2KDecoder: new () => J2KDecoder;
-};
+type OpenJpegModule = { J2KDecoder: new () => J2KDecoder };
+type OpenJpegFactory = (moduleArg?: object) => Promise<OpenJpegModule>;
+
+const OPENJPEG_SCRIPT_URL = "/openjpeg/openjpegjs.js";
 
 let modulePromise: Promise<OpenJpegModule> | null = null;
+let scriptPromise: Promise<OpenJpegFactory> | null = null;
+
+function loadOpenJpegScript(): Promise<OpenJpegFactory> {
+  if (scriptPromise) return scriptPromise;
+  scriptPromise = new Promise<OpenJpegFactory>((resolve, reject) => {
+    const existing = (globalThis as { OpenJPEGJS?: OpenJpegFactory }).OpenJPEGJS;
+    if (existing) {
+      resolve(existing);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = OPENJPEG_SCRIPT_URL;
+    script.async = true;
+    script.onload = () => {
+      const factory = (globalThis as { OpenJPEGJS?: OpenJpegFactory }).OpenJPEGJS;
+      if (factory) resolve(factory);
+      else reject(new Error("OpenJPEG: script chargé mais factory introuvable"));
+    };
+    script.onerror = () => reject(new Error("OpenJPEG: échec de chargement du décodeur"));
+    document.head.appendChild(script);
+  });
+  return scriptPromise;
+}
 
 async function getOpenJpeg(): Promise<OpenJpegModule> {
   if (!modulePromise) {
     modulePromise = (async () => {
-      const imported = (await import(
-        "@cornerstonejs/codec-openjpeg"
-      )) as unknown as
-        | { default?: () => Promise<OpenJpegModule> }
-        | (() => Promise<OpenJpegModule>);
-      const factory =
-        typeof imported === "function"
-          ? imported
-          : (imported.default as () => Promise<OpenJpegModule>);
+      const factory = await loadOpenJpegScript();
       return factory();
     })();
   }

@@ -72,6 +72,23 @@ export function isStackOrientationMismatch(message: string | null | undefined): 
 export const SEQUENTIAL_ORIENTATION_FALLBACK_MSG =
   "Orientations d'images incompatibles — affichage fichier par fichier.";
 
+/**
+ * Le décodeur JPEG 2000 de dwv (portage PDF.js) rejette certaines options de
+ * codage (« selective arithmetic coding bypass », marqueur COD) utilisées par
+ * des radios DX. Dans ce cas on bascule vers le viewer de repli OpenJPEG.
+ */
+export function isUnsupportedJpeg2000Error(
+  message: string | null | undefined,
+): boolean {
+  if (!message?.trim()) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("jpx") ||
+    lower.includes("selectivearithmeticcodingbypass") ||
+    (lower.includes("unsupported") && lower.includes("cod options"))
+  );
+}
+
 /** Messages utilisateur pour échecs dwv / transfer syntax non supportée. */
 export function formatDicomLoadError(message: string | null | undefined): string {
   if (!message?.trim()) {
@@ -133,6 +150,8 @@ export type DicomViewerProps = {
   onPrevSeries?: () => void;
   onClose?: () => void;
   onSliceCountResolved?: (count: number) => void;
+  /** Appelé quand dwv ne sait pas décoder le JPEG 2000 (→ repli OpenJPEG). */
+  onJpeg2000Unsupported?: () => void;
 };
 
 export function resolveViewerInfoKind(input: {

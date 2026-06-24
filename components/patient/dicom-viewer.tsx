@@ -33,6 +33,7 @@ export default function DicomViewer({
   onPrevSeries,
   onClose,
   onSliceCountResolved,
+  onJpeg2000Unsupported,
 }: DicomViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const poolHostRef = useRef<HTMLDivElement>(null);
@@ -42,11 +43,16 @@ export default function DicomViewer({
   const fileIndexRef = useRef(0);
   const toolRef = useRef<DicomTool>("WindowLevel");
   const onSliceCountResolvedRef = useRef(onSliceCountResolved);
+  const onJpeg2000UnsupportedRef = useRef(onJpeg2000Unsupported);
   const [layerGroupId] = useState(nextLayerGroupId);
 
   useEffect(() => {
     onSliceCountResolvedRef.current = onSliceCountResolved;
   }, [onSliceCountResolved]);
+
+  useEffect(() => {
+    onJpeg2000UnsupportedRef.current = onJpeg2000Unsupported;
+  }, [onJpeg2000Unsupported]);
 
   const [status, setStatus] = useState<"loading" | "rendering" | "ready" | "error">("loading");
   const [progress, setProgress] = useState(0);
@@ -109,6 +115,7 @@ export default function DicomViewer({
     appRef,
     toolRef,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     setNavMode,
     setFileIndex,
     setStatus,
@@ -133,6 +140,7 @@ export default function DicomViewer({
     fileIndexRef,
     toolRef,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     setStatus,
     setProgress,
     setPreloadLoaded,

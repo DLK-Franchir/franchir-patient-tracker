@@ -51,6 +51,19 @@ const DicomViewer = dynamic(() => import('@/components/patient/dicom-viewer'), {
   ),
 })
 
+// Repli OpenJPEG pour les JPEG 2000 non décodables par dwv (radios DX).
+const DicomJpeg2000FallbackViewer = dynamic(
+  () => import('@/components/patient/dicom-jpeg2000-fallback-viewer'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-[400px] text-sm text-white/60">
+        Décodage JPEG 2000…
+      </div>
+    ),
+  },
+)
+
 type DocumentsSectionProps = {
   patientId: string
   canManage: boolean
@@ -152,6 +165,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  // Séries JPEG 2000 que dwv ne sait pas décoder → rendu via repli OpenJPEG.
+  const [jpeg2000Fallbacks, setJpeg2000Fallbacks] = useState<Set<string>>(new Set())
   const [showUpload, setShowUpload] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
@@ -438,24 +453,42 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             aria-label="Visionneuse DICOM"
             data-testid="dicom-fullscreen-viewer"
           >
-            <DicomViewer
-              urls={selectedItem.urls}
-              name={selectedName}
-              fullscreen
-              series={dicomViewerSeries}
-              activeSeriesIndex={Math.max(0, findDicomSeriesIndex(items, selectedItem))}
-              onNextSeries={() => {
-                const current = findDicomSeriesIndex(items, selectedItem)
-                const next = dicomItems[Math.min(current + 1, dicomItems.length - 1)]
-                if (next) setSelectedIndex(items.indexOf(next))
-              }}
-              onPrevSeries={() => {
-                const current = findDicomSeriesIndex(items, selectedItem)
-                const prev = dicomItems[Math.max(current - 1, 0)]
-                if (prev) setSelectedIndex(items.indexOf(prev))
-              }}
-              onClose={() => setSelectedIndex(null)}
-            />
+            {jpeg2000Fallbacks.has(selectedItem.firstUrl) ? (
+              <DicomJpeg2000FallbackViewer
+                urls={selectedItem.urls}
+                name={selectedName}
+                fullscreen
+                onClose={() => setSelectedIndex(null)}
+              />
+            ) : (
+              <DicomViewer
+                urls={selectedItem.urls}
+                name={selectedName}
+                fullscreen
+                series={dicomViewerSeries}
+                activeSeriesIndex={Math.max(0, findDicomSeriesIndex(items, selectedItem))}
+                onNextSeries={() => {
+                  const current = findDicomSeriesIndex(items, selectedItem)
+                  const next = dicomItems[Math.min(current + 1, dicomItems.length - 1)]
+                  if (next) setSelectedIndex(items.indexOf(next))
+                }}
+                onPrevSeries={() => {
+                  const current = findDicomSeriesIndex(items, selectedItem)
+                  const prev = dicomItems[Math.max(current - 1, 0)]
+                  if (prev) setSelectedIndex(items.indexOf(prev))
+                }}
+                onClose={() => setSelectedIndex(null)}
+                onJpeg2000Unsupported={() => {
+                  const url = selectedItem.firstUrl
+                  setJpeg2000Fallbacks((prev) => {
+                    if (prev.has(url)) return prev
+                    const next = new Set(prev)
+                    next.add(url)
+                    return next
+                  })
+                }}
+              />
+            )}
           </div>
         ) : (
           <div

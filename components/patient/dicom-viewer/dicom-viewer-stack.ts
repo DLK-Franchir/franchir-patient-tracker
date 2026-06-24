@@ -9,6 +9,7 @@ import {
   RENDER_READY_DELAYS_MS,
   formatDicomLoadError,
   isStackOrientationMismatch,
+  isUnsupportedJpeg2000Error,
 } from "./dicom-viewer-types";
 import {
   addWindowLevelPresets,
@@ -29,6 +30,7 @@ type StackModeParams = {
   appRef: RefObject<App | null>;
   toolRef: RefObject<DicomTool>;
   onSliceCountResolvedRef: RefObject<((count: number) => void) | undefined>;
+  onJpeg2000UnsupportedRef: RefObject<(() => void) | undefined>;
   setNavMode: (mode: NavMode) => void;
   setFileIndex: (index: number) => void;
   setStatus: (status: "loading" | "rendering" | "ready" | "error") => void;
@@ -53,6 +55,7 @@ export function useDicomStackMode(params: StackModeParams) {
     appRef,
     toolRef,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     setNavMode,
     setFileIndex,
     setStatus,
@@ -205,6 +208,11 @@ export function useDicomStackMode(params: StackModeParams) {
       const message =
         typeof event.error === "string" ? event.error : event.error?.message ?? null;
 
+      if (isUnsupportedJpeg2000Error(message)) {
+        onJpeg2000UnsupportedRef.current?.();
+        return;
+      }
+
       if (isStackOrientationMismatch(message) && seriesUrls.length > 1) {
         switchToSequentialFallback(SEQUENTIAL_ORIENTATION_FALLBACK_MSG);
         return;
@@ -286,6 +294,7 @@ export function useDicomStackMode(params: StackModeParams) {
     appRef,
     containerRef,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     setActivePreset,
     setErrorMessage,
     setFileIndex,
