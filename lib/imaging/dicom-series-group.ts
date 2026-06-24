@@ -164,8 +164,154 @@ export function dicomSeriesLabel(groupId: string, count: number, singleName: str
   if (seFromName) return `Série ${seFromName[1]!.toUpperCase()} (${count} fichiers)`
 
   if (groupId === 'patient-im') return `Série DICOM patient (${count} fichiers)`
+  const bandMatch = groupId.match(/^patient-im-band-(\d+)$/)
+  if (bandMatch) {
+    const bandNum = Number(bandMatch[1]!) + 1
+    return `Série DICOM patient — lot ${bandNum} (${count} fichiers)`
+  }
   if (groupId === 'series:DICOMOBJ') return `Série DICOMOBJ (${count} fichiers)`
   return `Série DICOM (${count} fichiers)`
+}
+
+/** Extrait l'index numérique de IM000042 / DICOMS_IM42 pour tri naturel (IM2 avant IM10). */
+export function extractImIndex(storageName: string): number | null {
+  const stripped = stripStorageTimestampPrefix(storageName)
+  const match = stripped.match(/^(?:DICOMS_)?IM(\d+)(?:\.(?:dcm|dicom))?$/i)
+  if (!match) return null
+  return Number.parseInt(match[1]!, 10)
+}
+
+function compareNamedImagingFiles<T extends NamedImagingFile>(a: T, b: T): number {
+  const imA = extractImIndex(a.name)
+  const imB = extractImIndex(b.name)
+  if (imA !== null && imB !== null && imA !== imB) return imA - imB
+  if (imA !== null && imB === null) return -1
+  if (imA === null && imB !== null) return 1
+  const sizeA = fileSizeBytes(a) ?? 0
+  const sizeB = fileSizeBytes(b) ?? 0
+  if (a.name === b.name && sizeA !== sizeB) return sizeA - sizeB
+  return a.name.localeCompare(b.name)
+}
+
+function coefficientOfVariation(sizes: number[]): number {
+  if (sizes.length < 2) return 0
+  const mean = sizes.reduce((sum, value) => sum + value, 0) / sizes.length
+  if (mean <= 0) return 0
+  const variance =
+    sizes.reduce((sum, value) => sum + (value - mean) ** 2, 0) / sizes.length
+  return Math.sqrt(variance) / mean
+}
+
+/** Sépare une série plate hétérogène (CD DICOMS_IM*) en lots de tailles compatibles. */
+const PATIENT_IM_SPLIT_MIN_FILES = 40
+const PATIENT_IM_SPLIT_MIN_CV = 0.12
+const SIZE_BAND_GAP_RATIO = 0.35
+
+function clusterBySizeGaps<T extends NamedImagingFile>(files: T[]): T[][] {
+  const sorted = [...files].sort(
+    (a, b) => (fileSizeBytes(a) ?? 0) - (fileSizeBytes(b) ?? 0),
+  )
+  const clusters: T[][] = []
+  let current: T[] = []
+
+  for (const file of sorted) {
+    const size = fileSizeBytes(file) ?? 0
+    if (current.length === 0) {
+      current.push(file)
+      continue
+    }
+    const refSizes = current
+      .map((entry) => fileSizeBytes(entry))
+      .filter((value): value is number => value !== null)
+    const ref = medianSize(refSizes) ?? size
+    const maxRef = Math.max(ref, size)
+    if (maxRef > 0 && Math.abs(size - ref) / maxRef > SIZE_BAND_GAP_RATIO) {
+      clusters.push(current)
+      current = [file]
+    } else {
+      current.push(file)
+    }
+  }
+  if (current.length > 0) clusters.push(current)
+  return clusters
+}
+
+const BOOTSTRAP_MIN_BYTES = 50_000
+const BOOTSTRAP_MAX_BYTES = 20_000_000
+
+/** Évite de démarrer sur DOC encapsulé (<50 Ko) ; préfère une coupe proche de la médiane du lot. */
+export function pickPreferredBootstrapIndex<T extends NamedImagingFile>(files: T[]): number {
+  const sizes = files
+    .map((file) => fileSizeBytes(file))
+    .filter((size): size is number => size !== null)
+  const median = medianSize(sizes) ?? 200_000
+
+  let bestIndex = -1
+  let bestScore = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < files.length; index += 1) {
+    const size = fileSizeBytes(files[index]!) ?? 0
+    if (size < BOOTSTRAP_MIN_BYTES || size > BOOTSTRAP_MAX_BYTES) continue
+    const score = -Math.abs(size - median)
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
+  }
+  if (bestIndex >= 0) return bestIndex
+
+  let largestIndex = 0
+  let largestSize = 0
+  for (let index = 0; index < files.length; index += 1) {
+    const size = fileSizeBytes(files[index]!) ?? 0
+    if (size > largestSize) {
+      largestSize = size
+      largestIndex = index
+    }
+  }
+  if (largestSize >= BOOTSTRAP_MIN_BYTES) return largestIndex
+
+  return 0
+}
+
+function promoteBootstrapFile<T extends NamedImagingFile>(files: T[]): T[] {
+  const index = pickPreferredBootstrapIndex(files)
+  if (index <= 0) return files
+  return [files[index]!, ...files.slice(0, index), ...files.slice(index + 1)]
+}
+
+function sortAndPreparePatientImGroup<T extends NamedImagingFile>(files: T[]): T[] {
+  const sorted = [...files].sort(compareNamedImagingFiles)
+  return promoteBootstrapFile(sorted)
+}
+
+function splitPatientImIfHeterogeneous<T extends NamedImagingFile>(
+  files: T[],
+): Array<{ groupId: string; files: T[] }> {
+  const sizes = files
+    .map((file) => fileSizeBytes(file))
+    .filter((size): size is number => size !== null)
+  if (
+    files.length < PATIENT_IM_SPLIT_MIN_FILES ||
+    coefficientOfVariation(sizes) < PATIENT_IM_SPLIT_MIN_CV
+  ) {
+    return [{ groupId: 'patient-im', files: sortAndPreparePatientImGroup(files) }]
+  }
+
+  const bands = clusterBySizeGaps(files)
+    .map((band) => ({
+      median: medianSize(
+        band
+          .map((file) => fileSizeBytes(file))
+          .filter((size): size is number => size !== null),
+      ) ?? 0,
+      files: sortAndPreparePatientImGroup(band),
+    }))
+    .sort((a, b) => b.median - a.median)
+
+  return bands.map((band, index) => ({
+    groupId: `patient-im-band-${index}`,
+    files: band.files,
+  }))
 }
 
 const GROUP_ORDER = ['patient-im', 'marcel-cd'] as const
@@ -182,10 +328,13 @@ export function groupDicomFilesIntoSeries<T extends NamedImagingFile>(
     groups.set(groupId, list)
   }
 
-  for (const list of groups.values()) {
-    list.sort((a, b) => a.name.localeCompare(b.name))
+  for (const [groupId, list] of groups.entries()) {
+    if (groupId !== 'patient-im') {
+      list.sort((a, b) => a.name.localeCompare(b.name))
+    }
   }
 
+  const result: Array<{ groupId: string; files: T[] }> = []
   const orderedIds = [
     ...GROUP_ORDER.filter((id) => groups.has(id)),
     ...Array.from(groups.keys())
@@ -193,8 +342,14 @@ export function groupDicomFilesIntoSeries<T extends NamedImagingFile>(
       .sort(),
   ]
 
-  return orderedIds.map((groupId) => ({
-    groupId,
-    files: groups.get(groupId) ?? [],
-  }))
+  for (const groupId of orderedIds) {
+    const list = groups.get(groupId) ?? []
+    if (groupId === 'patient-im') {
+      result.push(...splitPatientImIfHeterogeneous(list))
+    } else {
+      result.push({ groupId, files: list })
+    }
+  }
+
+  return result
 }

@@ -176,6 +176,26 @@ describe('dicom-series-group SE prefix', () => {
     expect(groups[0]?.files).toHaveLength(2)
   })
 
+  it('scinde patient-im heterogene en lots de taille (CD Fatima)', () => {
+    const rows: Array<{ name: string; url: string; size: number }> = []
+    for (let im = 1; im <= 120; im += 1) {
+      rows.push({ name: `DICOMS_IM${im}.dcm`, url: `a${im}`, size: 200_000 })
+    }
+    for (let im = 334; im <= 420; im += 1) {
+      rows.push({ name: `DICOMS_IM${im}.dcm`, url: `b${im}`, size: 98_000 })
+    }
+    for (let im = 1; im <= 5; im += 1) {
+      rows.push({ name: `DICOMS_IM${im}.dcm`, url: `big${im}`, size: 9_000_000 })
+    }
+    const groups = groupDicomFilesIntoSeries(rows)
+    expect(groups.length).toBeGreaterThan(1)
+    expect(groups.every((g) => g.groupId.startsWith('patient-im'))).toBe(true)
+    expect(groups[0]?.files.some((f) => f.size === 9_000_000)).toBe(true)
+    const primary = groups.find((g) => g.files.some((f) => f.size === 200_000))
+    expect(primary?.files[0]?.size).toBeGreaterThanOrEqual(120_000)
+    expect(primary?.files[0]?.size).toBeLessThanOrEqual(800_000)
+  })
+
   it('conserve les homonymes CD quand les tailles divergent (>10%)', () => {
     const groups = groupDicomFilesIntoSeries([
       { name: '1781451087388_DICOMS_IM000001.dcm', url: 'seq-a', size: 100_000 },
