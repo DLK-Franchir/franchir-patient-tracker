@@ -22,10 +22,26 @@ import {
   dicomSeriesLabel,
   groupDicomFilesIntoSeries,
 } from '@/lib/imaging/dicom-series-group'
+
+function isEncapsulatedPdfGroupId(groupId: string): boolean {
+  return groupId === 'patient-im-doc' || groupId.startsWith('patient-im-doc-band-')
+}
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
 // paresseusement (le bundle DICOM n'est livré qu'à l'ouverture d'un DICOM).
+const DicomEncapsulatedPdfViewer = dynamic(
+  () => import('@/components/patient/dicom-encapsulated-pdf-viewer'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-[400px] text-sm text-white/60">
+        Extraction du PDF encapsule…
+      </div>
+    ),
+  },
+)
+
 const DicomViewer = dynamic(() => import('@/components/patient/dicom-viewer'), {
   ssr: false,
   loading: () => (
@@ -43,8 +59,10 @@ type DocumentsSectionProps = {
 type ViewerItem =
   | { kind: 'file'; doc: PatientDocument }
   | { kind: 'dicom-series'; name: string; urls: string[]; firstUrl: string }
+  | { kind: 'dicom-pdf-series'; name: string; urls: string[]; firstUrl: string }
   | { kind: 'questionnaire-file'; name: string; url: string; renderType: 'image' | 'pdf' | 'dicom' }
   | { kind: 'questionnaire-dicom-series'; name: string; urls: string[]; firstUrl: string }
+  | { kind: 'questionnaire-dicom-pdf-series'; name: string; urls: string[]; firstUrl: string }
 
 /**
  * Regroupe tous les DICOM en une seule entrée « série » (chargée d'un bloc dans
@@ -66,7 +84,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
     const first = series.files[0]
     if (!first) continue
     items.push({
-      kind: 'dicom-series',
+      kind: isEncapsulatedPdfGroupId(series.groupId) ? 'dicom-pdf-series' : 'dicom-series',
       name: dicomSeriesLabel(series.groupId, series.files.length, first.name),
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
@@ -95,7 +113,9 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
     const first = series.files[0]
     if (!first) continue
     items.push({
-      kind: 'questionnaire-dicom-series',
+      kind: isEncapsulatedPdfGroupId(series.groupId)
+        ? 'questionnaire-dicom-pdf-series'
+        : 'questionnaire-dicom-series',
       name: dicomSeriesLabel(series.groupId, series.files.length, first.name),
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
@@ -300,7 +320,12 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {items.map((item, index) => {
-            const isDicom = item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series'
+            const isDicom =
+              item.kind === 'dicom-series' ||
+              item.kind === 'questionnaire-dicom-series'
+            const isDicomPdf =
+              item.kind === 'dicom-pdf-series' ||
+              item.kind === 'questionnaire-dicom-pdf-series'
             const doc = item.kind === 'file' ? item.doc : null
             const qFile = item.kind === 'questionnaire-file' ? item : null
             const itemKey =
@@ -308,15 +333,19 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                 ? item.doc.id
                 : item.kind === 'dicom-series'
                   ? 'dicom-series'
+                  : item.kind === 'dicom-pdf-series'
+                    ? 'dicom-pdf-series'
                   : item.kind === 'questionnaire-dicom-series'
                     ? 'questionnaire-dicom-series'
+                    : item.kind === 'questionnaire-dicom-pdf-series'
+                      ? 'questionnaire-dicom-pdf-series'
                     : `q-${item.name}-${index}`
             return (
               <div key={itemKey} className="group relative">
                 <button
                   type="button"
                   onClick={() => setSelectedIndex(index)}
-                  aria-label={`Voir ${isDicom ? item.name : doc ? doc.fileName : qFile!.name}`}
+                  aria-label={`Voir ${isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name}`}
                   className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 >
                   {isDicom ? (
@@ -324,6 +353,13 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                       <Brain className="w-7 h-7 text-white/90" strokeWidth={1.75} />
                       <span className="rounded bg-indigo-500 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
                         DICOM
+                      </span>
+                    </div>
+                  ) : isDicomPdf ? (
+                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-blue-50">
+                      <FileText className="w-7 h-7 text-[#2563EB]" strokeWidth={1.75} />
+                      <span className="text-[10px] font-bold tracking-wide text-[#2563EB] uppercase">
+                        PDF DICOM
                       </span>
                     </div>
                   ) : doc && doc.renderType === 'image' ? (
@@ -350,9 +386,11 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   )}
                   <div className="px-2 py-1.5 bg-white">
                     <p className="text-xs font-medium text-gray-700 truncate text-center">
-                      {isDicom ? item.name : doc ? doc.fileName : qFile!.name}
+                      {isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name}
                     </p>
-                    {(qFile || item.kind === 'questionnaire-dicom-series') && (
+                    {(qFile ||
+                      item.kind === 'questionnaire-dicom-series' ||
+                      item.kind === 'questionnaire-dicom-pdf-series') && (
                       <p className="text-[10px] text-emerald-700 truncate text-center">Via questionnaire patient</p>
                     )}
                   </div>
@@ -376,7 +414,22 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
 
       {/* Visionneuse plein écran (DICOM) ou lightbox (autres formats) */}
       {selectedItem &&
-        (selectedItem.kind === 'dicom-series' ||
+        (selectedItem.kind === 'dicom-pdf-series' ||
+          selectedItem.kind === 'questionnaire-dicom-pdf-series' ? (
+          <div
+            className="fixed inset-0 z-50 flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#0B1020]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Visionneuse PDF encapsule"
+            data-testid="dicom-pdf-fullscreen-viewer"
+          >
+            <DicomEncapsulatedPdfViewer
+              urls={selectedItem.urls}
+              name={selectedName}
+              onClose={() => setSelectedIndex(null)}
+            />
+          </div>
+        ) : selectedItem.kind === 'dicom-series' ||
           selectedItem.kind === 'questionnaire-dicom-series' ? (
           <div
             className="fixed inset-0 z-50 flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#0B1020]"

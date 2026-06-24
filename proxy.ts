@@ -104,12 +104,43 @@ export async function updateSession(request: NextRequest) {
   }
 }
 
+// dwv 0.36 charge ses codec workers via `new Worker(new URL("./"+i.u(557), i.b))`
+// où `i.b` = import.meta.url du chunk dwv, c.-à-d. `/_next/static/chunks/…`. L'URL
+// résolue est donc `/_next/static/chunks/assets/workers/jpeg2000.worker.min.js`.
+// Les rewrites de next.config NE s'appliquent PAS sous `/_next/*` → le worker
+// renvoyait 404, le décodage JPEG 2000 échouait en silence et le canvas restait
+// noir. Le middleware, lui, peut réécrire les chemins `/_next/*` : on aiguille
+// toute requête `.../assets/workers/<fichier>` vers les workers vendored publics.
+const WORKER_PATH_RE = /\/assets\/workers\/([^/]+)$/
+
+/** Mappe un chemin de worker dwv (`.../assets/workers/<fichier>`) vers le worker
+ *  vendored public, ou `null` si le chemin n'en est pas un. Pur → testable. */
+export function dwvWorkerRewriteTarget(pathname: string): string | null {
+  const match = pathname.match(WORKER_PATH_RE)
+  if (!match) return null
+  return `/dwv-workers/${match[1]}`
+}
+
+function rewriteDwvWorker(request: NextRequest): NextResponse | null {
+  const target = dwvWorkerRewriteTarget(request.nextUrl.pathname)
+  if (!target) return null
+  const url = request.nextUrl.clone()
+  url.pathname = target
+  url.search = ''
+  return NextResponse.rewrite(url)
+}
+
 export async function proxy(request: NextRequest) {
+  const workerRewrite = rewriteDwvWorker(request)
+  if (workerRewrite) return workerRewrite
   return await updateSession(request)
 }
 
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|dwv-workers|assets/workers|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|map)$).*)',
+    // dwv réclame ses workers sous `/_next/static/chunks/assets/workers/*` :
+    // ce matcher additionnel laisse le middleware les réécrire (cf. ci-dessus).
+    '/_next/:path*/assets/workers/:file',
   ],
 }

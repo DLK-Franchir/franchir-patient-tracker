@@ -5,8 +5,8 @@ import {
   MAX_POOL_LOAD_CONCURRENCY,
   MAX_SEQUENTIAL_POOL,
   STACK_LOAD_FAIL_MS,
-  STACK_RENDER_READY_MS,
   formatDicomLoadError,
+  RENDER_READY_DELAYS_MS,
 } from "./dicom-viewer-types";
 import {
   addWindowLevelPresets,
@@ -205,8 +205,13 @@ export function useDicomSequentialPool(params: PoolModeParams) {
 
       const onLoad = () => {
         if (disposed) return;
-        void waitForRenderableImage(app, [STACK_RENDER_READY_MS, 150, 400, 800]).then((ready) => {
-          finalizeEntry(ready);
+        void waitForRenderableImage(app, RENDER_READY_DELAYS_MS).then((ready) => {
+          if (ready) {
+            finalizeEntry(true);
+            return;
+          }
+          // Chargé sans pixels exploitables → échec silencieux du codec.
+          finalizeEntry(false, formatDicomLoadError("décodage du flux compressé impossible (codec)"));
         });
       };
 

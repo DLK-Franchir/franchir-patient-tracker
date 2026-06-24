@@ -52,7 +52,9 @@ export const MAX_SEQUENTIAL_POOL = 50;
 export const MAX_POOL_LOAD_CONCURRENCY = 4;
 
 export const STACK_LOAD_FAIL_MS = 120_000;
-export const STACK_RENDER_READY_MS = 550;
+export const STACK_RENDER_READY_MS = 400;
+/** Delais progressifs apres load dwv (workers J2K / JPEG-LS). */
+export const RENDER_READY_DELAYS_MS = [400, 800, 1500, 3000, 6000, 10000, 15000] as const;
 export const STACK_PROGRESS_FALLBACK_MS = 600;
 export const LAYOUT_RETRY_DELAYS_MS = [0, 50, 150, 400, 800] as const;
 
@@ -101,6 +103,14 @@ export function formatDicomLoadError(message: string | null | undefined): string
   }
   if (lower.includes("codec") || lower.includes("decompress") || lower.includes("transfer syntax")) {
     return "Format DICOM non supporté — contactez le support";
+  }
+  if (
+    lower.includes("encapsulated pdf") ||
+    lower.includes("pdf encapsul") ||
+    lower.includes("modality doc") ||
+    lower.includes("1.2.840.10008.5.1.4.1.1.104.1")
+  ) {
+    return "Format non supporté : PDF encapsulé (ouvrir via la carte document PDF)";
   }
   return message;
 }

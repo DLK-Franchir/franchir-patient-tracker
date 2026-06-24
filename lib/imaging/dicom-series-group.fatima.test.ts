@@ -38,6 +38,17 @@ describe('Fatima DICOMS_IM regression', () => {
     expect(groups[0]?.files.map((f) => f.name)).toEqual(['DICOMS_IM2.dcm', 'DICOMS_IM10.dcm'])
   })
 
+  it('scinde lot DOC encapsule en patient-im-doc-band', () => {
+    const files = toFiles([
+      { file_name: 'DICOMS_IM1.dcm', size_bytes: 76_390 },
+      { file_name: 'DICOMS_IM2.dcm', size_bytes: 83_394 },
+      { file_name: 'DICOMS_IM3.dcm', size_bytes: 96_000 },
+    ])
+    const groups = groupDicomFilesIntoSeries(files)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.groupId).toMatch(/^patient-im-doc/)
+  })
+
   it('bootstrap index 0 evite le volume 9 Mo sur DICOMS_IM1', () => {
     const files = toFiles(FATIMA_IM1_TO_10)
     const groups = groupDicomFilesIntoSeries(files)
