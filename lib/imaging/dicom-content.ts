@@ -22,6 +22,19 @@ const TAG_MODALITY = 0x00600008
 const TAG_MIME_TYPE = 0x00120042
 const TAG_ENCAPSULATED_DOCUMENT = 0x00110042
 
+// Tags encodés `group | (element << 16)` (cf. readTag).
+const TAG_SOP_INSTANCE_UID = 0x00180008 // (0008,0018)
+const TAG_SERIES_INSTANCE_UID = 0x000e0020 // (0020,000E)
+const TAG_SERIES_DESCRIPTION = 0x103e0008 // (0008,103E)
+const TAG_BODY_PART_EXAMINED = 0x00150018 // (0018,0015)
+const TAG_PROTOCOL_NAME = 0x10300018 // (0018,1030)
+const TAG_INSTANCE_NUMBER = 0x00130020 // (0020,0013)
+const TAG_ACQUISITION_DATETIME = 0x002a0008 // (0008,002A)
+const TAG_ACQUISITION_DATE = 0x00220008 // (0008,0022)
+const TAG_ACQUISITION_TIME = 0x00320008 // (0008,0032)
+const TAG_SERIES_DATE = 0x00210008 // (0008,0021)
+const TAG_STUDY_DATE = 0x00200008 // (0008,0020)
+
 const IMPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2'
 const EXPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2.1'
 
@@ -88,6 +101,81 @@ export type DicomContentInfo = DicomHeaderInfo & {
   sopClassUid: string | null
   mimeType: string | null
   contentKind: DicomContentKind
+  /** SeriesDescription (0008,103E). */
+  seriesDescription: string | null
+  /** BodyPartExamined (0018,0015). */
+  bodyPart: string | null
+  /** ProtocolName (0018,1030). */
+  protocolName: string | null
+  /** InstanceNumber (0020,0013), parsé en entier. */
+  instanceNumber: number | null
+  /** AcquisitionDateTime brut (0008,002A). */
+  acquisitionDateTime: string | null
+  /** AcquisitionDate (0008,0022). */
+  acquisitionDate: string | null
+  /** AcquisitionTime (0008,0032). */
+  acquisitionTime: string | null
+  /** SeriesDate (0008,0021). */
+  seriesDate: string | null
+  /** StudyDate (0008,0020). */
+  studyDate: string | null
+}
+
+/**
+ * Métadonnées DICOM persistées dans patient_documents (grouping/dedup côté
+ * serveur, sans relire les octets à chaque affichage).
+ */
+export type DicomPersistedMetadata = {
+  sopInstanceUid: string | null
+  seriesInstanceUid: string | null
+  seriesDescription: string | null
+  bodyPart: string | null
+  instanceNumber: number | null
+  /** Horodatage d'acquisition normalisé triable (YYYYMMDDHHMMSS), ou null. */
+  acquisitionDatetime: string | null
+}
+
+/** Garde les 14 premiers chiffres (YYYYMMDDHHMMSS) d'une valeur DICOM DA/TM/DT. */
+function digitsOnly(value: string | null): string {
+  return value ? value.replace(/[^0-9]/g, '') : ''
+}
+
+/**
+ * Construit un horodatage d'acquisition triable depuis les différents tags
+ * disponibles : AcquisitionDateTime, puis (AcquisitionDate + AcquisitionTime),
+ * puis SeriesDate/StudyDate (+ AcquisitionTime). Retourne YYYYMMDDHHMMSS rempli
+ * de zéros, ou null si aucune date exploitable.
+ */
+export function normalizeAcquisitionDateTime(info: {
+  acquisitionDateTime: string | null
+  acquisitionDate: string | null
+  acquisitionTime: string | null
+  seriesDate: string | null
+  studyDate: string | null
+}): string | null {
+  const dt = digitsOnly(info.acquisitionDateTime)
+  if (dt.length >= 8) return dt.slice(0, 14).padEnd(14, '0')
+
+  const date = digitsOnly(info.acquisitionDate) || digitsOnly(info.seriesDate) || digitsOnly(info.studyDate)
+  if (date.length < 8) return null
+  const time = digitsOnly(info.acquisitionTime)
+  return (date.slice(0, 8) + time.slice(0, 6)).padEnd(14, '0')
+}
+
+/** Extrait les métadonnées DICOM persistées depuis l'en-tête (octets déjà lus). */
+export function extractDicomPersistedMetadata(
+  bytes: ArrayBuffer | Uint8Array,
+): DicomPersistedMetadata | null {
+  const info = parseDicomContentInfo(bytes)
+  if (!info) return null
+  return {
+    sopInstanceUid: info.sopInstanceUid,
+    seriesInstanceUid: info.seriesInstanceUid || null,
+    seriesDescription: info.seriesDescription,
+    bodyPart: info.bodyPart,
+    instanceNumber: info.instanceNumber,
+    acquisitionDatetime: normalizeAcquisitionDateTime(info),
+  }
 }
 
 export function classifyDicomContentFromHeader(info: {
@@ -135,6 +223,15 @@ export function parseDicomContentInfo(bytes: ArrayBuffer | Uint8Array): DicomCon
     sopClassUid: null,
     mimeType: null,
     contentKind: 'unknown',
+    seriesDescription: null,
+    bodyPart: null,
+    protocolName: null,
+    instanceNumber: null,
+    acquisitionDateTime: null,
+    acquisitionDate: null,
+    acquisitionTime: null,
+    seriesDate: null,
+    studyDate: null,
   }
 
   const scanLimit = Math.min(view.length, DICOM_HEADER_SCAN_BYTES)
@@ -153,16 +250,36 @@ export function parseDicomContentInfo(bytes: ArrayBuffer | Uint8Array): DicomCon
         transferSyntax = readUidValue(view, parsed.valueOffset, parsed.valueLength)
       }
     } else {
-      if (parsed.tag === 0x000e0020) {
+      if (parsed.tag === TAG_SERIES_INSTANCE_UID) {
         info.seriesInstanceUid = readUidValue(view, parsed.valueOffset, parsed.valueLength)
       } else if (parsed.tag === TAG_MODALITY) {
         info.modality = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
-      } else if (parsed.tag === 0x00180008) {
+      } else if (parsed.tag === TAG_SOP_INSTANCE_UID) {
         info.sopInstanceUid = readUidValue(view, parsed.valueOffset, parsed.valueLength)
       } else if (parsed.tag === TAG_SOP_CLASS_UID) {
         info.sopClassUid = readUidValue(view, parsed.valueOffset, parsed.valueLength)
       } else if (parsed.tag === TAG_MIME_TYPE) {
         info.mimeType = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_SERIES_DESCRIPTION) {
+        info.seriesDescription = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_BODY_PART_EXAMINED) {
+        info.bodyPart = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_PROTOCOL_NAME) {
+        info.protocolName = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_INSTANCE_NUMBER) {
+        const raw = readStringValue(view, parsed.valueOffset, parsed.valueLength)
+        const n = Number.parseInt(raw, 10)
+        info.instanceNumber = Number.isFinite(n) ? n : null
+      } else if (parsed.tag === TAG_ACQUISITION_DATETIME) {
+        info.acquisitionDateTime = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_ACQUISITION_DATE) {
+        info.acquisitionDate = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_ACQUISITION_TIME) {
+        info.acquisitionTime = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_SERIES_DATE) {
+        info.seriesDate = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
+      } else if (parsed.tag === TAG_STUDY_DATE) {
+        info.studyDate = readStringValue(view, parsed.valueOffset, parsed.valueLength) || null
       }
     }
 
