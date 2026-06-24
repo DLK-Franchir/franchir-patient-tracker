@@ -236,28 +236,41 @@ function clusterBySizeGaps<T extends NamedImagingFile>(files: T[]): T[][] {
   return clusters
 }
 
-/** Évite de démarrer le pool sur une miniature (<90 Ko) ou un volume multi-Mo. */
+const BOOTSTRAP_MIN_BYTES = 50_000
+const BOOTSTRAP_MAX_BYTES = 20_000_000
+
+/** Évite de démarrer sur DOC encapsulé (<50 Ko) ; préfère une coupe proche de la médiane du lot. */
 export function pickPreferredBootstrapIndex<T extends NamedImagingFile>(files: T[]): number {
   const sizes = files
     .map((file) => fileSizeBytes(file))
     .filter((size): size is number => size !== null)
   const median = medianSize(sizes) ?? 200_000
 
-  let bestIndex = 0
+  let bestIndex = -1
   let bestScore = Number.NEGATIVE_INFINITY
   for (let index = 0; index < files.length; index += 1) {
     const size = fileSizeBytes(files[index]!) ?? 0
-    if (size < 90_000 || size > 800_000) continue
+    if (size < BOOTSTRAP_MIN_BYTES || size > BOOTSTRAP_MAX_BYTES) continue
     const score = -Math.abs(size - median)
     if (score > bestScore) {
       bestScore = score
       bestIndex = index
     }
   }
-  if (bestScore > Number.NEGATIVE_INFINITY) return bestIndex
+  if (bestIndex >= 0) return bestIndex
 
-  const nonHuge = files.findIndex((file) => (fileSizeBytes(file) ?? 0) <= 800_000)
-  return nonHuge >= 0 ? nonHuge : 0
+  let largestIndex = 0
+  let largestSize = 0
+  for (let index = 0; index < files.length; index += 1) {
+    const size = fileSizeBytes(files[index]!) ?? 0
+    if (size > largestSize) {
+      largestSize = size
+      largestIndex = index
+    }
+  }
+  if (largestSize >= BOOTSTRAP_MIN_BYTES) return largestIndex
+
+  return 0
 }
 
 function promoteBootstrapFile<T extends NamedImagingFile>(files: T[]): T[] {

@@ -48,6 +48,21 @@ describe('Fatima DICOMS_IM regression', () => {
     expect(first.size).not.toBe(9_676_976)
   })
 
+  it('CD Husain local : IM1 DOC saute, bootstrap sur DX ~8 Mo', () => {
+    const files = toFiles([
+      { file_name: 'IM1', size_bytes: 76_390 },
+      { file_name: 'IM2', size_bytes: 8_320_632 },
+      { file_name: 'IM3', size_bytes: 8_441_874 },
+      { file_name: 'IM4', size_bytes: 8_151_920 },
+      { file_name: 'IM5', size_bytes: 8_508_944 },
+    ])
+    const groups = groupDicomFilesIntoSeries(files)
+    expect(groups).toHaveLength(1)
+    const first = groups[0]!.files[0]!
+    expect(first.name).toBe('IM2')
+    expect(first.size).toBeGreaterThan(1_000_000)
+  })
+
   it('pickPreferredBootstrapIndex choisit une coupe ~200 Ko', () => {
     const files = toFiles(FATIMA_IM1_TO_10)
     const index = pickPreferredBootstrapIndex(files)

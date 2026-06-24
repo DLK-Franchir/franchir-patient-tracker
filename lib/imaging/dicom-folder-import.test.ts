@@ -190,6 +190,7 @@ describe('dicom-series-group SE prefix', () => {
     const groups = groupDicomFilesIntoSeries(rows)
     expect(groups.length).toBeGreaterThan(1)
     expect(groups.every((g) => g.groupId.startsWith('patient-im'))).toBe(true)
+    expect(groups[0]?.files.some((f) => f.size === 9_000_000)).toBe(true)
     const primary = groups.find((g) => g.files.some((f) => f.size === 200_000))
     expect(primary?.files[0]?.size).toBeGreaterThanOrEqual(120_000)
     expect(primary?.files[0]?.size).toBeLessThanOrEqual(800_000)
