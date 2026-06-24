@@ -18,6 +18,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { canManagePatientDocuments } from '@/lib/access-control'
 import {
+  PATIENT_DOCUMENTS_BUCKET,
   finalizeDocumentsRequestSchema,
   inferDocumentKind,
   isObjectKeyOwnedByPatient,
@@ -77,7 +78,50 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'Patient introuvable' }, { status: 404 })
   }
 
-  const rows = parsed.data.documents.map((doc) => ({
+  // ── Anti-doublon DICOM par SOPInstanceUID (filet de sécurité serveur) ──────
+  // Le client saute déjà les doublons avant d'uploader (cf. sign-upload), mais
+  // on re-filtre ici : les SOPInstanceUID déjà présents pour ce patient OU
+  // répétés dans la requête sont écartés, et leurs objets Storage (déjà poussés)
+  // sont supprimés pour ne pas laisser d'orphelins.
+  const requestedSops = parsed.data.documents
+    .map((doc) => doc.dicom?.sopInstanceUid)
+    .filter((sop): sop is string => typeof sop === 'string' && sop.length > 0)
+
+  const existingSops = new Set<string>()
+  if (requestedSops.length > 0) {
+    const { data: existing } = await service
+      .from('patient_documents')
+      .select('sop_instance_uid')
+      .eq('patient_id', patientId)
+      .in('sop_instance_uid', requestedSops)
+    for (const row of existing ?? []) {
+      const sop = row.sop_instance_uid as string | null
+      if (sop) existingSops.add(sop)
+    }
+  }
+
+  const seenSops = new Set<string>()
+  const accepted: typeof parsed.data.documents = []
+  const skippedPaths: string[] = []
+  for (const doc of parsed.data.documents) {
+    const sop = doc.dicom?.sopInstanceUid ?? null
+    if (sop && (existingSops.has(sop) || seenSops.has(sop))) {
+      skippedPaths.push(doc.path)
+      continue
+    }
+    if (sop) seenSops.add(sop)
+    accepted.push(doc)
+  }
+
+  if (skippedPaths.length > 0) {
+    await service.storage.from(PATIENT_DOCUMENTS_BUCKET).remove(skippedPaths).catch(() => {})
+  }
+
+  if (accepted.length === 0) {
+    return NextResponse.json({ success: true, count: 0, skipped: skippedPaths.length })
+  }
+
+  const rows = accepted.map((doc) => ({
     patient_id: patientId,
     kind: inferDocumentKind(doc.fileName, doc.type ?? null),
     file_path: doc.path,
@@ -85,6 +129,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     mime_type: doc.type ?? null,
     size_bytes: doc.size,
     uploaded_by: user.id,
+    sop_instance_uid: doc.dicom?.sopInstanceUid ?? null,
+    series_instance_uid: doc.dicom?.seriesInstanceUid ?? null,
+    series_description: doc.dicom?.seriesDescription ?? null,
+    body_part: doc.dicom?.bodyPart ?? null,
+    instance_number: doc.dicom?.instanceNumber ?? null,
+    acquisition_datetime: doc.dicom?.acquisitionDatetime ?? null,
   }))
 
   const { data: inserted, error: insertError } = await service
@@ -101,7 +151,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   void forwardDocumentsViaSignedUpload(
     service,
     patientId,
-    parsed.data.documents.map((doc) => ({
+    accepted.map((doc) => ({
       path: doc.path,
       name: doc.fileName,
       type: doc.type ?? null,
@@ -109,5 +159,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })),
   )
 
-  return NextResponse.json({ success: true, count: inserted?.length ?? rows.length })
+  return NextResponse.json({
+    success: true,
+    count: inserted?.length ?? rows.length,
+    skipped: skippedPaths.length,
+  })
 }

@@ -222,10 +222,15 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     setUploading(true)
     try {
       // Upload DIRECT navigateur → Storage (URLs signées) : pas de limite serverless.
-      await uploadPatientDocuments(patientId, pendingFiles)
+      const { skipped } = await uploadPatientDocuments(patientId, pendingFiles)
       setPendingFiles([])
       setShowUpload(false)
       await fetchDocuments()
+      if (skipped > 0) {
+        alert(
+          `${skipped} fichier(s) DICOM déjà présent(s) (même image) ont été ignorés pour éviter les doublons.`,
+        )
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Échec de l'upload")
     } finally {
