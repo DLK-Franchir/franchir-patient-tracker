@@ -284,9 +284,20 @@ function splitPatientImIfHeterogeneous<T extends NamedImagingFile>(
     return [{ groupId: 'patient-im', files: sortAndPreparePatientImGroup(files) }]
   }
 
-  return clusterBySizeGaps(files).map((band, index) => ({
+  const bands = clusterBySizeGaps(files)
+    .map((band) => ({
+      median: medianSize(
+        band
+          .map((file) => fileSizeBytes(file))
+          .filter((size): size is number => size !== null),
+      ) ?? 0,
+      files: sortAndPreparePatientImGroup(band),
+    }))
+    .sort((a, b) => b.median - a.median)
+
+  return bands.map((band, index) => ({
     groupId: `patient-im-band-${index}`,
-    files: sortAndPreparePatientImGroup(band),
+    files: band.files,
   }))
 }
 
