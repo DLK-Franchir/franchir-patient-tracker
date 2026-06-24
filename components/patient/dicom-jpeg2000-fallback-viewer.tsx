@@ -41,6 +41,11 @@ export default function DicomJpeg2000FallbackViewer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const cacheRef = useRef<Map<number, FrameData>>(new Map());
+  const inflightRef = useRef<Map<number, Promise<FrameData | null>>>(new Map());
+  // Sérialise les décodages : le module WASM OpenJPEG réutilise un heap partagé
+  // entre deux décodages, donc on évite tout décodage concurrent (préchargement
+  // des voisins inclus).
+  const decodeChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const rgbaRef = useRef<ImageData | null>(null);
 
   const [index, setIndex] = useState(0);
@@ -48,15 +53,76 @@ export default function DicomJpeg2000FallbackViewer({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [wl, setWl] = useState<WindowLevel | null>(null);
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
+  const [decodedCount, setDecodedCount] = useState(0);
 
   const fileCount = urls.length;
 
   useEffect(() => {
     setIndex(0);
     cacheRef.current.clear();
+    inflightRef.current.clear();
+    decodeChainRef.current = Promise.resolve();
+    setDecodedCount(0);
   }, [urls]);
 
-  // Charge + décode le fichier courant.
+  // Décode (et met en cache) une coupe donnée, sans toucher l'état d'affichage.
+  // Réutilisé par le chargement courant ET le préchargement des voisins.
+  const decodeFrame = useCallback(
+    (target: number): Promise<FrameData | null> => {
+      const cached = cacheRef.current.get(target);
+      if (cached) return Promise.resolve(cached);
+      const existing = inflightRef.current.get(target);
+      if (existing) return existing;
+      const url = urls[target];
+      if (!url) return Promise.resolve(null);
+
+      const promise = (async () => {
+        // Attend la fin du décodage précédent (heap WASM partagé).
+        const prior = decodeChainRef.current;
+        let release!: () => void;
+        decodeChainRef.current = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await prior.catch(() => {});
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buffer = await res.arrayBuffer();
+
+          const parsed = parseDicomForFallback(buffer);
+          if (!parsed) throw new Error("PixelData absent");
+
+          const frame = await decodeJpeg2000(parsed.codestream);
+          const range = pixelRange(frame.pixels);
+          const defaultWl = resolveInitialWindowLevel({
+            windowCenter: parsed.windowCenter,
+            windowWidth: parsed.windowWidth,
+            pixelMin: range.min,
+            pixelMax: range.max,
+          });
+
+          const data: FrameData = {
+            frame,
+            range,
+            defaultWl,
+            isMonochrome1: parsed.isMonochrome1,
+          };
+          cacheRef.current.set(target, data);
+          setDecodedCount(cacheRef.current.size);
+          return data;
+        } finally {
+          release();
+        }
+      })();
+
+      inflightRef.current.set(target, promise);
+      void promise.catch(() => {}).finally(() => inflightRef.current.delete(target));
+      return promise;
+    },
+    [urls],
+  );
+
+  // Charge + décode le fichier courant (priorité haute).
   useEffect(() => {
     let cancelled = false;
     const url = urls[index];
@@ -76,33 +142,9 @@ export default function DicomJpeg2000FallbackViewer({
 
     void (async () => {
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = await res.arrayBuffer();
-        if (cancelled) return;
-
-        const parsed = parseDicomForFallback(buffer);
-        if (!parsed) throw new Error("PixelData absent");
-
-        const frame = await decodeJpeg2000(parsed.codestream);
-        if (cancelled) return;
-
-        const range = pixelRange(frame.pixels);
-        const defaultWl = resolveInitialWindowLevel({
-          windowCenter: parsed.windowCenter,
-          windowWidth: parsed.windowWidth,
-          pixelMin: range.min,
-          pixelMax: range.max,
-        });
-
-        cacheRef.current.set(index, {
-          frame,
-          range,
-          defaultWl,
-          isMonochrome1: parsed.isMonochrome1,
-        });
-
-        setWl(defaultWl);
+        const data = await decodeFrame(index);
+        if (cancelled || !data) return;
+        setWl(data.defaultWl);
         setView({ zoom: 1, panX: 0, panY: 0 });
         setStatus("ready");
       } catch (err) {
@@ -118,7 +160,18 @@ export default function DicomJpeg2000FallbackViewer({
     return () => {
       cancelled = true;
     };
-  }, [index, urls]);
+  }, [index, urls, decodeFrame]);
+
+  // Préchargement paresseux des voisins une fois la coupe courante affichée :
+  // décode d'abord la suivante (sens de lecture naturel), puis la précédente.
+  useEffect(() => {
+    if (status !== "ready") return;
+    for (const neighbor of [index + 1, index - 1]) {
+      if (neighbor >= 0 && neighbor < fileCount && !cacheRef.current.get(neighbor)) {
+        void decodeFrame(neighbor).catch(() => {});
+      }
+    }
+  }, [status, index, fileCount, decodeFrame]);
 
   // Régénère le buffer RGBA quand le fenêtrage change.
   useEffect(() => {
@@ -260,6 +313,26 @@ export default function DicomJpeg2000FallbackViewer({
     }
   };
 
+  // Navigation clavier globale (← →) sans devoir cliquer la surface d'abord,
+  // alignée sur la visionneuse dwv. N'intercepte pas la saisie dans un champ.
+  useEffect(() => {
+    if (fileCount <= 1) return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setIndex((prev) => Math.min(fileCount - 1, prev + 1));
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setIndex((prev) => Math.max(0, prev - 1));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [fileCount]);
+
   const showHeader = Boolean(fullscreen || onClose);
 
   return (
@@ -316,6 +389,14 @@ export default function DicomJpeg2000FallbackViewer({
             >
               {index + 1} / {fileCount}
             </span>
+            {decodedCount < fileCount ? (
+              <span
+                className="hidden text-[10px] tabular-nums text-white/40 sm:inline"
+                title="Coupes décodées et mises en cache"
+              >
+                ({decodedCount}/{fileCount} préchargées)
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={() => navigate(1)}
