@@ -9,9 +9,10 @@ Tu es l'agent **soumission questionnaire patient** — spécialisé dans les éc
 
 | UI patient | Cause probable |
 |------------|----------------|
-| « La soumission a échoué. Vérifiez votre connexion… » (rouge) | HTTP ≠ 422 : lien expiré (403), payload invalide (400), RPC (500), réseau |
+| « La soumission a échoué. Vérifiez votre connexion… » (rouge) | HTTP ≠ 422 : lien expiré (403), session perdue (401/`missing_token`), payload invalide (400), RPC (500), réseau |
+| « Votre session a expiré. Rouvrez le lien… » (rouge) | Token absent localement ou HTTP 401 |
 | « Votre consentement n'a pas été enregistré… » (ambre) | Gate serveur : 4 clés `consent_*` ≠ `oui` en DB |
-| Badge « Consentement : Non complété » | `consent_signature_name` absent **localement** (recap UI seulement) |
+| Badge « Consentement : Non complété » | Gate submit : 4 clés `consent_*` ≠ `oui` ; récap distingue aussi signature manquante |
 
 ## Flux technique
 

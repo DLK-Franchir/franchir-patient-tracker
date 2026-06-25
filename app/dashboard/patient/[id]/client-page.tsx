@@ -83,6 +83,10 @@ export default function PatientDetailClient({
     initialPatient.questionnaire_language === 'en' ? 'en' : 'fr',
   )
   const [createQuestionnaireWarning, setCreateQuestionnaireWarning] = useState<string | null>(null)
+  const [questionnaireLinkNotice, setQuestionnaireLinkNotice] = useState<{
+    tone: 'success' | 'warning' | 'error'
+    message: string
+  } | null>(null)
 
   useEffect(() => {
     try {
@@ -122,15 +126,23 @@ export default function PatientDetailClient({
               : p.questionnaire_status,
       }))
       if (data.emailSent) {
-        alert('Lien questionnaire envoyé au patient par email.')
+        setQuestionnaireLinkNotice({
+          tone: 'success',
+          message: 'Lien questionnaire envoyé au patient par email.',
+        })
       } else {
-        alert(
-          'Lien questionnaire généré mais l\'email n\'a pas été expédié. Vérifiez l\'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec « Renvoyer le lien ».',
-        )
+        setQuestionnaireLinkNotice({
+          tone: 'warning',
+          message:
+            "Lien questionnaire généré mais l'email n'a pas été expédié. Vérifiez l'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec « Renvoyer le lien ».",
+        })
       }
       router.refresh()
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Une erreur est survenue')
+      setQuestionnaireLinkNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Une erreur est survenue',
+      })
       throw error
     }
   }
@@ -231,6 +243,31 @@ export default function PatientDetailClient({
         {createQuestionnaireWarning && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6" role="alert">
             <p className="text-xs sm:text-sm text-amber-900">{createQuestionnaireWarning}</p>
+          </div>
+        )}
+
+        {questionnaireLinkNotice && (
+          <div
+            className={`rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 border ${
+              questionnaireLinkNotice.tone === 'success'
+                ? 'bg-emerald-50 border-emerald-200'
+                : questionnaireLinkNotice.tone === 'warning'
+                  ? 'bg-amber-50 border-amber-200'
+                  : 'bg-red-50 border-red-200'
+            }`}
+            role="alert"
+          >
+            <p
+              className={`text-xs sm:text-sm ${
+                questionnaireLinkNotice.tone === 'success'
+                  ? 'text-emerald-900'
+                  : questionnaireLinkNotice.tone === 'warning'
+                    ? 'text-amber-900'
+                    : 'text-red-900'
+              }`}
+            >
+              {questionnaireLinkNotice.message}
+            </p>
           </div>
         )}
 

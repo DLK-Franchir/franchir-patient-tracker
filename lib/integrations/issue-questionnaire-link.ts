@@ -18,8 +18,17 @@ const QUESTIONNAIRE_LINK_URL = `${
 /** Timeout M2M pont questionnaires (Fluid Compute, défaut Vercel 300 s). */
 export const QUESTIONNAIRE_BRIDGE_FETCH_TIMEOUT_MS = 30_000
 
+/** Corps M2M POST /api/integrations/tracker/questionnaire-link */
+export type QuestionnaireBridgeBody = {
+  trackerPatientId: string
+  newSession?: boolean
+  patientEmail?: string
+  sessionLabel?: string | null
+  ttlHours?: number
+}
+
 export async function postQuestionnaireBridge(
-  body: Record<string, unknown>,
+  body: QuestionnaireBridgeBody,
   token: string,
 ): Promise<Response> {
   return fetch(QUESTIONNAIRE_LINK_URL, {
@@ -34,7 +43,7 @@ export async function postQuestionnaireBridge(
 }
 
 async function postQuestionnaireBridgeSafe(
-  body: Record<string, unknown>,
+  body: QuestionnaireBridgeBody,
   token: string,
 ): Promise<Response | null> {
   try {
@@ -124,7 +133,7 @@ export async function issueQuestionnaireLink(
     }
   }
 
-  const linkBody = {
+  const linkBody: QuestionnaireBridgeBody = {
     trackerPatientId: patientId,
     newSession,
     ...(existing?.patient_email ? { patientEmail: existing.patient_email } : {}),
