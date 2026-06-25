@@ -52,7 +52,7 @@ export async function issueQuestionnaireLink(
   const service = createServiceRoleClient()
   const { data: existing } = await service
     .from('patients')
-    .select('questionnaire_status')
+    .select('questionnaire_status, patient_email')
     .eq('id', patientId)
     .maybeSingle()
 
@@ -94,13 +94,19 @@ export async function issueQuestionnaireLink(
     }
   }
 
+  const linkBody = {
+    trackerPatientId: patientId,
+    newSession,
+    ...(existing?.patient_email ? { patientEmail: existing.patient_email } : {}),
+  }
+
   let response = await fetch(QUESTIONNAIRE_LINK_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ trackerPatientId: patientId, newSession }),
+    body: JSON.stringify(linkBody),
   })
 
   if (response.status === 404) {
@@ -113,7 +119,7 @@ export async function issueQuestionnaireLink(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ trackerPatientId: patientId, newSession }),
+        body: JSON.stringify(linkBody),
       })
     }
   }
