@@ -81,6 +81,12 @@ export default function NewPatientPage() {
         return
       }
 
+      if (questionnaireWarningMessage) {
+        router.push(`/dashboard/patient/${patientId}`)
+        router.refresh()
+        return
+      }
+
       router.push('/dashboard')
       router.refresh()
     } catch (err: any) {
