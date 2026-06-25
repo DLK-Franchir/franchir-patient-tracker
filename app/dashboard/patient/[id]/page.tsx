@@ -8,6 +8,7 @@ import {
   fetchQuestionnaireStatus,
   reconcileQuestionnaireCompletion,
 } from '@/lib/integrations/questionnaire-portal'
+import { reconcileQuestionnaireSentStatus } from '@/lib/integrations/issue-questionnaire-link'
 import { fetchQuestionnaireSynthesisPreview } from '@/lib/integrations/fetch-questionnaire-synthesis-preview'
 import { getPatientDetailViewConfig } from '@/lib/patient-detail-view-config'
 import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
@@ -87,6 +88,15 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
   )
   if (reconciled) {
     patient.questionnaire_status = 'completed'
+  }
+
+  const sentReconciled = await reconcileQuestionnaireSentStatus(
+    id,
+    questionnaireStatus?.activeLink?.sentAt,
+    patient.questionnaire_status,
+  )
+  if (sentReconciled) {
+    patient.questionnaire_status = null
   }
 
   const viewConfig = getPatientDetailViewConfig(userRole)

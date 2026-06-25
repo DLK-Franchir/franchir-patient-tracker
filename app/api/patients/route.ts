@@ -4,6 +4,7 @@ import { Logger } from '@/lib/logger'
 import { canCreatePatient } from '@/lib/access-control'
 import { parseQuestionnaireLanguage } from '@/lib/integrations/questionnaire-language'
 import { sendNewPatientNotifications } from '@/lib/notifications'
+import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
 
 const log = new Logger('api/patients')
 
@@ -90,7 +91,30 @@ export async function POST(req: Request) {
       { id: patient.id, patient_name }
     )
 
-    return NextResponse.json({ success: true, patientId: patient.id })
+    // Envoi automatique du lien questionnaire (D1) — best-effort après sync webhook.
+    const linkResult = await issueQuestionnaireLink({
+      patientId: patient.id,
+      newSession: false,
+      language,
+    })
+    if (!linkResult.ok) {
+      log.warn('Envoi auto lien questionnaire echoue a la creation', {
+        patientId: patient.id,
+        code: linkResult.code,
+        error: linkResult.error,
+      })
+    } else if (!linkResult.emailSent) {
+      log.warn('Lien questionnaire genere sans email patient (Resend?)', {
+        patientId: patient.id,
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      patientId: patient.id,
+      questionnaireEmailSent: linkResult.ok ? linkResult.emailSent : false,
+      questionnaireLinkError: linkResult.ok ? null : linkResult.error,
+    })
   } catch (error) {
     log.error('Erreur création patient', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

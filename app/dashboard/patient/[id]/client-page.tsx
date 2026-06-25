@@ -101,13 +101,20 @@ export default function PatientDetailClient({
       setPatient((p) => ({
         ...p,
         questionnaire_language: language,
-        questionnaire_status: p.questionnaire_status === 'completed' ? 'completed' : 'sent',
+        questionnaire_status:
+          p.questionnaire_status === 'completed'
+            ? 'completed'
+            : data.emailSent
+              ? 'sent'
+              : p.questionnaire_status,
       }))
-      alert(
-        data.emailSent
-          ? 'Lien questionnaire envoyé au patient par email.'
-          : 'Lien questionnaire généré (email non envoyé — vérifier la configuration email).',
-      )
+      if (data.emailSent) {
+        alert('Lien questionnaire envoyé au patient par email.')
+      } else {
+        alert(
+          'Lien questionnaire généré mais l\'email n\'a pas été expédié. Vérifiez l\'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec « Renvoyer le lien ».',
+        )
+      }
       router.refresh()
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Une erreur est survenue')

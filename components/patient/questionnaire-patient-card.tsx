@@ -238,6 +238,12 @@ export default function QuestionnairePatientCard({
           {formatDateFr(bridgeStatus.activeLink.expiresAt) && (
             <p>Expire le {formatDateFr(bridgeStatus.activeLink.expiresAt)}</p>
           )}
+          {!bridgeStatus.activeLink.sentAt && statusKey !== 'completed' && (
+            <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Lien actif mais email non confirmé — utilisez « Renvoyer le lien » et vérifiez l&apos;adresse
+              patient{patientEmail ? ` (${patientEmail})` : ''}.
+            </p>
+          )}
           {formatDateFr(bridgeStatus.activeLink.sentAt) && (
             <p>Envoyé le {formatDateFr(bridgeStatus.activeLink.sentAt)}</p>
           )}
