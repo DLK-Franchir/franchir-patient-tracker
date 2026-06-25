@@ -173,4 +173,22 @@ describe('issueQuestionnaireLink', () => {
 
     expect(updateMock).not.toHaveBeenCalledWith({ form_types: expect.anything() })
   })
+
+  it('ne met pas a jour form_types si dossier completed', async () => {
+    maybeSingleMock.mockResolvedValue({
+      data: {
+        questionnaire_status: 'completed',
+        patient_email: 'patient@example.com',
+        form_types: ['cervical'],
+      },
+    })
+
+    const result = await issueQuestionnaireLink({
+      patientId: 'patient-1',
+      formTypes: ['lombaire'],
+    })
+
+    expect(result).toMatchObject({ ok: false, httpStatus: 409, code: 'completed' })
+    expect(updateMock).not.toHaveBeenCalledWith({ form_types: expect.anything() })
+  })
 })

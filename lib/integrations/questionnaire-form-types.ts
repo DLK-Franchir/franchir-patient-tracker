@@ -26,11 +26,22 @@ export function formTypesEqual(
 
 export function parseFormTypesInput(input: unknown): QuestionnaireFormType[] | null {
   if (!Array.isArray(input)) return null
-  const filtered = input.filter(
-    (t): t is QuestionnaireFormType => t === 'cervical' || t === 'lombaire',
-  )
-  if (filtered.length === 0) return null
-  return normalizeFormTypes(filtered)
+  if (input.some((t) => t !== 'cervical' && t !== 'lombaire')) return null
+  if (input.length === 0) return null
+  return normalizeFormTypes(input as QuestionnaireFormType[])
+}
+
+/** Valeur DB ou API → form_types canoniques (filtre valeurs inconnues, défaut cervical). */
+export function coercePatientFormTypes(raw: unknown): QuestionnaireFormType[] {
+  const parsed = parseFormTypesInput(raw)
+  if (parsed) return parsed
+  if (Array.isArray(raw)) {
+    const filtered = raw.filter(
+      (t): t is QuestionnaireFormType => t === 'cervical' || t === 'lombaire',
+    )
+    if (filtered.length > 0) return normalizeFormTypes(filtered)
+  }
+  return ['cervical']
 }
 
 export function formTypesForPreset(preset: QuestionnaireFormTypePreset): QuestionnaireFormType[] {

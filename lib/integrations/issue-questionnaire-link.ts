@@ -8,6 +8,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
 import {
   type QuestionnaireFormType,
+  coercePatientFormTypes,
   formTypesEqual,
   normalizeFormTypes,
 } from '@/lib/integrations/questionnaire-form-types'
@@ -103,11 +104,17 @@ export async function issueQuestionnaireLink(
     .eq('id', patientId)
     .maybeSingle()
 
-  const previousFormTypes = normalizeFormTypes(
-    (Array.isArray(existing?.form_types)
-      ? existing.form_types
-      : ['cervical']) as QuestionnaireFormType[],
-  )
+  const previousFormTypes = coercePatientFormTypes(existing?.form_types)
+
+  if (existing?.questionnaire_status === 'completed') {
+    return {
+      ok: false,
+      httpStatus: 409,
+      error:
+        'Questionnaire déjà complété — pour une nouvelle évaluation, créez un nouveau dossier patient.',
+      code: 'completed',
+    }
+  }
 
   if (formTypes && formTypes.length > 0) {
     const normalizedTarget = normalizeFormTypes(formTypes)
@@ -127,16 +134,6 @@ export async function issueQuestionnaireLink(
       }
       // Changement de pathologie : nouvelle session obligatoire (évite mélange cervical/lombaire).
       newSession = true
-    }
-  }
-
-  if (existing?.questionnaire_status === 'completed') {
-    return {
-      ok: false,
-      httpStatus: 409,
-      error:
-        'Questionnaire déjà complété — pour une nouvelle évaluation, créez un nouveau dossier patient.',
-      code: 'completed',
     }
   }
 

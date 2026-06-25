@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { Logger } from '@/lib/logger'
 import { canCreatePatient } from '@/lib/access-control'
 import { parseQuestionnaireLanguage } from '@/lib/integrations/questionnaire-language'
+import { parseFormTypesInput } from '@/lib/integrations/questionnaire-form-types'
 import { sendNewPatientNotifications } from '@/lib/notifications'
 import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
 
@@ -17,13 +18,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
     }
 
-    const normalizedFormTypes = Array.isArray(form_types)
-      ? form_types.filter((t: unknown): t is 'cervical' | 'lombaire' =>
-          t === 'cervical' || t === 'lombaire',
-        )
-      : ['cervical']
-    const formTypes =
-      normalizedFormTypes.length > 0 ? [...new Set(normalizedFormTypes)] : (['cervical'] as const)
+    const formTypes = parseFormTypesInput(form_types) ?? ['cervical']
 
     const language = parseQuestionnaireLanguage(questionnaire_language, 'fr')
 

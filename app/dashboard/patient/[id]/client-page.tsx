@@ -14,6 +14,7 @@ import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-porta
 import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 import {
   type QuestionnaireFormType,
+  coercePatientFormTypes,
   normalizeFormTypes,
 } from '@/lib/integrations/questionnaire-form-types'
 import { useRouter } from 'next/navigation'
@@ -108,16 +109,12 @@ export default function PatientDetailClient({
   const viewConfig = getPatientDetailViewConfig(userRole)
   const canManageQuestionnaire = viewConfig.canManageQuestionnaire
 
-  const sendQuestionnaireLink = async (
-    formTypes: QuestionnaireFormType[],
-    language: 'fr' | 'en',
-    newSession = false,
-  ) => {
+  const sendQuestionnaireLink = async (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => {
     try {
       const response = await fetch(`/api/patients/${patient.id}/questionnaire-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newSession, language, formTypes }),
+        body: JSON.stringify({ language, formTypes }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -127,7 +124,7 @@ export default function PatientDetailClient({
       setPatient((p) => ({
         ...p,
         questionnaire_language: language,
-        form_types: formTypes,
+        form_types: normalizeFormTypes(formTypes),
         questionnaire_status:
           p.questionnaire_status === 'completed'
             ? 'completed'
@@ -175,6 +172,7 @@ export default function PatientDetailClient({
   }
 
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
+  const questionnaireFormTypes = coercePatientFormTypes(patient.form_types)
 
   const medicalMessages = initialMessages.filter(m =>
     m.topic === 'medical' || m.topic === 'system' || !m.topic
@@ -316,9 +314,7 @@ export default function PatientDetailClient({
           bridgeStatus={questionnaireStatus}
           canManage={canManageQuestionnaire}
           initialLanguage={questionnaireLanguage}
-          initialFormTypes={normalizeFormTypes(
-            (Array.isArray(patient.form_types) ? patient.form_types : ['cervical']) as QuestionnaireFormType[],
-          )}
+          initialFormTypes={questionnaireFormTypes}
           onSendLink={sendQuestionnaireLink}
           onRevokeLink={revokeQuestionnaireLink}
           showPdfDownload={viewConfig.showQuestionnairePdf}
@@ -458,9 +454,7 @@ export default function PatientDetailClient({
               bridgeStatus={questionnaireStatus}
               canManage={canManageQuestionnaire}
               initialLanguage={questionnaireLanguage}
-              initialFormTypes={normalizeFormTypes(
-                (Array.isArray(patient.form_types) ? patient.form_types : ['cervical']) as QuestionnaireFormType[],
-              )}
+              initialFormTypes={questionnaireFormTypes}
               onSendLink={sendQuestionnaireLink}
               onRevokeLink={revokeQuestionnaireLink}
               showPdfDownload={viewConfig.showQuestionnairePdf}

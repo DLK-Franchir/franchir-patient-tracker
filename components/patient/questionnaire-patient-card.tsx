@@ -27,11 +27,7 @@ interface QuestionnairePatientCardProps {
   canManage?: boolean
   initialLanguage?: 'fr' | 'en'
   initialFormTypes?: QuestionnaireFormType[]
-  onSendLink: (
-    formTypes: QuestionnaireFormType[],
-    language: 'fr' | 'en',
-    newSession?: boolean,
-  ) => Promise<void>
+  onSendLink: (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => Promise<void>
   onRevokeLink?: () => Promise<void>
   showPdfDownload?: boolean
 }
@@ -69,11 +65,9 @@ const PATHOLOGY_BUTTONS: Array<{
   },
 ]
 
-function hasActiveQuestionnaireSession(bridgeStatus?: QuestionnaireStatus | null): boolean {
+function hasInProgressQuestionnaireSession(bridgeStatus?: QuestionnaireStatus | null): boolean {
   return Boolean(
-    bridgeStatus?.sessions?.some(
-      (s) => s.isActive && (s.status === 'in_progress' || s.status === 'draft'),
-    ),
+    bridgeStatus?.sessions?.some((s) => s.status === 'in_progress' || s.status === 'draft'),
   )
 }
 
@@ -105,7 +99,7 @@ export default function QuestionnairePatientCard({
 
     if (
       !formTypesEqual(currentFormTypes, targetTypes) &&
-      hasActiveQuestionnaireSession(bridgeStatus)
+      hasInProgressQuestionnaireSession(bridgeStatus)
     ) {
       const fromLabel = formatFormTypesLabel(currentFormTypes)
       const toLabel = formatFormTypesLabel(targetTypes)
@@ -117,8 +111,7 @@ export default function QuestionnairePatientCard({
 
     setLoading(true)
     try {
-      const pathologyChanged = !formTypesEqual(currentFormTypes, targetTypes)
-      await onSendLink(targetTypes, language, pathologyChanged)
+      await onSendLink(targetTypes, language)
     } finally {
       setLoading(false)
     }
