@@ -7,25 +7,19 @@
  *
  * Réservé au staff gestionnaire (marcel / franchir / admin). Le token de pont
  * ne quitte jamais le serveur. À la réussite, on note l'état `sent` côté tracker
- * (sans jamais rétrograder un questionnaire déjà `completed`).
+ * uniquement si l'email patient a bien été expédié (Resend côté questionnaires).
  */
 
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { canManagePatientDocuments } from '@/lib/access-control'
-import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
 import { parseQuestionnaireLanguageFromLinkBody } from '@/lib/integrations/questionnaire-language'
+import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('api/patients/questionnaire-link')
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-const QUESTIONNAIRE_LINK_URL = `${
-  process.env.QUESTIONNAIRES_API_BASE ||
-  'https://questionnaire.franchir.eu/api/integrations/tracker'
-}/questionnaire-link`
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: patientId } = await params
@@ -51,131 +45,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
-  if (!token) {
-    return NextResponse.json(
-      { error: "Pont questionnaires non configuré (TRACKER_SYNC_SERVICE_TOKEN absent)" },
-      { status: 503 },
-    )
-  }
-
   const body = await req.json().catch(() => ({}))
   const newSession = Boolean(body?.newSession)
   const language = parseQuestionnaireLanguageFromLinkBody(body)
 
-  // Règle métier (item 7) : un dossier dont le questionnaire est déjà complété
-  // ne peut PLUS recevoir de lien (ni renvoi, ni nouveau questionnaire de suivi).
-  // Une nouvelle évaluation nécessite un NOUVEAU dossier patient → 409.
-  const guard = createServiceRoleClient()
-  const { data: existing } = await guard
-    .from('patients')
-    .select('questionnaire_status')
-    .eq('id', patientId)
-    .maybeSingle()
-  if (existing?.questionnaire_status === 'completed') {
-    return NextResponse.json(
-      {
-        error:
-          'Questionnaire déjà complété — pour une nouvelle évaluation, créez un nouveau dossier patient.',
-      },
-      { status: 409 },
-    )
-  }
-
   try {
-    if (language) {
-      const { error: langError } = await guard
-        .from('patients')
-        .update({ questionnaire_language: language })
-        .eq('id', patientId)
-      if (langError) {
-        log.error('Mise a jour langue questionnaire echouee', { patientId, langError })
-        return NextResponse.json({ error: 'Erreur mise a jour langue questionnaire' }, { status: 502 })
-      }
-    }
-
-    // Synchronise langue (et identité) côté questionnaires avant émission du lien.
-    const preSynced = await syncPatientToQuestionnaires(patientId)
-    if (!preSynced) {
-      log.error('Pre-sync questionnaires echouee avant emission lien', { patientId })
-      return NextResponse.json(
-        {
-          error:
-            'Synchronisation du dossier vers le portail questionnaire impossible. Reessayez dans un instant.',
-        },
-        { status: 502 },
-      )
-    }
-
-    let response = await fetch(QUESTIONNAIRE_LINK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ trackerPatientId: patientId, newSession }),
+    const result = await issueQuestionnaireLink({
+      patientId,
+      newSession,
+      language,
     })
 
-    if (response.status === 404) {
-      log.warn('Dossier non corrélé — tentative de sync rattrapage', { patientId })
-      const synced = await syncPatientToQuestionnaires(patientId)
-      if (synced) {
-        response = await fetch(QUESTIONNAIRE_LINK_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ trackerPatientId: patientId, newSession }),
-        })
-      }
-    }
-
-    if (!response.ok) {
-      const detail = await response.json().catch(() => ({}))
-      if (response.status === 404) {
-        return NextResponse.json(
-          { error: "Le dossier n'est pas encore synchronisé côté questionnaires. Réessayez dans un instant." },
-          { status: 409 },
-        )
-      }
-      if (response.status === 409) {
-        return NextResponse.json(
-          {
-            error:
-              'Questionnaire déjà complété — pour une nouvelle évaluation, créez un nouveau dossier patient.',
-          },
-          { status: 409 },
-        )
-      }
-      log.error('Émission lien questionnaire échouée', { status: response.status, detail })
-      const upstreamCode = typeof detail?.error === 'string' ? detail.error : 'inconnu'
-      return NextResponse.json(
-        { error: `Échec émission lien (questionnaires ${response.status} : ${upstreamCode})` },
-        { status: 502 },
-      )
-    }
-
-    const result = await response.json()
-
-    // Note l'état `sent` côté tracker (sans rétrograder un `completed`).
-    const service = createServiceRoleClient()
-    const { data: current } = await service
-      .from('patients')
-      .select('questionnaire_status')
-      .eq('id', patientId)
-      .maybeSingle()
-    if (current?.questionnaire_status !== 'completed') {
-      await service
-        .from('patients')
-        .update({ questionnaire_status: 'sent' })
-        .eq('id', patientId)
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.httpStatus })
     }
 
     return NextResponse.json({
       success: true,
-      emailSent: result.emailSent ?? false,
-      expiresAt: result.expiresAt ?? null,
+      emailSent: result.emailSent,
+      expiresAt: result.expiresAt,
     })
   } catch (error) {
     log.error('Erreur émission lien questionnaire', error)
