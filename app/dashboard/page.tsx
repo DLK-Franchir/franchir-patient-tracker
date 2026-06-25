@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import NotificationBell from '@/components/notifications/notification-bell'
 import AppHeader from '@/components/app-header'
 import PatientList from '@/components/dashboard/patient-list'
+import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integrations/issue-questionnaire-link'
 
 const ITEMS_PER_PAGE = 20
 const SORT_COLUMNS = ['created_at', 'patient_name', 'current_status_id'] as const
@@ -144,6 +145,15 @@ async function getPatients({
     workflow_statuses: firstRelation(patient.workflow_statuses),
     profiles: firstRelation(patient.profiles),
   }))
+
+  const reconciledIds = await reconcileQuestionnaireSentStatusesForPatients(formattedPatients)
+  if (reconciledIds.length > 0) {
+    for (const patient of formattedPatients) {
+      if (reconciledIds.includes(patient.id)) {
+        patient.questionnaire_status = null
+      }
+    }
+  }
 
   return { patients: formattedPatients, total: count || 0 }
 }
