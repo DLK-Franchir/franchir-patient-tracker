@@ -44,15 +44,20 @@ export default function NewPatientPage() {
 
       const patientId: string = data.patientId
 
-      const questionnaireWarning =
+      const questionnaireWarningMessage =
         data.questionnaireLinkError
           ? `Le dossier a été créé, mais le lien questionnaire n'a pas pu être envoyé : ${data.questionnaireLinkError}. Renvoyez-le depuis la fiche patient.`
           : data.questionnaireEmailSent === false
-            ? 'Le dossier a été créé, mais l\'email questionnaire n\'a pas été expédié. Vérifiez l\'adresse et renvoyez le lien depuis la fiche patient.'
+            ? "Le dossier a été créé, mais l'email questionnaire n'a pas été expédié. Vérifiez l'adresse et renvoyez le lien depuis la fiche patient."
             : null
 
-      if (questionnaireWarning) {
-        alert(questionnaireWarning)
+      if (questionnaireWarningMessage) {
+        try {
+          sessionStorage.setItem('franchir-questionnaire-create-warning', questionnaireWarningMessage)
+        } catch {
+          // sessionStorage indisponible : fallback alert minimal
+          alert(questionnaireWarningMessage)
+        }
       }
 
       // Upload OPTIONNEL : le patient n'existe qu'après création, on uploade donc

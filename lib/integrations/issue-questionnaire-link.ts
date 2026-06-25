@@ -15,6 +15,24 @@ const QUESTIONNAIRE_LINK_URL = `${
   'https://questionnaire.franchir.eu/api/integrations/tracker'
 }/questionnaire-link`
 
+/** Timeout M2M pont questionnaires (Fluid Compute, défaut Vercel 300 s). */
+export const QUESTIONNAIRE_BRIDGE_FETCH_TIMEOUT_MS = 30_000
+
+export async function postQuestionnaireBridge(
+  body: Record<string, unknown>,
+  token: string,
+): Promise<Response> {
+  return fetch(QUESTIONNAIRE_LINK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(QUESTIONNAIRE_BRIDGE_FETCH_TIMEOUT_MS),
+  })
+}
+
 export type IssueQuestionnaireLinkResult =
   | {
       ok: true
@@ -100,27 +118,13 @@ export async function issueQuestionnaireLink(
     ...(existing?.patient_email ? { patientEmail: existing.patient_email } : {}),
   }
 
-  let response = await fetch(QUESTIONNAIRE_LINK_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(linkBody),
-  })
+  let response = await postQuestionnaireBridge(linkBody, token)
 
   if (response.status === 404) {
     log.warn('Dossier non corrélé — tentative de sync rattrapage', { patientId })
     const synced = await syncPatientToQuestionnaires(patientId)
     if (synced) {
-      response = await fetch(QUESTIONNAIRE_LINK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(linkBody),
-      })
+      response = await postQuestionnaireBridge(linkBody, token)
     }
   }
 
