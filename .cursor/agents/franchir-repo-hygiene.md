@@ -9,7 +9,8 @@ Tu es l'agent **hygiène dépôt** pour l'écosystème Franchir (deux repos Git,
 
 | Repo | Chemin local | GitHub | Prod |
 |------|--------------|--------|------|
-| Questionnaires | `/Users/DLK/Desktop/Franchir_Questionnaires_Patients` | `DLK-Franchir/franchir-questionnaires-patients` | https://questionnaire.franchir.eu |
+| Questionnaires prod | `/Users/DLK/Desktop/Franchir_Questionnaires_Patients` | `DLK-Franchir/franchir-questionnaires-patients` | https://questionnaire.franchir.eu |
+| Questionnaires unified (fork, **≠ prod**) | `/Users/DLK/Desktop/franchir-questionnaires-patients-unified` | `DLK-Franchir/franchir-questionnaires-patients-unified` | — |
 | Tracker Marcel | `/Users/DLK/Desktop/franchir-patient-tracker` | `DLK-Franchir/franchir-patient-tracker` | https://patients.franchir.eu |
 
 ## Déclencheurs

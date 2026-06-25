@@ -204,3 +204,27 @@ export async function reconcileQuestionnaireSentStatus(
 
   return !error
 }
+
+/** Rattrape les faux `sent` sur une liste (dashboard). Retourne les ids corrigés. */
+export async function reconcileQuestionnaireSentStatusesForPatients(
+  patients: Array<{ id: string; questionnaire_status: string | null }>,
+): Promise<string[]> {
+  const { fetchQuestionnaireStatus } = await import('@/lib/integrations/questionnaire-portal')
+  const corrected: string[] = []
+
+  await Promise.all(
+    patients
+      .filter((p) => p.questionnaire_status === 'sent')
+      .map(async (p) => {
+        const portalStatus = await fetchQuestionnaireStatus(p.id)
+        const did = await reconcileQuestionnaireSentStatus(
+          p.id,
+          portalStatus?.activeLink?.sentAt,
+          p.questionnaire_status,
+        )
+        if (did) corrected.push(p.id)
+      }),
+  )
+
+  return corrected
+}
