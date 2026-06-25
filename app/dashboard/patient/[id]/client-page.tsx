@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, lazy, Suspense } from 'react'
+import { useState, lazy, Suspense, useEffect } from 'react'
 import { WorkflowActions, type SurgeonOption } from '@/components/workflow-actions'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import WorkflowTimeline from '@/components/workflow-timeline'
@@ -82,6 +82,19 @@ export default function PatientDetailClient({
   const [questionnaireLanguage, setQuestionnaireLanguage] = useState<'fr' | 'en'>(
     initialPatient.questionnaire_language === 'en' ? 'en' : 'fr',
   )
+  const [createQuestionnaireWarning, setCreateQuestionnaireWarning] = useState<string | null>(null)
+
+  useEffect(() => {
+    try {
+      const warning = sessionStorage.getItem('franchir-questionnaire-create-warning')
+      if (warning) {
+        sessionStorage.removeItem('franchir-questionnaire-create-warning')
+        setCreateQuestionnaireWarning(warning)
+      }
+    } catch {
+      // sessionStorage indisponible
+    }
+  }, [])
 
   const viewConfig = getPatientDetailViewConfig(userRole)
   const canManageQuestionnaire = viewConfig.canManageQuestionnaire
@@ -212,6 +225,12 @@ export default function PatientDetailClient({
             <p className="text-xs sm:text-sm text-yellow-800">
               ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.
             </p>
+          </div>
+        )}
+
+        {createQuestionnaireWarning && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6" role="alert">
+            <p className="text-xs sm:text-sm text-amber-900">{createQuestionnaireWarning}</p>
           </div>
         )}
 

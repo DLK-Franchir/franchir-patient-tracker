@@ -33,6 +33,18 @@ export async function postQuestionnaireBridge(
   })
 }
 
+async function postQuestionnaireBridgeSafe(
+  body: Record<string, unknown>,
+  token: string,
+): Promise<Response | null> {
+  try {
+    return await postQuestionnaireBridge(body, token)
+  } catch (err) {
+    log.error('Pont questionnaires injoignable', { err })
+    return null
+  }
+}
+
 export type IssueQuestionnaireLinkResult =
   | {
       ok: true
@@ -118,13 +130,22 @@ export async function issueQuestionnaireLink(
     ...(existing?.patient_email ? { patientEmail: existing.patient_email } : {}),
   }
 
-  let response = await postQuestionnaireBridge(linkBody, token)
+  let response = await postQuestionnaireBridgeSafe(linkBody, token)
 
-  if (response.status === 404) {
+  if (response?.status === 404) {
     log.warn('Dossier non corrélé — tentative de sync rattrapage', { patientId })
     const synced = await syncPatientToQuestionnaires(patientId)
     if (synced) {
-      response = await postQuestionnaireBridge(linkBody, token)
+      response = await postQuestionnaireBridgeSafe(linkBody, token)
+    }
+  }
+
+  if (!response) {
+    return {
+      ok: false,
+      httpStatus: 502,
+      error: 'Le portail questionnaire est injoignable (délai dépassé ou réseau). Réessayez dans un instant.',
+      code: 'upstream',
     }
   }
 
