@@ -6,6 +6,11 @@
 
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
+import {
+  type QuestionnaireFormType,
+  formTypesEqual,
+  normalizeFormTypes,
+} from '@/lib/integrations/questionnaire-form-types'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('integrations/issue-questionnaire-link')
@@ -72,12 +77,15 @@ export type IssueQuestionnaireLinkOptions = {
   newSession?: boolean
   /** Met à jour questionnaire_language avant sync (renvoi manuel). */
   language?: 'fr' | 'en' | null
+  /** Met à jour patients.form_types avant sync + émission (fiche patient). */
+  formTypes?: QuestionnaireFormType[] | null
 }
 
 export async function issueQuestionnaireLink(
   options: IssueQuestionnaireLinkOptions,
 ): Promise<IssueQuestionnaireLinkResult> {
-  const { patientId, newSession = false, language = null } = options
+  const { patientId, language = null, formTypes = null } = options
+  let { newSession = false } = options
   const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
   if (!token) {
     return {
@@ -91,9 +99,36 @@ export async function issueQuestionnaireLink(
   const service = createServiceRoleClient()
   const { data: existing } = await service
     .from('patients')
-    .select('questionnaire_status, patient_email')
+    .select('questionnaire_status, patient_email, form_types')
     .eq('id', patientId)
     .maybeSingle()
+
+  const previousFormTypes = normalizeFormTypes(
+    (Array.isArray(existing?.form_types)
+      ? existing.form_types
+      : ['cervical']) as QuestionnaireFormType[],
+  )
+
+  if (formTypes && formTypes.length > 0) {
+    const normalizedTarget = normalizeFormTypes(formTypes)
+    if (!formTypesEqual(previousFormTypes, normalizedTarget)) {
+      const { error: formError } = await service
+        .from('patients')
+        .update({ form_types: normalizedTarget })
+        .eq('id', patientId)
+      if (formError) {
+        log.error('Mise a jour form_types echouee', { patientId, formError })
+        return {
+          ok: false,
+          httpStatus: 502,
+          error: 'Erreur mise a jour du type de questionnaire',
+          code: 'upstream',
+        }
+      }
+      // Changement de pathologie : nouvelle session obligatoire (évite mélange cervical/lombaire).
+      newSession = true
+    }
+  }
 
   if (existing?.questionnaire_status === 'completed') {
     return {

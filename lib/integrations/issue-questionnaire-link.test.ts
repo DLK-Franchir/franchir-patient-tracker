@@ -32,7 +32,11 @@ describe('markQuestionnaireLinkIssued', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     maybeSingleMock.mockResolvedValue({
-      data: { questionnaire_status: null, patient_email: 'patient@example.com' },
+      data: {
+        questionnaire_status: null,
+        patient_email: 'patient@example.com',
+        form_types: ['cervical'],
+      },
     })
   })
 
@@ -90,8 +94,14 @@ describe('issueQuestionnaireLink', () => {
     vi.mocked(syncPatientToQuestionnaires).mockResolvedValue(true)
     selectMock.mockReturnValue({ eq: eqAfterSelect })
     eqAfterSelect.mockReturnValue({ maybeSingle: maybeSingleMock })
+    updateMock.mockReturnValue({ eq: eqAfterUpdate })
+    eqAfterUpdate.mockResolvedValue({ error: null })
     maybeSingleMock.mockResolvedValue({
-      data: { questionnaire_status: null, patient_email: 'patient@example.com' },
+      data: {
+        questionnaire_status: null,
+        patient_email: 'patient@example.com',
+        form_types: ['cervical'],
+      },
     })
   })
 
@@ -111,5 +121,56 @@ describe('issueQuestionnaireLink', () => {
       error: expect.stringContaining('injoignable'),
       code: 'upstream',
     })
+  })
+
+  it('force newSession quand form_types change', async () => {
+    maybeSingleMock.mockResolvedValue({
+      data: {
+        questionnaire_status: null,
+        patient_email: 'patient@example.com',
+        form_types: ['cervical'],
+      },
+    })
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ emailSent: true, expiresAt: null }), { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await issueQuestionnaireLink({
+      patientId: 'patient-1',
+      formTypes: ['lombaire'],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(updateMock).toHaveBeenCalledWith({ form_types: ['lombaire'] })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/questionnaire-link'),
+      expect.objectContaining({
+        body: expect.stringContaining('"newSession":true'),
+      }),
+    )
+  })
+
+  it('ne met pas a jour form_types si identiques', async () => {
+    maybeSingleMock.mockResolvedValue({
+      data: {
+        questionnaire_status: null,
+        patient_email: 'patient@example.com',
+        form_types: ['cervical', 'lombaire'],
+      },
+    })
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ emailSent: true }), { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await issueQuestionnaireLink({
+      patientId: 'patient-1',
+      formTypes: ['lombaire', 'cervical'],
+    })
+
+    expect(updateMock).not.toHaveBeenCalledWith({ form_types: expect.anything() })
   })
 })

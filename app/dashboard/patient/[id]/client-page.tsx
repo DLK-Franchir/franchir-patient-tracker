@@ -12,6 +12,10 @@ import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from
 import { getPatientDetailViewConfig } from '@/lib/patient-detail-view-config'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
+import {
+  type QuestionnaireFormType,
+  normalizeFormTypes,
+} from '@/lib/integrations/questionnaire-form-types'
 import { useRouter } from 'next/navigation'
 
 const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
@@ -31,6 +35,7 @@ interface PatientData {
   patient_email?: string | null
   patient_phone?: string | null
   questionnaire_language: 'fr' | 'en'
+  form_types?: QuestionnaireFormType[] | null
   clinical_summary: string | null
   sharepoint_link: string | null
   created_at: string
@@ -103,12 +108,16 @@ export default function PatientDetailClient({
   const viewConfig = getPatientDetailViewConfig(userRole)
   const canManageQuestionnaire = viewConfig.canManageQuestionnaire
 
-  const sendQuestionnaireLink = async (newSession: boolean, language: 'fr' | 'en') => {
+  const sendQuestionnaireLink = async (
+    formTypes: QuestionnaireFormType[],
+    language: 'fr' | 'en',
+    newSession = false,
+  ) => {
     try {
       const response = await fetch(`/api/patients/${patient.id}/questionnaire-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newSession, language }),
+        body: JSON.stringify({ newSession, language, formTypes }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -118,6 +127,7 @@ export default function PatientDetailClient({
       setPatient((p) => ({
         ...p,
         questionnaire_language: language,
+        form_types: formTypes,
         questionnaire_status:
           p.questionnaire_status === 'completed'
             ? 'completed'
@@ -134,7 +144,7 @@ export default function PatientDetailClient({
         setQuestionnaireLinkNotice({
           tone: 'warning',
           message:
-            "Lien questionnaire généré mais l'email n'a pas été expédié. Vérifiez l'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec « Renvoyer le lien ».",
+            "Lien questionnaire généré mais l'email n'a pas été expédié. Vérifiez l'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec un des boutons d'envoi.",
         })
       }
       router.refresh()
@@ -306,6 +316,9 @@ export default function PatientDetailClient({
           bridgeStatus={questionnaireStatus}
           canManage={canManageQuestionnaire}
           initialLanguage={questionnaireLanguage}
+          initialFormTypes={normalizeFormTypes(
+            (Array.isArray(patient.form_types) ? patient.form_types : ['cervical']) as QuestionnaireFormType[],
+          )}
           onSendLink={sendQuestionnaireLink}
           onRevokeLink={revokeQuestionnaireLink}
           showPdfDownload={viewConfig.showQuestionnairePdf}
@@ -445,6 +458,9 @@ export default function PatientDetailClient({
               bridgeStatus={questionnaireStatus}
               canManage={canManageQuestionnaire}
               initialLanguage={questionnaireLanguage}
+              initialFormTypes={normalizeFormTypes(
+                (Array.isArray(patient.form_types) ? patient.form_types : ['cervical']) as QuestionnaireFormType[],
+              )}
               onSendLink={sendQuestionnaireLink}
               onRevokeLink={revokeQuestionnaireLink}
               showPdfDownload={viewConfig.showQuestionnairePdf}

@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { canManagePatientDocuments } from '@/lib/access-control'
 import { parseQuestionnaireLanguageFromLinkBody } from '@/lib/integrations/questionnaire-language'
+import { parseFormTypesInput } from '@/lib/integrations/questionnaire-form-types'
 import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
 import { Logger } from '@/lib/logger'
 
@@ -48,12 +49,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = await req.json().catch(() => ({}))
   const newSession = Boolean(body?.newSession)
   const language = parseQuestionnaireLanguageFromLinkBody(body)
+  const formTypes = parseFormTypesInput(body?.formTypes)
 
   try {
     const result = await issueQuestionnaireLink({
       patientId,
       newSession,
       language,
+      formTypes,
     })
 
     if (!result.ok) {
