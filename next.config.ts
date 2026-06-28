@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  transpilePackages: ['@franchir/synthesis-contract'],
   // dwv (DICOM viewer) charge ses codec web workers depuis `./assets/workers/`.
   // Fichiers vendored dans `public/dwv-workers/` (JPEG-LS, J2K, etc.).
   async rewrites() {

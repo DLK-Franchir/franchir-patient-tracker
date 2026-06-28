@@ -1,18 +1,19 @@
-export type QuestionnaireFormType = 'cervical' | 'lombaire'
+import {
+  formatFormTypesLabel as formatFormTypesLabelShared,
+  normalizeDbFormTypes,
+  resolveParcoursDisplayLabel,
+  type DbFormType,
+} from '@franchir/synthesis-contract'
+
+export type QuestionnaireFormType = DbFormType
 
 export type QuestionnaireFormTypePreset = QuestionnaireFormType | 'combined'
-
-const ORDER: Record<QuestionnaireFormType, number> = {
-  cervical: 0,
-  lombaire: 1,
-}
 
 /** Normalise et trie (cervical puis lombaire). */
 export function normalizeFormTypes(
   types: readonly QuestionnaireFormType[],
 ): QuestionnaireFormType[] {
-  const unique = [...new Set(types)]
-  return unique.sort((a, b) => ORDER[a] - ORDER[b])
+  return normalizeDbFormTypes(types)
 }
 
 export function formTypesEqual(
@@ -50,7 +51,7 @@ export function formTypesForPreset(preset: QuestionnaireFormTypePreset): Questio
 }
 
 export function formatFormTypesLabel(types: readonly QuestionnaireFormType[]): string {
-  const norm = normalizeFormTypes([...types])
-  if (norm.length === 2) return 'Cervical + lombaire'
-  return norm[0] === 'lombaire' ? 'Lombaire' : 'Cervical'
+  return formatFormTypesLabelShared(types)
 }
+
+export { resolveParcoursDisplayLabel }

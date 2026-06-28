@@ -206,6 +206,15 @@ export default function QuestionnairePatientCard({
         <span className="font-semibold text-gray-800">{formatFormTypesLabel(currentFormTypes)}</span>
       </p>
 
+      {!canManage && (
+        <p className="text-sm text-gray-600 mt-1">
+          Langue du questionnaire :{' '}
+          <span className="font-semibold text-gray-800">
+            {initialLanguage === 'en' ? 'English' : 'Français'}
+          </span>
+        </p>
+      )}
+
       {statusKey === 'completed' && questionnaireSummary && (
         <p className="text-sm text-gray-700 mt-3 whitespace-pre-line border-t border-gray-100 pt-3 bg-gray-50 rounded-lg p-3">
           {questionnaireSummary}

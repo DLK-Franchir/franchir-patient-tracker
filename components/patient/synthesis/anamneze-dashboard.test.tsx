@@ -6,9 +6,14 @@ import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionn
 const preview: QuestionnaireSynthesisPreview = {
   sessionId: '11111111-1111-4111-8111-111111111111',
   generatedAt: '2026-06-01T10:00:00.000Z',
+  spineRegionLabel: 'Cervical',
+  orientation: [{ id: 'pain_location', label: 'Localisation de la douleur', value: 'Cou' }],
   profile: {
     reason: 'Douleur cervicale',
     gender: 'Femme',
+    birthDate: '14/05/1980',
+    birthDateDisplay: '14 mai 1980',
+    age: '46 ans',
   },
   flags: [{ id: 'f1', label: 'Allergie latex', severity: 'critical', icon: 'allergy' }],
   antecedents: [{ title: 'Medicaux', items: ['HTA'] }],
@@ -23,10 +28,7 @@ const preview: QuestionnaireSynthesisPreview = {
     },
   ],
   scores: {
-    eva: 6,
-    evaInterpretation: 'Moderee',
-    ndiPct: 30,
-    ndiLabel: 'Moderate',
+    rows: [{ id: 'ndi', label: 'NDI — Incapacité cervicale', value: 30, max: 100, interpretation: 'Modérée' }],
   },
   completion: {
     overall: 100,
@@ -41,9 +43,10 @@ describe('AnamnezeDashboard', () => {
       <AnamnezeDashboard patientName="Jane Doe" preview={preview} />,
     )
     expect(html).toContain('Profil patient')
-    expect(html).toContain('Drapeaux cliniques')
+    expect(html).toContain('Orientation clinique')
+    expect(html).toContain('Parcours Cervical')
     expect(html).toContain('Scores fonctionnels')
-    expect(html).toContain('Douleur cervicale')
     expect(html).toContain('Allergie latex')
+    expect(html).toContain('46 ans')
   })
 })

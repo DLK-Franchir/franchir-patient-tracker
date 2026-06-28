@@ -8,30 +8,18 @@ type PatientProfileCardProps = {
   staggerIndex?: number
 }
 
-function calcAge(birthDateIso: string | undefined): string | null {
-  if (!birthDateIso) return null
-  const d = new Date(birthDateIso)
-  if (Number.isNaN(d.getTime())) return null
-  return `${new Date().getFullYear() - d.getFullYear()} ans`
-}
-
-function formatBirthDate(iso: string | undefined): string | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('fr-CA', { day: '2-digit', month: 'long', year: 'numeric' })
-}
-
 export function PatientProfileCard({
   patientName,
   preview,
   staggerIndex = 0,
 }: PatientProfileCardProps) {
   const { profile } = preview
-  const age = calcAge(profile.birthDate)
-  const birthFormatted = formatBirthDate(profile.birthDate)
-
-  const demographics = [age, profile.gender, birthFormatted ? `Ne(e) le ${birthFormatted}` : null]
+  const birthFormatted = profile.birthDateDisplay
+  const demographics = [
+    profile.age,
+    profile.gender,
+    birthFormatted ? `Ne(e) le ${birthFormatted}` : null,
+  ]
     .filter(Boolean)
     .join(' — ')
 

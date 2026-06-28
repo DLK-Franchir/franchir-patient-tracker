@@ -1,3 +1,7 @@
+import type { FunctionalScoreRow, OrientationSummaryField } from '@franchir/synthesis-contract'
+
+export type { FunctionalScoreRow, OrientationSummaryField }
+
 export type ClinicalFlagSeverity = 'critical' | 'warning' | 'info'
 
 export type ClinicalFlag = {
@@ -36,6 +40,8 @@ export type ImagingExamRow = {
 export type QuestionnaireSynthesisPreview = {
   sessionId: string
   generatedAt: string
+  spineRegionLabel?: string
+  orientation?: OrientationSummaryField[]
   profile: {
     reason?: string
     patientGoal?: string
@@ -43,6 +49,8 @@ export type QuestionnaireSynthesisPreview = {
     phone?: string
     gender?: string
     birthDate?: string
+    birthDateDisplay?: string
+    age?: string
   }
   flags: ClinicalFlag[]
   antecedents: AntecedentGroup[]
@@ -50,10 +58,7 @@ export type QuestionnaireSynthesisPreview = {
   timeline: TimelineEvent[]
   imagingRows: ImagingExamRow[]
   scores: {
-    eva: number | null
-    evaInterpretation: string
-    ndiPct: number | null
-    ndiLabel: string
+    rows: FunctionalScoreRow[]
   }
   completion: {
     overall: number

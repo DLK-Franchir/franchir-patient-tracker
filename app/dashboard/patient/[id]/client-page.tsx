@@ -6,6 +6,7 @@ import { WorkflowActionHistory, usePatientActionLog } from '@/components/workflo
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
+import { PatientDossierIdentityCard } from '@/components/patient/patient-dossier-identity-card'
 import DocumentsSection from '@/components/patient/documents-section'
 import QuestionnairePatientCard from '@/components/patient/questionnaire-patient-card'
 import AnamnezeSection from '@/components/patient/synthesis/anamneze-section'
@@ -340,6 +341,17 @@ export default function PatientDetailClient({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <PatientDossierIdentityCard
+            patientName={patient.patient_name}
+            patientEmail={patient.patient_email}
+            patientPhone={patient.patient_phone}
+            questionnaireLanguage={questionnaireLanguage}
+            formTypes={questionnaireFormTypes}
+            parcoursLabel={synthesisPreview?.spineRegionLabel}
+            clinicalSummary={patient.clinical_summary}
+            showClinicalSummary={viewConfig.showClinicalSummary && !viewConfig.showSharePoint}
+          />
+
           {viewConfig.showSharePoint && (
             <PatientSummaryCard
               patientName={patient.patient_name}

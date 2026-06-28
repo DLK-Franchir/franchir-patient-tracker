@@ -29,6 +29,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@franchir/synthesis-contract": [
+        "./packages/synthesis-contract/src/index.ts"
       ]
     }
   },
