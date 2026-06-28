@@ -4,6 +4,16 @@ export type {
   OrientationSummaryField,
   SpineRegionKind,
 } from "./types";
+export type {
+  AntecedentGroup,
+  ClinicalFlag,
+  ClinicalFlagSeverity,
+  ImagingExamRow,
+  QuestionnaireSynthesisPreview,
+  QuestionnaireSynthesisPreviewProfile,
+  TimelineEvent,
+  TreatmentItem,
+} from "./preview-types";
 export {
   calcAgeFromBirthDate,
   formatBirthDateFr,
