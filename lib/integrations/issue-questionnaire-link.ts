@@ -65,6 +65,8 @@ export type IssueQuestionnaireLinkResult =
       ok: true
       emailSent: boolean
       expiresAt: string | null
+      /** True si une nouvelle session a été demandée (y compris forcée par changement de pathologie). */
+      effectiveNewSession: boolean
     }
   | {
       ok: false
@@ -229,6 +231,7 @@ export async function issueQuestionnaireLink(
     ok: true,
     emailSent,
     expiresAt: result.expiresAt ?? null,
+    effectiveNewSession: newSession,
   }
 }
 

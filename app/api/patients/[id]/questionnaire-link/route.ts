@@ -14,8 +14,13 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { canManagePatientDocuments } from '@/lib/access-control'
 import { parseQuestionnaireLanguageFromLinkBody } from '@/lib/integrations/questionnaire-language'
-import { parseFormTypesInput } from '@/lib/integrations/questionnaire-form-types'
+import { parseFormTypesInput, coercePatientFormTypes } from '@/lib/integrations/questionnaire-form-types'
 import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
+import { logPatientAction } from '@/lib/patient-messages/log-action'
+import {
+  formatQuestionnaireAuditBodyFromFormTypes,
+  formatQuestionnaireResendNote,
+} from '@/lib/patient-messages/questionnaire-audit-copy'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('api/patients/questionnaire-link')
@@ -38,7 +43,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, email')
+    .select('role, email, full_name')
     .eq('id', user.id)
     .single()
 
@@ -51,6 +56,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const language = parseQuestionnaireLanguageFromLinkBody(body)
   const formTypes = parseFormTypesInput(body?.formTypes)
 
+  const { data: patientRow } = await supabase
+    .from('patients')
+    .select('questionnaire_language, form_types')
+    .eq('id', patientId)
+    .single()
+
   try {
     const result = await issueQuestionnaireLink({
       patientId,
@@ -62,6 +73,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.httpStatus })
     }
+
+    const { data: patientAfter } = await supabase
+      .from('patients')
+      .select('questionnaire_language, form_types')
+      .eq('id', patientId)
+      .single()
+
+    const resolvedLanguage =
+      patientAfter?.questionnaire_language === 'en' ? 'en' : 'fr'
+    const resolvedFormTypes = coercePatientFormTypes(
+      patientAfter?.form_types ?? patientRow?.form_types,
+    )
+    const effectiveNewSession = result.effectiveNewSession
+
+    await logPatientAction(
+      supabase,
+      {
+        patientId,
+        author: {
+          id: user.id,
+          full_name: profile?.full_name ?? null,
+          role: profile?.role ?? 'staff',
+        },
+        kind: 'action',
+        title: effectiveNewSession ? 'Nouveau questionnaire émis' : 'Lien questionnaire renvoyé',
+        body: formatQuestionnaireAuditBodyFromFormTypes({
+          formTypes: resolvedFormTypes,
+          language: resolvedLanguage,
+          sendNote: formatQuestionnaireResendNote(result.emailSent),
+        }),
+        topic: 'audit',
+        meta: {
+          action_id: effectiveNewSession ? 'questionnaire_new_session' : 'questionnaire_resend',
+          questionnaire_language: resolvedLanguage,
+          form_types: resolvedFormTypes,
+          email_sent: result.emailSent,
+        },
+      },
+      log,
+      { action: 'questionnaire_link' },
+    )
 
     return NextResponse.json({
       success: true,

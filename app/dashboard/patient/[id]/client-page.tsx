@@ -2,6 +2,7 @@
 
 import { useState, lazy, Suspense, useEffect } from 'react'
 import { WorkflowActions, type SurgeonOption } from '@/components/workflow-actions'
+import { WorkflowActionHistory, usePatientActionLog } from '@/components/workflow-action-history'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
@@ -95,6 +96,11 @@ export default function PatientDetailClient({
   } | null>(null)
 
   useEffect(() => {
+    setPatient(initialPatient)
+    setQuestionnaireLanguage(initialPatient.questionnaire_language === 'en' ? 'en' : 'fr')
+  }, [initialPatient])
+
+  useEffect(() => {
     try {
       const warning = sessionStorage.getItem('franchir-questionnaire-create-warning')
       if (warning) {
@@ -185,6 +191,7 @@ export default function PatientDetailClient({
   const showCommercialTab = viewConfig.showCommercialTab
   const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
   const latestCompletedSession = questionnaireStatus?.sessions?.find((s) => s.status === 'completed')
+  const actionLogMessages = usePatientActionLog(patient.id, initialMessages)
 
   const handleAction = async (actionId: string, data?: any) => {
     try {
@@ -213,6 +220,23 @@ export default function PatientDetailClient({
       alert('Une erreur est survenue lors de l\'exécution de l\'action')
     }
   }
+
+  const actionsSidebar = (
+    <>
+      <WorkflowActions
+        globalStatus={globalStatus}
+        userRole={userRole}
+        quoteAccepted={patient.quote_accepted || false}
+        dateAccepted={patient.date_accepted || false}
+        surgeons={surgeons}
+        onAction={handleAction}
+      />
+      <WorkflowActionHistory
+        messages={actionLogMessages}
+        assignedSurgeonName={patient.assigned_surgeon?.full_name}
+      />
+    </>
+  )
 
   const handleUpdateSummary = async (summary: string, link: string) => {
     const response = await fetch(`/api/patients/${patient.id}/update-summary`, {
@@ -295,14 +319,7 @@ export default function PatientDetailClient({
         <div className="lg:hidden mb-4 space-y-4">
         <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-4">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Actions disponibles</h2>
-          <WorkflowActions
-            globalStatus={globalStatus}
-            userRole={userRole}
-            quoteAccepted={patient.quote_accepted || false}
-            dateAccepted={patient.date_accepted || false}
-            surgeons={surgeons}
-            onAction={handleAction}
-          />
+          {actionsSidebar}
         </div>
 
         <QuestionnairePatientCard
@@ -435,14 +452,7 @@ export default function PatientDetailClient({
           <div className="sticky top-20 space-y-6">
             <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-5">Actions disponibles</h2>
-              <WorkflowActions
-                globalStatus={globalStatus}
-                userRole={userRole}
-                quoteAccepted={patient.quote_accepted || false}
-                dateAccepted={patient.date_accepted || false}
-                surgeons={surgeons}
-                onAction={handleAction}
-              />
+              {actionsSidebar}
             </div>
 
             <QuestionnairePatientCard

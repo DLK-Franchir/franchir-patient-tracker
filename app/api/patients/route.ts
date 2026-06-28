@@ -6,6 +6,11 @@ import { parseQuestionnaireLanguage } from '@/lib/integrations/questionnaire-lan
 import { parseFormTypesInput } from '@/lib/integrations/questionnaire-form-types'
 import { sendNewPatientNotifications } from '@/lib/notifications'
 import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
+import { logPatientAction } from '@/lib/patient-messages/log-action'
+import {
+  formatPatientCreationAuditBody,
+  formatQuestionnaireCreationNote,
+} from '@/lib/patient-messages/questionnaire-audit-copy'
 
 const log = new Logger('api/patients')
 
@@ -20,7 +25,7 @@ export async function POST(req: Request) {
 
     const formTypes = parseFormTypesInput(form_types) ?? ['cervical']
 
-    const language = parseQuestionnaireLanguage(questionnaire_language, 'fr')
+    const language = parseQuestionnaireLanguage(questionnaire_language, 'fr') ?? 'fr'
 
     const normalizedPhone =
       typeof patient_phone === 'string' && patient_phone.trim().length > 0
@@ -103,6 +108,37 @@ export async function POST(req: Request) {
         patientId: patient.id,
       })
     }
+
+    const sendNote = formatQuestionnaireCreationNote({
+      ok: linkResult.ok,
+      emailSent: linkResult.ok ? linkResult.emailSent : undefined,
+      error: linkResult.ok ? undefined : linkResult.error,
+    })
+
+    await logPatientAction(
+      supabase,
+      {
+        patientId: patient.id,
+        author: { id: user.id, full_name: profile.full_name, role: profile.role },
+        kind: 'system',
+        title: 'Dossier créé',
+        body: formatPatientCreationAuditBody({
+          authorName: profile.full_name,
+          formTypes,
+          language,
+          sendNote,
+        }),
+        topic: 'audit',
+        meta: {
+          action_id: 'create_patient',
+          questionnaire_language: language,
+          form_types: formTypes,
+          questionnaire_email_sent: linkResult.ok ? linkResult.emailSent : false,
+        },
+      },
+      log,
+      { action: 'create_patient' },
+    )
 
     return NextResponse.json({
       success: true,
