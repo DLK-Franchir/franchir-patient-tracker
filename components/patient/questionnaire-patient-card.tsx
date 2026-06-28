@@ -4,10 +4,19 @@ import { useState } from 'react'
 import { Download, FileText } from 'lucide-react'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 import {
+  type QuestionnaireFormType,
+  type QuestionnaireFormTypePreset,
+  formTypesEqual,
+  formTypesForPreset,
+  formatFormTypesLabel,
+  normalizeFormTypes,
+} from '@/lib/integrations/questionnaire-form-types'
+import {
   StatusBadge,
   questionnaireStatusLabel,
   questionnaireStatusVariant,
 } from '@/components/ui/status-badge'
+import { QuestionnaireLanguageSelector } from '@/components/questionnaire-language-selector'
 
 interface QuestionnairePatientCardProps {
   patientId: string
@@ -18,7 +27,8 @@ interface QuestionnairePatientCardProps {
   bridgeStatus?: QuestionnaireStatus | null
   canManage?: boolean
   initialLanguage?: 'fr' | 'en'
-  onSendLink: (newSession: boolean, language: 'fr' | 'en') => Promise<void>
+  initialFormTypes?: QuestionnaireFormType[]
+  onSendLink: (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => Promise<void>
   onRevokeLink?: () => Promise<void>
   showPdfDownload?: boolean
 }
@@ -34,6 +44,34 @@ const SESSION_STATUS_LABEL: Record<string, { label: string; variant: 'success' |
   completed: { label: 'Complété', variant: 'success' },
 }
 
+const PATHOLOGY_BUTTONS: Array<{
+  preset: QuestionnaireFormTypePreset
+  label: string
+  activeClass: string
+}> = [
+  {
+    preset: 'cervical',
+    label: 'Cervical',
+    activeClass: 'border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100',
+  },
+  {
+    preset: 'lombaire',
+    label: 'Lombaire',
+    activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+  },
+  {
+    preset: 'combined',
+    label: 'Combiné',
+    activeClass: 'border-violet-500 bg-violet-50 text-violet-700 hover:bg-violet-100',
+  },
+]
+
+function hasInProgressQuestionnaireSession(bridgeStatus?: QuestionnaireStatus | null): boolean {
+  return Boolean(
+    bridgeStatus?.sessions?.some((s) => s.status === 'in_progress' || s.status === 'draft'),
+  )
+}
+
 export default function QuestionnairePatientCard({
   patientId,
   patientEmail,
@@ -43,6 +81,7 @@ export default function QuestionnairePatientCard({
   bridgeStatus,
   canManage = false,
   initialLanguage = 'fr',
+  initialFormTypes = ['cervical'],
   onSendLink,
   onRevokeLink,
   showPdfDownload = true,
@@ -54,11 +93,26 @@ export default function QuestionnairePatientCard({
 
   const statusKey = questionnaireStatus ?? 'draft'
   const latestCompletedSession = bridgeStatus?.sessions?.find((s) => s.status === 'completed')
+  const currentFormTypes = normalizeFormTypes(initialFormTypes)
 
-  const handleSend = async () => {
+  const handleSendPreset = async (preset: QuestionnaireFormTypePreset) => {
+    const targetTypes = formTypesForPreset(preset)
+
+    if (
+      !formTypesEqual(currentFormTypes, targetTypes) &&
+      hasInProgressQuestionnaireSession(bridgeStatus)
+    ) {
+      const fromLabel = formatFormTypesLabel(currentFormTypes)
+      const toLabel = formatFormTypesLabel(targetTypes)
+      const confirmed = window.confirm(
+        `Le patient a un questionnaire ${fromLabel} en cours. Passer au parcours ${toLabel} ouvrira une nouvelle session et les réponses en cours seront perdues. Continuer ?`,
+      )
+      if (!confirmed) return
+    }
+
     setLoading(true)
     try {
-      await onSendLink(false, language)
+      await onSendLink(targetTypes, language)
     } finally {
       setLoading(false)
     }
@@ -112,6 +166,8 @@ export default function QuestionnairePatientCard({
     }
   }
 
+  const sendVerb = questionnaireStatus ? 'Renvoyer' : 'Envoyer'
+
   return (
     <section className="bg-white border-2 border-gray-200 rounded-xl p-5 shadow-sm">
       <div className="flex items-start gap-3 mb-4">
@@ -142,6 +198,20 @@ export default function QuestionnairePatientCard({
       {patientEmail && (
         <p className="text-sm text-gray-500 mt-3 break-all">
           Patient : <span className="font-medium text-gray-700">{patientEmail}</span>
+        </p>
+      )}
+
+      <p className="text-sm text-gray-600 mt-2">
+        Parcours configuré :{' '}
+        <span className="font-semibold text-gray-800">{formatFormTypesLabel(currentFormTypes)}</span>
+      </p>
+
+      {!canManage && (
+        <p className="text-sm text-gray-600 mt-1">
+          Langue du questionnaire :{' '}
+          <span className="font-semibold text-gray-800">
+            {initialLanguage === 'en' ? 'English' : 'Français'}
+          </span>
         </p>
       )}
 
@@ -184,41 +254,39 @@ export default function QuestionnairePatientCard({
           </div>
         ) : (
           <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+            <QuestionnaireLanguageSelector
+              value={language}
+              onChange={setLanguage}
+              disabled={loading}
+            />
             <div>
-              <p className="text-sm font-semibold text-gray-800 mb-2">Langue du questionnaire</p>
-              <div className="flex gap-2">
-                {(['fr', 'en'] as const).map((lang) => {
-                  const active = language === lang
+              <p className="text-sm font-semibold text-gray-800 mb-2">Pathologie du questionnaire</p>
+              <p className="text-xs text-gray-500 mb-3">
+                Choisissez le parcours à envoyer. Un changement de pathologie avec questionnaire en cours
+                ouvre une nouvelle session.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {PATHOLOGY_BUTTONS.map(({ preset, label, activeClass }) => {
+                  const targetTypes = formTypesForPreset(preset)
+                  const isCurrent = formTypesEqual(currentFormTypes, targetTypes)
                   return (
                     <button
-                      key={lang}
+                      key={preset}
                       type="button"
-                      onClick={() => setLanguage(lang)}
+                      onClick={() => handleSendPreset(preset)}
                       disabled={loading}
-                      className={`flex-1 text-sm font-bold px-4 py-2.5 rounded-lg border-2 transition ${
-                        active
-                          ? 'bg-[#2563EB] text-white border-[#2563EB]'
-                          : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                      } disabled:opacity-50`}
+                      className={`text-sm font-bold px-3 py-3 rounded-lg border-2 transition disabled:opacity-50 ${
+                        isCurrent
+                          ? activeClass
+                          : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
+                      }`}
                     >
-                      {lang === 'fr' ? 'Français' : 'English'}
+                      {loading ? 'Envoi…' : `${sendVerb} ${label}`}
                     </button>
                   )
                 })}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={loading}
-              className="w-full text-base bg-[#2563EB] text-white px-4 py-3 rounded-lg font-bold hover:bg-[#1d4ed8] disabled:opacity-50 transition"
-            >
-              {loading
-                ? 'Envoi…'
-                : questionnaireStatus
-                  ? 'Renvoyer le lien'
-                  : 'Générer et envoyer le lien'}
-            </button>
             {bridgeStatus?.activeLink && onRevokeLink && (
               <button
                 type="button"
@@ -240,7 +308,7 @@ export default function QuestionnairePatientCard({
           )}
           {!bridgeStatus.activeLink.sentAt && statusKey !== 'completed' && (
             <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Lien actif mais email non confirmé — utilisez « Renvoyer le lien » et vérifiez l&apos;adresse
+              Lien actif mais email non confirmé — renvoyez le lien et vérifiez l&apos;adresse
               patient{patientEmail ? ` (${patientEmail})` : ''}.
             </p>
           )}

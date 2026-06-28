@@ -3,8 +3,14 @@ import { NextResponse } from 'next/server'
 import { Logger } from '@/lib/logger'
 import { canCreatePatient } from '@/lib/access-control'
 import { parseQuestionnaireLanguage } from '@/lib/integrations/questionnaire-language'
+import { parseFormTypesInput } from '@/lib/integrations/questionnaire-form-types'
 import { sendNewPatientNotifications } from '@/lib/notifications'
 import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
+import { logPatientAction } from '@/lib/patient-messages/log-action'
+import {
+  formatPatientCreationAuditBody,
+  formatQuestionnaireCreationNote,
+} from '@/lib/patient-messages/questionnaire-audit-copy'
 
 const log = new Logger('api/patients')
 
@@ -17,15 +23,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
     }
 
-    const normalizedFormTypes = Array.isArray(form_types)
-      ? form_types.filter((t: unknown): t is 'cervical' | 'lombaire' =>
-          t === 'cervical' || t === 'lombaire',
-        )
-      : ['cervical']
-    const formTypes =
-      normalizedFormTypes.length > 0 ? [...new Set(normalizedFormTypes)] : (['cervical'] as const)
+    const formTypes = parseFormTypesInput(form_types) ?? ['cervical']
 
-    const language = parseQuestionnaireLanguage(questionnaire_language, 'fr')
+    const language = parseQuestionnaireLanguage(questionnaire_language, 'fr') ?? 'fr'
 
     const normalizedPhone =
       typeof patient_phone === 'string' && patient_phone.trim().length > 0
@@ -108,6 +108,37 @@ export async function POST(req: Request) {
         patientId: patient.id,
       })
     }
+
+    const sendNote = formatQuestionnaireCreationNote({
+      ok: linkResult.ok,
+      emailSent: linkResult.ok ? linkResult.emailSent : undefined,
+      error: linkResult.ok ? undefined : linkResult.error,
+    })
+
+    await logPatientAction(
+      supabase,
+      {
+        patientId: patient.id,
+        author: { id: user.id, full_name: profile.full_name, role: profile.role },
+        kind: 'system',
+        title: 'Dossier créé',
+        body: formatPatientCreationAuditBody({
+          authorName: profile.full_name,
+          formTypes,
+          language,
+          sendNote,
+        }),
+        topic: 'audit',
+        meta: {
+          action_id: 'create_patient',
+          questionnaire_language: language,
+          form_types: formTypes,
+          questionnaire_email_sent: linkResult.ok ? linkResult.emailSent : false,
+        },
+      },
+      log,
+      { action: 'create_patient' },
+    )
 
     return NextResponse.json({
       success: true,

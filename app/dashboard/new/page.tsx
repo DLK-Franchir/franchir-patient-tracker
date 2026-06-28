@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft } from 'lucide-react'
 import DocumentUpload from '@/components/patient/document-upload'
+import { QuestionnaireLanguageSelector } from '@/components/questionnaire-language-selector'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 
 export default function NewPatientPage() {
@@ -14,6 +15,7 @@ export default function NewPatientPage() {
   const [phone, setPhone] = useState('')
   const [summary, setSummary] = useState('')
   const [formTypes, setFormTypes] = useState<Array<'cervical' | 'lombaire'>>(['cervical'])
+  const [questionnaireLanguage, setQuestionnaireLanguage] = useState<'fr' | 'en'>('fr')
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [uploadStep, setUploadStep] = useState(false)
@@ -33,6 +35,7 @@ export default function NewPatientPage() {
           patient_phone: phone.trim() || null,
           clinical_summary: summary,
           form_types: formTypes,
+          questionnaire_language: questionnaireLanguage,
         }),
       })
 
@@ -216,6 +219,13 @@ export default function NewPatientPage() {
               </div>
             </fieldset>
           </div>
+          <QuestionnaireLanguageSelector
+            value={questionnaireLanguage}
+            onChange={setQuestionnaireLanguage}
+            disabled={loading}
+            required
+            hint="Langue fixe du parcours patient (français ou anglais). Transmise dès la création du dossier."
+          />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Imagerie & documents <span className="font-normal text-gray-400">(optionnel)</span>

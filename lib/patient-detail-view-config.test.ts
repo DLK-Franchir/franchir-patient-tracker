@@ -11,6 +11,7 @@ describe('getPatientDetailViewConfig', () => {
       canManageQuestionnaire: false,
       showQuestionnairePdf: true,
       showAnamnezeDashboard: true,
+      showClinicalSummary: true,
     })
   })
 

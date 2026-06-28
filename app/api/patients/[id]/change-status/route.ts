@@ -6,6 +6,7 @@ import { type ActionId, canPerformWorkflowAction, globalStatusFromWorkflowStatus
 import { Logger } from '@/lib/logger'
 import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
 import { sendStatusChangeNotifications, sendSurgeonAssignmentEmail } from '@/lib/notifications'
+import { logPatientAction } from '@/lib/patient-messages/log-action'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const log = new Logger('api/change-status')
@@ -74,6 +75,7 @@ export async function POST(
     current_status?: { id: string; code: string; label: string; color: string }
     quote_accepted?: boolean
     date_accepted?: boolean
+    assigned_surgeon?: { id: string; full_name: string; email?: string | null } | null
   } = {}
 
   switch (actionId as ActionId) {
@@ -112,6 +114,7 @@ export async function POST(
             return NextResponse.json({ error: assignError.message }, { status: 500 })
           }
           messageBody += `\n\nChirurgien assigné : ${approveSurgeon.full_name}`
+          updatedPatient.assigned_surgeon = approveSurgeon
           await sendSurgeonAssignmentEmail(approveSurgeon, patient.patient_name)
         }
       }
@@ -141,6 +144,7 @@ export async function POST(
       await sendSurgeonAssignmentEmail(assignSurgeon, patient.patient_name)
       messageTitle = 'Chirurgien assigné'
       messageBody = `Chirurgien assigné : ${assignSurgeon.full_name}. Le dossier lui est transmis pour étude.`
+      updatedPatient.assigned_surgeon = assignSurgeon
       break
     }
 
@@ -242,19 +246,28 @@ export async function POST(
     updatedPatient.current_status = newStatus
   }
 
-    await supabase.from('patient_messages').insert({
-      patient_id: patientId,
-      author_id: user.id,
-      author_name: profile.full_name,
-      author_role: profile.role,
-      kind: newStatusCode ? 'status_change' : 'action',
-      title: messageTitle,
-      body: messageBody,
-      topic: actionId.includes('quote') || actionId.includes('date') || actionId.includes('budget') || actionId.includes('propose') ? 'commercial' : 'medical',
-      meta: newStatusCode
-        ? { old_status: currentStatus?.code, new_status: newStatusCode, action_id: actionId }
-        : { action_id: actionId },
-    })
+    await logPatientAction(
+      supabase,
+      {
+        patientId,
+        author: { id: user.id, full_name: profile.full_name, role: profile.role },
+        kind: newStatusCode ? 'status_change' : 'action',
+        title: messageTitle,
+        body: messageBody,
+        topic:
+          actionId.includes('quote') ||
+          actionId.includes('date') ||
+          actionId.includes('budget') ||
+          actionId.includes('propose')
+            ? 'commercial'
+            : 'medical',
+        meta: newStatusCode
+          ? { old_status: currentStatus?.code, new_status: newStatusCode, action_id: actionId }
+          : { action_id: actionId },
+      },
+      log,
+      { actionId },
+    )
 
     if (newStatusCode) {
       await sendStatusChangeNotifications(

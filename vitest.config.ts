@@ -5,6 +5,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
+      '@franchir/synthesis-contract': fileURLToPath(
+        new URL('./packages/synthesis-contract/src/index.ts', import.meta.url),
+      ),
     },
   },
   test: {

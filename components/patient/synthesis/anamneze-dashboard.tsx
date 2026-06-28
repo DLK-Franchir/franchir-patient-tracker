@@ -6,6 +6,7 @@ import { ClinicalFlagsCard } from '@/components/patient/synthesis/clinical-flags
 import { CompletionDonutsCard } from '@/components/patient/synthesis/completion-donuts-card'
 import { FunctionalScoresCard } from '@/components/patient/synthesis/functional-scores-card'
 import { ImagingDossierCard } from '@/components/patient/synthesis/imaging-dossier-card'
+import { OrientationCliniqueCard } from '@/components/patient/synthesis/orientation-clinique-card'
 import { PatientProfileCard } from '@/components/patient/synthesis/patient-profile-card'
 import { TimelineCard } from '@/components/patient/synthesis/timeline-card'
 import { TreatmentsCard } from '@/components/patient/synthesis/treatments-card'
@@ -25,25 +26,32 @@ export function AnamnezeDashboard({ patientName, preview }: AnamnezeDashboardPro
         <CompletionDonutsCard completion={preview.completion} staggerIndex={1} />
       </div>
       <div className="col-span-12">
-        <ClinicalFlagsCard flags={preview.flags} staggerIndex={2} />
+        <OrientationCliniqueCard
+          fields={preview.orientation ?? []}
+          spineRegionLabel={preview.spineRegionLabel}
+          staggerIndex={2}
+        />
+      </div>
+      <div className="col-span-12">
+        <ClinicalFlagsCard flags={preview.flags} staggerIndex={3} />
       </div>
       <div className="col-span-12 lg:col-span-6">
-        <AntecedentsCard groups={preview.antecedents} staggerIndex={3} />
+        <AntecedentsCard groups={preview.antecedents} staggerIndex={4} />
       </div>
       <div className="col-span-12 lg:col-span-6">
-        <TreatmentsCard items={preview.treatments} staggerIndex={4} />
+        <TreatmentsCard items={preview.treatments} staggerIndex={5} />
       </div>
       <div className="col-span-12 lg:col-span-6">
-        <FunctionalScoresCard scores={preview.scores} staggerIndex={5} />
+        <FunctionalScoresCard scores={preview.scores} staggerIndex={6} />
       </div>
       <div className="col-span-12 lg:col-span-6">
-        <TimelineCard events={preview.timeline} staggerIndex={6} />
+        <TimelineCard events={preview.timeline} staggerIndex={7} />
       </div>
       <div className="col-span-12">
         <ImagingDossierCard
           rows={preview.imagingRows}
           generatedAt={preview.generatedAt}
-          staggerIndex={7}
+          staggerIndex={8}
         />
       </div>
     </div>

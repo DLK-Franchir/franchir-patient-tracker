@@ -2,6 +2,8 @@ import type { UserRole } from '@/lib/workflow-v2'
 
 export type PatientDetailViewConfig = {
   showSharePoint: boolean
+  /** Résumé clinique saisi à la création (lecture pour Gilles, édition limitée pour Marcel). */
+  showClinicalSummary: boolean
   canManageDocuments: boolean
   showCommercialTab: boolean
   canManageQuestionnaire: boolean
@@ -13,6 +15,7 @@ export type PatientDetailViewConfig = {
 
 const DEFAULT_VIEW: PatientDetailViewConfig = {
   showSharePoint: true,
+  showClinicalSummary: true,
   canManageDocuments: true,
   showCommercialTab: true,
   canManageQuestionnaire: true,
@@ -22,6 +25,7 @@ const DEFAULT_VIEW: PatientDetailViewConfig = {
 
 const GILLES_VIEW: PatientDetailViewConfig = {
   showSharePoint: false,
+  showClinicalSummary: true,
   canManageDocuments: false,
   showCommercialTab: false,
   canManageQuestionnaire: false,

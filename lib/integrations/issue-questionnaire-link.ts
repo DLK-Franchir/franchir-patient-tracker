@@ -6,6 +6,12 @@
 
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-portal'
+import {
+  type QuestionnaireFormType,
+  coercePatientFormTypes,
+  formTypesEqual,
+  normalizeFormTypes,
+} from '@/lib/integrations/questionnaire-form-types'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('integrations/issue-questionnaire-link')
@@ -59,6 +65,8 @@ export type IssueQuestionnaireLinkResult =
       ok: true
       emailSent: boolean
       expiresAt: string | null
+      /** True si une nouvelle session a été demandée (y compris forcée par changement de pathologie). */
+      effectiveNewSession: boolean
     }
   | {
       ok: false
@@ -72,12 +80,15 @@ export type IssueQuestionnaireLinkOptions = {
   newSession?: boolean
   /** Met à jour questionnaire_language avant sync (renvoi manuel). */
   language?: 'fr' | 'en' | null
+  /** Met à jour patients.form_types avant sync + émission (fiche patient). */
+  formTypes?: QuestionnaireFormType[] | null
 }
 
 export async function issueQuestionnaireLink(
   options: IssueQuestionnaireLinkOptions,
 ): Promise<IssueQuestionnaireLinkResult> {
-  const { patientId, newSession = false, language = null } = options
+  const { patientId, language = null, formTypes = null } = options
+  let { newSession = false } = options
   const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
   if (!token) {
     return {
@@ -91,9 +102,11 @@ export async function issueQuestionnaireLink(
   const service = createServiceRoleClient()
   const { data: existing } = await service
     .from('patients')
-    .select('questionnaire_status, patient_email')
+    .select('questionnaire_status, patient_email, form_types')
     .eq('id', patientId)
     .maybeSingle()
+
+  const previousFormTypes = coercePatientFormTypes(existing?.form_types)
 
   if (existing?.questionnaire_status === 'completed') {
     return {
@@ -102,6 +115,27 @@ export async function issueQuestionnaireLink(
       error:
         'Questionnaire déjà complété — pour une nouvelle évaluation, créez un nouveau dossier patient.',
       code: 'completed',
+    }
+  }
+
+  if (formTypes && formTypes.length > 0) {
+    const normalizedTarget = normalizeFormTypes(formTypes)
+    if (!formTypesEqual(previousFormTypes, normalizedTarget)) {
+      const { error: formError } = await service
+        .from('patients')
+        .update({ form_types: normalizedTarget })
+        .eq('id', patientId)
+      if (formError) {
+        log.error('Mise a jour form_types echouee', { patientId, formError })
+        return {
+          ok: false,
+          httpStatus: 502,
+          error: 'Erreur mise a jour du type de questionnaire',
+          code: 'upstream',
+        }
+      }
+      // Changement de pathologie : nouvelle session obligatoire (évite mélange cervical/lombaire).
+      newSession = true
     }
   }
 
@@ -197,6 +231,7 @@ export async function issueQuestionnaireLink(
     ok: true,
     emailSent,
     expiresAt: result.expiresAt ?? null,
+    effectiveNewSession: newSession,
   }
 }
 

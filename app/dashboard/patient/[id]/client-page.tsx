@@ -2,9 +2,11 @@
 
 import { useState, lazy, Suspense, useEffect } from 'react'
 import { WorkflowActions, type SurgeonOption } from '@/components/workflow-actions'
+import { WorkflowActionHistory, usePatientActionLog } from '@/components/workflow-action-history'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
+import { PatientDossierIdentityCard } from '@/components/patient/patient-dossier-identity-card'
 import DocumentsSection from '@/components/patient/documents-section'
 import QuestionnairePatientCard from '@/components/patient/questionnaire-patient-card'
 import AnamnezeSection from '@/components/patient/synthesis/anamneze-section'
@@ -12,6 +14,11 @@ import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from
 import { getPatientDetailViewConfig } from '@/lib/patient-detail-view-config'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
+import {
+  type QuestionnaireFormType,
+  coercePatientFormTypes,
+  normalizeFormTypes,
+} from '@/lib/integrations/questionnaire-form-types'
 import { useRouter } from 'next/navigation'
 
 const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
@@ -31,6 +38,7 @@ interface PatientData {
   patient_email?: string | null
   patient_phone?: string | null
   questionnaire_language: 'fr' | 'en'
+  form_types?: QuestionnaireFormType[] | null
   clinical_summary: string | null
   sharepoint_link: string | null
   created_at: string
@@ -89,6 +97,11 @@ export default function PatientDetailClient({
   } | null>(null)
 
   useEffect(() => {
+    setPatient(initialPatient)
+    setQuestionnaireLanguage(initialPatient.questionnaire_language === 'en' ? 'en' : 'fr')
+  }, [initialPatient])
+
+  useEffect(() => {
     try {
       const warning = sessionStorage.getItem('franchir-questionnaire-create-warning')
       if (warning) {
@@ -103,12 +116,12 @@ export default function PatientDetailClient({
   const viewConfig = getPatientDetailViewConfig(userRole)
   const canManageQuestionnaire = viewConfig.canManageQuestionnaire
 
-  const sendQuestionnaireLink = async (newSession: boolean, language: 'fr' | 'en') => {
+  const sendQuestionnaireLink = async (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => {
     try {
       const response = await fetch(`/api/patients/${patient.id}/questionnaire-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newSession, language }),
+        body: JSON.stringify({ language, formTypes }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -118,6 +131,7 @@ export default function PatientDetailClient({
       setPatient((p) => ({
         ...p,
         questionnaire_language: language,
+        form_types: normalizeFormTypes(formTypes),
         questionnaire_status:
           p.questionnaire_status === 'completed'
             ? 'completed'
@@ -134,7 +148,7 @@ export default function PatientDetailClient({
         setQuestionnaireLinkNotice({
           tone: 'warning',
           message:
-            "Lien questionnaire généré mais l'email n'a pas été expédié. Vérifiez l'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec « Renvoyer le lien ».",
+            "Lien questionnaire généré mais l'email n'a pas été expédié. Vérifiez l'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec un des boutons d'envoi.",
         })
       }
       router.refresh()
@@ -165,6 +179,7 @@ export default function PatientDetailClient({
   }
 
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
+  const questionnaireFormTypes = coercePatientFormTypes(patient.form_types)
 
   const medicalMessages = initialMessages.filter(m =>
     m.topic === 'medical' || m.topic === 'system' || !m.topic
@@ -177,6 +192,7 @@ export default function PatientDetailClient({
   const showCommercialTab = viewConfig.showCommercialTab
   const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
   const latestCompletedSession = questionnaireStatus?.sessions?.find((s) => s.status === 'completed')
+  const actionLogMessages = usePatientActionLog(patient.id, initialMessages)
 
   const handleAction = async (actionId: string, data?: any) => {
     try {
@@ -205,6 +221,23 @@ export default function PatientDetailClient({
       alert('Une erreur est survenue lors de l\'exécution de l\'action')
     }
   }
+
+  const actionsSidebar = (
+    <>
+      <WorkflowActions
+        globalStatus={globalStatus}
+        userRole={userRole}
+        quoteAccepted={patient.quote_accepted || false}
+        dateAccepted={patient.date_accepted || false}
+        surgeons={surgeons}
+        onAction={handleAction}
+      />
+      <WorkflowActionHistory
+        messages={actionLogMessages}
+        assignedSurgeonName={patient.assigned_surgeon?.full_name}
+      />
+    </>
+  )
 
   const handleUpdateSummary = async (summary: string, link: string) => {
     const response = await fetch(`/api/patients/${patient.id}/update-summary`, {
@@ -287,14 +320,7 @@ export default function PatientDetailClient({
         <div className="lg:hidden mb-4 space-y-4">
         <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-4">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Actions disponibles</h2>
-          <WorkflowActions
-            globalStatus={globalStatus}
-            userRole={userRole}
-            quoteAccepted={patient.quote_accepted || false}
-            dateAccepted={patient.date_accepted || false}
-            surgeons={surgeons}
-            onAction={handleAction}
-          />
+          {actionsSidebar}
         </div>
 
         <QuestionnairePatientCard
@@ -306,6 +332,7 @@ export default function PatientDetailClient({
           bridgeStatus={questionnaireStatus}
           canManage={canManageQuestionnaire}
           initialLanguage={questionnaireLanguage}
+          initialFormTypes={questionnaireFormTypes}
           onSendLink={sendQuestionnaireLink}
           onRevokeLink={revokeQuestionnaireLink}
           showPdfDownload={viewConfig.showQuestionnairePdf}
@@ -314,6 +341,17 @@ export default function PatientDetailClient({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <PatientDossierIdentityCard
+            patientName={patient.patient_name}
+            patientEmail={patient.patient_email}
+            patientPhone={patient.patient_phone}
+            questionnaireLanguage={questionnaireLanguage}
+            formTypes={questionnaireFormTypes}
+            parcoursLabel={synthesisPreview?.spineRegionLabel}
+            clinicalSummary={patient.clinical_summary}
+            showClinicalSummary={viewConfig.showClinicalSummary && !viewConfig.showSharePoint}
+          />
+
           {viewConfig.showSharePoint && (
             <PatientSummaryCard
               patientName={patient.patient_name}
@@ -426,14 +464,7 @@ export default function PatientDetailClient({
           <div className="sticky top-20 space-y-6">
             <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-5">Actions disponibles</h2>
-              <WorkflowActions
-                globalStatus={globalStatus}
-                userRole={userRole}
-                quoteAccepted={patient.quote_accepted || false}
-                dateAccepted={patient.date_accepted || false}
-                surgeons={surgeons}
-                onAction={handleAction}
-              />
+              {actionsSidebar}
             </div>
 
             <QuestionnairePatientCard
@@ -445,6 +476,7 @@ export default function PatientDetailClient({
               bridgeStatus={questionnaireStatus}
               canManage={canManageQuestionnaire}
               initialLanguage={questionnaireLanguage}
+              initialFormTypes={questionnaireFormTypes}
               onSendLink={sendQuestionnaireLink}
               onRevokeLink={revokeQuestionnaireLink}
               showPdfDownload={viewConfig.showQuestionnairePdf}

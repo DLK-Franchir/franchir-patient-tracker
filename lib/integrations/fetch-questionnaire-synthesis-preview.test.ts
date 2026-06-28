@@ -35,10 +35,15 @@ describe('fetchQuestionnaireSynthesisPreview', () => {
       timeline: [],
       imagingRows: [],
       scores: {
-        eva: 7,
-        evaInterpretation: 'Moderee',
-        ndiPct: 42,
-        ndiLabel: 'Severe',
+        rows: [
+          {
+            id: 'ndi',
+            label: 'NDI — Incapacité cervicale',
+            value: 42,
+            max: 100,
+            interpretation: 'Sévère',
+          },
+        ],
       },
       completion: { overall: 100, status: 'completed', sections: [] },
     }
