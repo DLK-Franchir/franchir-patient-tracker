@@ -63,12 +63,24 @@ type DocumentsSectionProps = {
 }
 
 type ViewerItem =
-  | { kind: 'file'; doc: PatientDocument }
-  | { kind: 'dicom-series'; name: string; urls: string[]; firstUrl: string }
-  | { kind: 'dicom-pdf-series'; name: string; urls: string[]; firstUrl: string }
-  | { kind: 'questionnaire-file'; name: string; url: string; renderType: 'image' | 'pdf' | 'dicom' }
-  | { kind: 'questionnaire-dicom-series'; name: string; urls: string[]; firstUrl: string }
-  | { kind: 'questionnaire-dicom-pdf-series'; name: string; urls: string[]; firstUrl: string }
+  | { kind: 'file'; id: string; doc: PatientDocument }
+  | { kind: 'dicom-series'; id: string; name: string; urls: string[]; firstUrl: string }
+  | { kind: 'dicom-pdf-series'; id: string; name: string; urls: string[]; firstUrl: string }
+  | {
+      kind: 'questionnaire-file'
+      id: string
+      name: string
+      url: string
+      renderType: 'image' | 'pdf' | 'dicom'
+    }
+  | { kind: 'questionnaire-dicom-series'; id: string; name: string; urls: string[]; firstUrl: string }
+  | {
+      kind: 'questionnaire-dicom-pdf-series'
+      id: string
+      name: string
+      urls: string[]
+      firstUrl: string
+    }
 
 /**
  * Regroupe tous les DICOM en une seule entrée « série » (chargée d'un bloc dans
@@ -78,7 +90,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   const items: ViewerItem[] = []
   for (const doc of docs) {
     if (doc.renderType !== 'dicom') {
-      items.push({ kind: 'file', doc })
+      items.push({ kind: 'file', id: `doc-${doc.id}`, doc })
     }
   }
 
@@ -99,8 +111,10 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   )) {
     const first = series.files[0]
     if (!first) continue
+    const kind = series.isEncapsulatedPdf ? 'dicom-pdf-series' : 'dicom-series'
     items.push({
-      kind: series.isEncapsulatedPdf ? 'dicom-pdf-series' : 'dicom-series',
+      kind,
+      id: `${kind}-${series.groupId}`,
       name: series.label,
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
@@ -116,6 +130,7 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
     if (file.type !== 'dicom') {
       items.push({
         kind: 'questionnaire-file',
+        id: `q-file-${file.name}`,
         name: file.name,
         url: file.url,
         renderType: file.type,
@@ -128,10 +143,12 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
   )) {
     const first = series.files[0]
     if (!first) continue
+    const kind = series.isEncapsulatedPdf
+      ? 'questionnaire-dicom-pdf-series'
+      : 'questionnaire-dicom-series'
     items.push({
-      kind: series.isEncapsulatedPdf
-        ? 'questionnaire-dicom-pdf-series'
-        : 'questionnaire-dicom-series',
+      kind,
+      id: `${kind}-${series.groupId}`,
       name: series.label,
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
@@ -147,19 +164,19 @@ function buildDicomViewerSeries(items: ViewerItem[]): ViewerSeries[] {
       (item): item is Extract<ViewerItem, { kind: 'dicom-series' | 'questionnaire-dicom-series' }> =>
         item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series',
     )
-    .map((item, index) => ({
-      id: `${item.kind}-${index}-${item.name}`,
+    .map((item) => ({
+      id: item.id,
       label: item.name,
       urls: item.urls,
       fileCount: item.urls.length,
     }))
 }
 
-function findDicomSeriesIndex(items: ViewerItem[], selected: ViewerItem): number {
+function findDicomSeriesIndexById(items: ViewerItem[], selectedId: string): number {
   const dicomItems = items.filter(
     (item) => item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series',
   )
-  return dicomItems.findIndex((item) => item === selected)
+  return dicomItems.findIndex((item) => item.id === selectedId)
 }
 
 export default function DocumentsSection({ patientId, canManage }: DocumentsSectionProps) {
@@ -167,8 +184,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [questionnaireFiles, setQuestionnaireFiles] = useState<QuestionnaireImagingFile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
-  // Séries JPEG 2000 que dwv ne sait pas décoder → rendu via repli OpenJPEG.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Séries JPEG 2000 que dwv ne sait pas décoder → rendu via repli OpenJPEG (clé = id série stable).
   const [jpeg2000Fallbacks, setJpeg2000Fallbacks] = useState<Set<string>>(new Set())
   const [showUpload, setShowUpload] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
@@ -263,7 +280,38 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     [patientId, fetchDocuments],
   )
 
-  const selectedItem = selectedIndex !== null ? items[selectedIndex] : null
+  const resolveItemById = useCallback(
+    (id: string) => items.find((entry) => entry.id === id) ?? null,
+    [items],
+  )
+
+  /** Régénère les URLs signées (TTL 30 min) avant ouverture ou changement de série DICOM. */
+  const openViewer = useCallback(
+    async (id: string) => {
+      await fetchDocuments()
+      setSelectedId(id)
+    },
+    [fetchDocuments],
+  )
+
+  const navigateDicomSeries = useCallback(
+    async (direction: 'next' | 'prev') => {
+      if (!selectedId) return
+      const current = findDicomSeriesIndexById(items, selectedId)
+      const nextIndex =
+        direction === 'next'
+          ? Math.min(current + 1, dicomItems.length - 1)
+          : Math.max(current - 1, 0)
+      const nextItem = dicomItems[nextIndex]
+      if (!nextItem || nextItem.id === selectedId) return
+      await fetchDocuments()
+      setSelectedId(nextItem.id)
+    },
+    [dicomItems, fetchDocuments, items, selectedId],
+  )
+
+  const selectedItem = selectedId ? resolveItemById(selectedId) : null
+  const selectedIndex = selectedId ? items.findIndex((item) => item.id === selectedId) : -1
   const selectedName =
     selectedItem === null
       ? ''
@@ -342,7 +390,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {items.map((item, index) => {
+          {items.map((item) => {
             const isDicom =
               item.kind === 'dicom-series' ||
               item.kind === 'questionnaire-dicom-series'
@@ -351,23 +399,12 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
               item.kind === 'questionnaire-dicom-pdf-series'
             const doc = item.kind === 'file' ? item.doc : null
             const qFile = item.kind === 'questionnaire-file' ? item : null
-            const itemKey =
-              item.kind === 'file'
-                ? item.doc.id
-                : item.kind === 'dicom-series'
-                  ? 'dicom-series'
-                  : item.kind === 'dicom-pdf-series'
-                    ? 'dicom-pdf-series'
-                  : item.kind === 'questionnaire-dicom-series'
-                    ? 'questionnaire-dicom-series'
-                    : item.kind === 'questionnaire-dicom-pdf-series'
-                      ? 'questionnaire-dicom-pdf-series'
-                    : `q-${item.name}-${index}`
+            const itemKey = item.id
             return (
               <div key={itemKey} className="group relative">
                 <button
                   type="button"
-                  onClick={() => setSelectedIndex(index)}
+                  onClick={() => void openViewer(item.id)}
                   aria-label={`Voir ${isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name}`}
                   className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 >
@@ -449,7 +486,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             <DicomEncapsulatedPdfViewer
               urls={selectedItem.urls}
               name={selectedName}
-              onClose={() => setSelectedIndex(null)}
+              onClose={() => setSelectedId(null)}
             />
           </div>
         ) : selectedItem.kind === 'dicom-series' ||
@@ -461,12 +498,12 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             aria-label="Visionneuse DICOM"
             data-testid="dicom-fullscreen-viewer"
           >
-            {jpeg2000Fallbacks.has(selectedItem.firstUrl) ? (
+            {jpeg2000Fallbacks.has(selectedItem.id) ? (
               <DicomJpeg2000FallbackViewer
                 urls={selectedItem.urls}
                 name={selectedName}
                 fullscreen
-                onClose={() => setSelectedIndex(null)}
+                onClose={() => setSelectedId(null)}
               />
             ) : (
               <DicomViewer
@@ -474,24 +511,16 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                 name={selectedName}
                 fullscreen
                 series={dicomViewerSeries}
-                activeSeriesIndex={Math.max(0, findDicomSeriesIndex(items, selectedItem))}
-                onNextSeries={() => {
-                  const current = findDicomSeriesIndex(items, selectedItem)
-                  const next = dicomItems[Math.min(current + 1, dicomItems.length - 1)]
-                  if (next) setSelectedIndex(items.indexOf(next))
-                }}
-                onPrevSeries={() => {
-                  const current = findDicomSeriesIndex(items, selectedItem)
-                  const prev = dicomItems[Math.max(current - 1, 0)]
-                  if (prev) setSelectedIndex(items.indexOf(prev))
-                }}
-                onClose={() => setSelectedIndex(null)}
+                activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(items, selectedItem.id))}
+                onNextSeries={() => void navigateDicomSeries('next')}
+                onPrevSeries={() => void navigateDicomSeries('prev')}
+                onClose={() => setSelectedId(null)}
                 onJpeg2000Unsupported={() => {
-                  const url = selectedItem.firstUrl
+                  const seriesId = selectedItem.id
                   setJpeg2000Fallbacks((prev) => {
-                    if (prev.has(url)) return prev
+                    if (prev.has(seriesId)) return prev
                     const next = new Set(prev)
-                    next.add(url)
+                    next.add(seriesId)
                     return next
                   })
                 }}
@@ -502,7 +531,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           <div
             className="fixed inset-0 z-50 flex h-dvh max-h-dvh items-stretch justify-center overflow-hidden"
             style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
-            onClick={() => setSelectedIndex(null)}
+            onClick={() => setSelectedId(null)}
             role="dialog"
             aria-modal="true"
             aria-label="Visionneuse"
@@ -538,22 +567,26 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     <>
                       <button
                         type="button"
-                        disabled={selectedIndex === 0}
-                        onClick={() => setSelectedIndex((i) => (i !== null ? Math.max(0, i - 1) : 0))}
+                        disabled={selectedIndex <= 0}
+                        onClick={() => {
+                          const prev = items[Math.max(selectedIndex - 1, 0)]
+                          if (prev) void openViewer(prev.id)
+                        }}
                         className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
                       >
                         <ArrowLeft className="w-4 h-4" />
                         Préc.
                       </button>
                       <span className="text-xs text-white/50">
-                        {(selectedIndex ?? 0) + 1} / {items.length}
+                        {selectedIndex + 1} / {items.length}
                       </span>
                       <button
                         type="button"
-                        disabled={selectedIndex === items.length - 1}
-                        onClick={() =>
-                          setSelectedIndex((i) => (i !== null ? Math.min(items.length - 1, i + 1) : 0))
-                        }
+                        disabled={selectedIndex >= items.length - 1}
+                        onClick={() => {
+                          const next = items[Math.min(selectedIndex + 1, items.length - 1)]
+                          if (next) void openViewer(next.id)
+                        }}
                         className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
                       >
                         Suiv.
@@ -563,7 +596,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   )}
                   <button
                     type="button"
-                    onClick={() => setSelectedIndex(null)}
+                    onClick={() => setSelectedId(null)}
                     aria-label="Fermer"
                     className="ml-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white"
                   >

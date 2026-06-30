@@ -96,6 +96,14 @@ export function formatDicomLoadError(message: string | null | undefined): string
   }
   const lower = message.toLowerCase();
   if (
+    lower.includes("invalidjwt") ||
+    lower.includes('"exp" claim') ||
+    lower.includes("jwt expired") ||
+    (lower.includes("400") && lower.includes("storage"))
+  ) {
+    return "Lien imagerie expiré — fermez la visionneuse et rouvrez la série";
+  }
+  if (
     lower.includes("jpeg-ls") ||
     lower.includes("jpegls") ||
     lower.includes("1.2.840.10008.1.2.4.80") ||
