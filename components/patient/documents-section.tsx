@@ -12,12 +12,14 @@ import {
   ArrowLeft,
   ArrowRight,
   AlertCircle,
+  Play,
 } from 'lucide-react'
 import DocumentUpload from '@/components/patient/document-upload'
 import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
+import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
@@ -57,6 +59,15 @@ const DicomJpeg2000FallbackViewer = dynamic(
   },
 )
 
+const NativeMp4Viewer = dynamic(() => import('@/components/patient/native-mp4-viewer'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-[400px] text-sm text-white/60">
+      Chargement de la vidéo…
+    </div>
+  ),
+})
+
 type DocumentsSectionProps = {
   patientId: string
   canManage: boolean
@@ -71,7 +82,7 @@ type ViewerItem =
       id: string
       name: string
       url: string
-      renderType: 'image' | 'pdf' | 'dicom'
+      renderType: 'image' | 'pdf' | 'dicom' | 'video' | 'other'
     }
   | { kind: 'questionnaire-dicom-series'; id: string; name: string; urls: string[]; firstUrl: string }
   | {
@@ -124,6 +135,13 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   return items
 }
 
+function questionnaireFileRenderType(
+  file: QuestionnaireImagingFile,
+): 'image' | 'pdf' | 'dicom' | 'video' | 'other' {
+  if (file.type === 'video' && !isMp4ViewerEnabled()) return 'other'
+  return file.type
+}
+
 function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): ViewerItem[] {
   const items: ViewerItem[] = []
   for (const file of files) {
@@ -133,7 +151,7 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
         id: `q-file-${file.name}`,
         name: file.name,
         url: file.url,
-        renderType: file.type,
+        renderType: questionnaireFileRenderType(file),
       })
     }
   }
@@ -385,7 +403,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           <FileText className="mx-auto mb-3 w-9 h-9 text-gray-300" strokeWidth={1.5} />
           <p className="text-sm font-medium text-gray-500">Aucun fichier pour le moment</p>
           <p className="text-xs text-gray-400 mt-1">
-            Les fichiers DICOM, PDF et images apparaîtront ici.
+            Les fichiers DICOM, PDF, images{isMp4ViewerEnabled() ? ' et vidéos MP4' : ''} apparaîtront ici.
           </p>
         </div>
       ) : (
@@ -422,6 +440,20 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                         PDF DICOM
                       </span>
                     </div>
+                  ) : doc && doc.renderType === 'video' ? (
+                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-[#0B1020]">
+                      <Play className="w-7 h-7 text-white/90" strokeWidth={1.75} />
+                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
+                        MP4
+                      </span>
+                    </div>
+                  ) : qFile && qFile.renderType === 'video' ? (
+                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-[#0B1020]">
+                      <Play className="w-7 h-7 text-white/90" strokeWidth={1.75} />
+                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
+                        MP4
+                      </span>
+                    </div>
                   ) : doc && doc.renderType === 'image' ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -440,7 +472,11 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-blue-50">
                       <FileText className="w-7 h-7 text-[#2563EB]" strokeWidth={1.75} />
                       <span className="text-[10px] font-bold tracking-wide text-[#2563EB] uppercase">
-                        {doc?.renderType === 'pdf' || qFile?.renderType === 'pdf' ? 'PDF' : 'Fichier'}
+                        {doc?.renderType === 'pdf' || qFile?.renderType === 'pdf'
+                          ? 'PDF'
+                          : doc?.renderType === 'video' || qFile?.renderType === 'video'
+                            ? 'MP4'
+                            : 'Fichier'}
                       </span>
                     </div>
                   )}
@@ -617,6 +653,18 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     src={selectedItem.url}
                     alt={selectedItem.name}
                     className="max-h-full max-w-full object-contain"
+                  />
+                ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'video' ? (
+                  <NativeMp4Viewer
+                    src={selectedItem.doc.url}
+                    title={selectedItem.doc.fileName}
+                    className="h-full min-h-[50dvh] w-full flex-1 bg-black object-contain sm:min-h-0"
+                  />
+                ) : selectedItem.kind === 'questionnaire-file' && selectedItem.renderType === 'video' ? (
+                  <NativeMp4Viewer
+                    src={selectedItem.url}
+                    title={selectedItem.name}
+                    className="h-full min-h-[50dvh] w-full flex-1 bg-black object-contain sm:min-h-0"
                   />
                 ) : selectedItem.kind === 'file' && selectedItem.doc.renderType === 'pdf' ? (
                   <iframe

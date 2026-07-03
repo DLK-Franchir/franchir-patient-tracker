@@ -29,16 +29,18 @@ import {
   inferDocumentKind,
   DOCUMENT_VALIDATION_MESSAGES,
 } from '@/lib/documents/patient-documents'
+import { isMp4ViewerEnabled, isMp4File } from '@/lib/features/mp4-viewer'
 import { Logger } from '@/lib/logger'
 import { forwardImagingToQuestionnaires, type ForwardableFile } from '@/lib/integrations/forward-imaging'
 
 const log = new Logger('api/patients/documents')
 
 /** Imagerie remontée au portail chirurgien : DICOM, PDF de compte rendu, images. */
-function isForwardableImaging(file: { type: string | null }, kind: string): boolean {
+function isForwardableImaging(file: { type: string | null; name?: string }, kind: string): boolean {
   if (kind === 'dicom') return true
   const t = (file.type ?? '').toLowerCase()
-  return t === 'application/pdf' || t.startsWith('image/')
+  if (t === 'application/pdf' || t.startsWith('image/')) return true
+  return isMp4ViewerEnabled() && isMp4File(file.name ?? '', file.type)
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -182,7 +184,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       uploaded.push(objectKey)
 
       const kind = inferDocumentKind(file.name, file.type)
-      if (isForwardableImaging({ type: file.type || null }, kind)) {
+      if (isForwardableImaging({ type: file.type || null, name: file.name }, kind)) {
         forwardable.push({ name: file.name, type: file.type || null, data: arrayBuffer })
       }
 
