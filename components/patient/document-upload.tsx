@@ -11,7 +11,7 @@ import {
   MAX_DOCUMENTS_PER_REQUEST,
   type DocumentRenderType,
 } from '@/lib/documents/patient-documents'
-import { isMp4ViewerEnabled, getDocumentAcceptAttribute } from '@/lib/features/mp4-viewer'
+import { getDocumentAcceptAttribute } from '@/lib/features/mp4-viewer'
 import { importDicomFolder, formatEmptyDicomFolderMessage } from '@/lib/imaging/dicom-folder-import'
 import {
   configureWebkitDirectoryInput,
