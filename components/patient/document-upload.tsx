@@ -11,7 +11,7 @@ import {
   MAX_DOCUMENTS_PER_REQUEST,
   type DocumentRenderType,
 } from '@/lib/documents/patient-documents'
-import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
+import { isMp4ViewerEnabled, getDocumentAcceptAttribute } from '@/lib/features/mp4-viewer'
 import { importDicomFolder, formatEmptyDicomFolderMessage } from '@/lib/imaging/dicom-folder-import'
 import {
   configureWebkitDirectoryInput,
@@ -34,10 +34,6 @@ type DocumentUploadProps = {
   /** Envoi serveur en cours (fiche patient). */
   isUploading?: boolean
 }
-
-const ACCEPT = `.dcm,.dicom,.pdf,.jpg,.jpeg,.png,.webp,.gif,application/dicom,application/pdf,image/*${
-  isMp4ViewerEnabled() ? ',.mp4,.m4v,video/mp4' : ''
-}`
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`
@@ -301,7 +297,7 @@ export default function DocumentUpload({
           ref={inputRef}
           type="file"
           multiple
-          accept={ACCEPT}
+          accept={getDocumentAcceptAttribute()}
           className="hidden"
           disabled={disabled}
           onChange={(e) => {

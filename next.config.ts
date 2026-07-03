@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV,
+  },
   transpilePackages: ['@franchir/synthesis-contract'],
   // dwv (DICOM viewer) charge ses codec web workers depuis `./assets/workers/`.
   // Fichiers vendored dans `public/dwv-workers/` (JPEG-LS, J2K, etc.).

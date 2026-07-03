@@ -6,6 +6,7 @@ import {
   MAX_DOCUMENT_FILE_SIZE,
   MAX_DOCUMENTS_PER_REQUEST,
 } from '@/lib/documents/patient-documents'
+import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import {
   MAX_POOL_LOAD_CONCURRENCY,
   MAX_SEQUENTIAL_POOL,
@@ -25,7 +26,7 @@ export const UPLOAD_LIMITS_MB = {
 } as const
 
 export const UPLOAD_GUIDANCE = {
-  limitsSummary: `Taille max par fichier : ${UPLOAD_LIMITS_MB.maxFileSize} Mo. Formats : DICOM (.dcm), JPEG, PNG, PDF.`,
+  limitsSummary: `Taille max par fichier : ${UPLOAD_LIMITS_MB.maxFileSize} Mo. Formats : DICOM (.dcm), JPEG, PNG, PDF${isMp4ViewerEnabled() ? ', MP4' : ''}.`,
   batchLimit: `Jusqu'à ${MAX_DOCUMENTS_PER_REQUEST} fichiers par envoi (import CD complet possible).`,
   forwardNote: `Au-delà de ${UPLOAD_LIMITS_MB.forwardMaxFileSize} Mo par fichier, l'imagerie reste dans Marcel mais n'est pas transmise au portail chirurgien.`,
   cdImportDelay:
@@ -47,5 +48,8 @@ export function uploadGuidanceLines(): readonly string[] {
 }
 
 export function dropzoneHintLine(): string {
-  return `Imagerie DICOM (.dcm) · PDF · images (JPG, PNG…) — ${UPLOAD_LIMITS_MB.maxFileSize} Mo max par fichier`
+  const formats = isMp4ViewerEnabled()
+    ? 'Imagerie DICOM (.dcm) · PDF · images (JPG, PNG…) · MP4'
+    : 'Imagerie DICOM (.dcm) · PDF · images (JPG, PNG…)'
+  return `${formats} — ${UPLOAD_LIMITS_MB.maxFileSize} Mo max par fichier`
 }

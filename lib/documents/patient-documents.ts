@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isMp4ViewerEnabled, MP4_EXTENSIONS, MP4_MIME_TYPE } from '@/lib/features/mp4-viewer'
+import { isMp4ViewerEnabled, MP4_EXTENSIONS, MP4_MIME_TYPES } from '@/lib/features/mp4-viewer'
 
 /**
  * Règles et helpers partagés pour les fichiers patients (DICOM + documents)
@@ -75,7 +75,7 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = new Set<string>([
   'application/pdf',
   'application/dicom',
   'image/dicom',
-  ...(isMp4ViewerEnabled() ? [MP4_MIME_TYPE] : []),
+  ...(isMp4ViewerEnabled() ? [...MP4_MIME_TYPES] : []),
 ])
 
 export const ALLOWED_DOCUMENT_EXTENSIONS = new Set<string>([
@@ -188,7 +188,7 @@ export function inferRenderType(name: string, mimeType?: string | null): Documen
   if (ext === 'pdf' || normalizedMime === 'application/pdf') return 'pdf'
   if (
     isMp4ViewerEnabled() &&
-    ((ext && MP4_EXTENSIONS.has(ext)) || normalizedMime === MP4_MIME_TYPE)
+    ((ext && MP4_EXTENSIONS.has(ext)) || (normalizedMime && MP4_MIME_TYPES.has(normalizedMime)))
   ) {
     return 'video'
   }
