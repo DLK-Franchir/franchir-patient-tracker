@@ -11,7 +11,7 @@ const BASE =
 export type QuestionnaireImagingFile = {
   name: string
   url: string
-  type: 'image' | 'pdf' | 'dicom'
+  type: 'image' | 'pdf' | 'dicom' | 'video'
   size?: number | null
 }
 

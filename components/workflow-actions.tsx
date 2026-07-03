@@ -8,7 +8,6 @@ import {
   type GlobalStatus,
   type UserRole,
   type Action,
-  SURGEONS,
 } from '@/lib/workflow-v2'
 import { GuidanceBanner } from '@/components/ui/guidance-banner'
 
@@ -67,6 +66,19 @@ export function WorkflowActions({
 
   const executeAction = async (action: Action) => {
     if (action.disabled) return
+
+    if (action.id === 'approve_medical') {
+      const selected = formData.surgeonIds as string[] | undefined
+      if (!selected?.length) {
+        alert('Sélectionnez au moins un chirurgien recommandé.')
+        return
+      }
+      if (selected.length > 2) {
+        alert('Maximum 2 chirurgiens recommandés.')
+        return
+      }
+    }
+
     setLoading(true)
     try {
       await onAction(action.id, formData)
@@ -86,25 +98,34 @@ export function WorkflowActions({
           <label className="block text-sm font-medium text-gray-700">
             {input.label} {input.required && <span className="text-red-500">*</span>}
           </label>
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {SURGEONS.map((surgeon) => (
-              <label key={surgeon} className="flex items-center space-x-2 py-1">
-                <input
-                  type="checkbox"
-                  checked={formData.surgeons?.includes(surgeon) || false}
-                  onChange={(e) => {
-                    const current = formData.surgeons || []
-                    const updated = e.target.checked
-                      ? [...current, surgeon]
-                      : current.filter((s: string) => s !== surgeon)
-                    setFormData({ ...formData, surgeons: updated })
-                  }}
-                  className="rounded border-gray-300 w-5 h-5"
-                />
-                <span className="text-sm text-gray-900">{surgeon}</span>
-              </label>
-            ))}
-          </div>
+          {surgeons.length === 0 ? (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              Aucun chirurgien dans l&apos;annuaire. Ajoutez des chirurgiens (avec leur email)
+              pour permettre la recommandation et l&apos;assignation.
+            </p>
+          ) : (
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {surgeons.map((surgeon) => (
+                <label key={surgeon.id} className="flex items-center space-x-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={formData.surgeonIds?.includes(surgeon.id) || false}
+                    onChange={(e) => {
+                      const current: string[] = formData.surgeonIds || []
+                      const updated = e.target.checked
+                        ? current.length < 2
+                          ? [...current, surgeon.id]
+                          : current
+                        : current.filter((id: string) => id !== surgeon.id)
+                      setFormData({ ...formData, surgeonIds: updated })
+                    }}
+                    className="rounded border-gray-300 w-5 h-5"
+                  />
+                  <span className="text-sm text-gray-900">{surgeon.full_name}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       )
     }
@@ -327,7 +348,11 @@ export function WorkflowActions({
               </button>
               <button
                 onClick={() => executeAction(showModal)}
-                disabled={loading}
+                disabled={
+                  loading ||
+                  (showModal.id === 'approve_medical' &&
+                    (surgeons.length === 0 || !(formData.surgeonIds as string[] | undefined)?.length))
+                }
                 className={`w-full sm:flex-1 py-3 px-4 rounded-lg font-medium transition disabled:opacity-50 min-h-[48px] ${actionButtonClass(
                   showModal
                 )}`}

@@ -29,6 +29,7 @@ import {
   inferDocumentKind,
   DOCUMENT_VALIDATION_MESSAGES,
 } from '@/lib/documents/patient-documents'
+import { isMp4ViewerEnabled, MP4_MIME_TYPE } from '@/lib/features/mp4-viewer'
 import { Logger } from '@/lib/logger'
 import { forwardImagingToQuestionnaires, type ForwardableFile } from '@/lib/integrations/forward-imaging'
 
@@ -38,7 +39,8 @@ const log = new Logger('api/patients/documents')
 function isForwardableImaging(file: { type: string | null }, kind: string): boolean {
   if (kind === 'dicom') return true
   const t = (file.type ?? '').toLowerCase()
-  return t === 'application/pdf' || t.startsWith('image/')
+  if (t === 'application/pdf' || t.startsWith('image/')) return true
+  return isMp4ViewerEnabled() && t === MP4_MIME_TYPE
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

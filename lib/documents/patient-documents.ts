@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isMp4ViewerEnabled, MP4_EXTENSIONS, MP4_MIME_TYPE } from '@/lib/features/mp4-viewer'
 
 /**
  * Règles et helpers partagés pour les fichiers patients (DICOM + documents)
@@ -47,9 +48,9 @@ export type DocumentKind = 'dicom' | 'document'
 /**
  * Type de rendu UI, plus fin que `kind` : déduit du nom/mime au moment de
  * l'affichage. 'dicom' → visionneuse dwv, 'pdf' → iframe, 'image' → <img>,
- * 'other' → téléchargement uniquement.
+ * 'video' → lecteur MP4 natif (staging), 'other' → téléchargement uniquement.
  */
-export type DocumentRenderType = 'dicom' | 'pdf' | 'image' | 'other'
+export type DocumentRenderType = 'dicom' | 'pdf' | 'image' | 'video' | 'other'
 
 const DICOM_MIME_TYPES = new Set(['application/dicom', 'image/dicom'])
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif'])
@@ -74,6 +75,7 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = new Set<string>([
   'application/pdf',
   'application/dicom',
   'image/dicom',
+  ...(isMp4ViewerEnabled() ? [MP4_MIME_TYPE] : []),
 ])
 
 export const ALLOWED_DOCUMENT_EXTENSIONS = new Set<string>([
@@ -85,6 +87,7 @@ export const ALLOWED_DOCUMENT_EXTENSIONS = new Set<string>([
   'pdf',
   'dcm',
   'dicom',
+  ...(isMp4ViewerEnabled() ? [...MP4_EXTENSIONS] : []),
 ])
 
 /** Extension en minuscules sans le point, ou null. */
@@ -183,6 +186,12 @@ export function inferRenderType(name: string, mimeType?: string | null): Documen
     }
   }
   if (ext === 'pdf' || normalizedMime === 'application/pdf') return 'pdf'
+  if (
+    isMp4ViewerEnabled() &&
+    ((ext && MP4_EXTENSIONS.has(ext)) || normalizedMime === MP4_MIME_TYPE)
+  ) {
+    return 'video'
+  }
   if ((ext && IMAGE_EXTENSIONS.has(ext)) || (normalizedMime && IMAGE_MIME_TYPES.has(normalizedMime))) {
     return 'image'
   }
@@ -275,7 +284,9 @@ export const DOCUMENT_VALIDATION_MESSAGES: Record<DocumentValidationError, strin
   filename_required: 'Nom de fichier manquant',
   empty_file: 'Fichier vide',
   file_too_large: 'Fichier trop volumineux (max 100 Mo)',
-  unsupported_type: 'Type de fichier non pris en charge (DICOM, PDF ou image)',
+  unsupported_type: isMp4ViewerEnabled()
+    ? 'Type de fichier non pris en charge (DICOM, PDF, image ou MP4)'
+    : 'Type de fichier non pris en charge (DICOM, PDF ou image)',
 }
 
 /**

@@ -61,14 +61,6 @@ export function canPerformWorkflowAction(
 
 export type ActionStatus = 'urgent' | 'available' | 'in_progress' | 'completed'
 
-export const SURGEONS = [
-  'Dc Doan Co Minh',
-  'Simon Teyssedou',
-  'Jean-Patrick Rakover',
-  'David BRAUGE',
-  'Robin ARVIEU',
-]
-
 export interface WorkflowStatus {
   id: string
   code?: string

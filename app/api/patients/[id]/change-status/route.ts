@@ -91,13 +91,39 @@ export async function POST(
       messageBody = data?.message || 'Le dossier a été complété et renvoyé au Dr Dubois pour validation médicale.'
       break
 
-    case 'approve_medical':
+    case 'approve_medical': {
       newStatusCode = 'validated_medical'
       messageTitle = 'Validé médicalement'
       messageBody = data?.message || 'Le dossier a été validé médicalement.'
-      if (data?.surgeons && data.surgeons.length > 0) {
-        messageBody += `\n\nChirurgiens recommandés: ${data.surgeons.join(', ')}`
+
+      const recommendedIds: string[] = Array.isArray(data?.surgeonIds) ? data.surgeonIds : []
+      if (recommendedIds.length === 0) {
+        return NextResponse.json(
+          { error: 'Au moins un chirurgien recommandé est requis' },
+          { status: 400 },
+        )
       }
+      if (recommendedIds.length > 2) {
+        return NextResponse.json(
+          { error: 'Maximum 2 chirurgiens recommandés' },
+          { status: 400 },
+        )
+      }
+
+      const { data: recommendedSurgeons } = await writeClient
+        .from('surgeons')
+        .select('id, full_name')
+        .in('id', recommendedIds)
+        .eq('is_active', true)
+
+      if (!recommendedSurgeons || recommendedSurgeons.length !== recommendedIds.length) {
+        return NextResponse.json(
+          { error: 'Chirurgien(s) recommandé(s) invalide(s)' },
+          { status: 400 },
+        )
+      }
+
+      messageBody += `\n\nChirurgiens recommandés: ${recommendedSurgeons.map((s) => s.full_name).join(', ')}`
       if (data?.surgeonId) {
         const { data: approveSurgeon } = await writeClient
           .from('surgeons')
@@ -119,6 +145,7 @@ export async function POST(
         }
       }
       break
+    }
 
     case 'assign_surgeon': {
       const surgeonId = data?.surgeonId

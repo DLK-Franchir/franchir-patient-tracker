@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp, Loader2, Info } from 'lucide-react'
+import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp, Loader2, Info, Play } from 'lucide-react'
 import { dropzoneHintLine, uploadGuidanceLines, UPLOAD_GUIDANCE } from '@/lib/documents/upload-guidance'
 import {
   validateDocumentFile,
@@ -11,6 +11,7 @@ import {
   MAX_DOCUMENTS_PER_REQUEST,
   type DocumentRenderType,
 } from '@/lib/documents/patient-documents'
+import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import { importDicomFolder, formatEmptyDicomFolderMessage } from '@/lib/imaging/dicom-folder-import'
 import {
   configureWebkitDirectoryInput,
@@ -34,7 +35,9 @@ type DocumentUploadProps = {
   isUploading?: boolean
 }
 
-const ACCEPT = '.dcm,.dicom,.pdf,.jpg,.jpeg,.png,.webp,.gif,application/dicom,application/pdf,image/*'
+const ACCEPT = `.dcm,.dicom,.pdf,.jpg,.jpeg,.png,.webp,.gif,application/dicom,application/pdf,image/*${
+  isMp4ViewerEnabled() ? ',.mp4,.m4v,video/mp4' : ''
+}`
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`
@@ -45,6 +48,7 @@ function formatSize(bytes: number): string {
 function RenderTypeIcon({ type }: { type: DocumentRenderType }) {
   if (type === 'dicom') return <Brain className="w-4 h-4 text-indigo-600 shrink-0" aria-hidden="true" />
   if (type === 'image') return <ImageIcon className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
+  if (type === 'video') return <Play className="w-4 h-4 text-violet-600 shrink-0" aria-hidden="true" />
   return <FileText className="w-4 h-4 text-blue-600 shrink-0" aria-hidden="true" />
 }
 
