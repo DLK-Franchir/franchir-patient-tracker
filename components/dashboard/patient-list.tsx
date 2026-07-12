@@ -425,14 +425,20 @@ export default function PatientList({
                   )}
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
                     {patient.assigned_surgeon_name ? (
-                      <span className="inline-flex max-w-full items-center truncate rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 font-semibold text-purple-900">
+                      <span
+                        className={`inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 font-semibold ${
+                          isClosed
+                            ? 'border-slate-300 bg-slate-100 text-slate-600'
+                            : 'border-purple-300 bg-purple-100 text-purple-900'
+                        }`}
+                      >
                         {patient.assigned_surgeon_name}
                       </span>
                     ) : (
                       <span className="text-gray-400">Chirurgien : —</span>
                     )}
                     {patient.proposed_date ? (
-                      <span className="font-semibold text-blue-700">
+                      <span className={isClosed ? 'font-semibold text-slate-500' : 'font-semibold text-blue-700'}>
                         Date : {formatDateShort(patient.proposed_date)}
                       </span>
                     ) : null}

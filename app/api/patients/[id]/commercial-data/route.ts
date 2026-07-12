@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { canEditCommercialData } from '@/lib/access-control'
+import { canEditCommercialData, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 
 export async function PATCH(
   request: NextRequest,
@@ -26,6 +27,14 @@ export async function PATCH(
     }
 
     const { id: patientId } = await params
+
+    const archivedDeny = await denyIfArchivedPatientWrite(
+      supabase,
+      patientId,
+      profile.role as StaffRole,
+    )
+    if (archivedDeny) return archivedDeny
+
     const body = await request.json()
     const { quoteAmount, proposedDate } = body
 

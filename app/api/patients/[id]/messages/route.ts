@@ -1,7 +1,8 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { Logger } from '@/lib/logger'
-import { canUseWorkflow } from '@/lib/access-control'
+import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import { sendNewMessageNotifications } from '@/lib/notifications'
 
 const log = new Logger('api/patients/messages')
@@ -37,6 +38,13 @@ export async function POST(
     if (!canUseWorkflow(profile)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
+    const archivedDeny = await denyIfArchivedPatientWrite(
+      supabase,
+      patientId,
+      profile.role as StaffRole,
+    )
+    if (archivedDeny) return archivedDeny
 
     const { error: insertError } = await supabase.from('patient_messages').insert({
       patient_id: patientId,

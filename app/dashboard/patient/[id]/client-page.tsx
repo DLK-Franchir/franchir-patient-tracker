@@ -193,6 +193,12 @@ export default function PatientDetailClient({
   const isClosedDossier = globalStatus === 'closed'
   const isReadOnly =
     (globalStatus === 'rejected' || isClosedDossier) && userRole !== 'admin'
+  const canMutateDossierContent = !isReadOnly
+  const canManageQuestionnaireEffective = canManageQuestionnaire && canMutateDossierContent
+  const canManageDocumentsEffective = viewConfig.canManageDocuments && canMutateDossierContent
+  const canEditCommercialEffective =
+    (userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin') &&
+    canMutateDossierContent
   const latestCompletedSession = questionnaireStatus?.sessions?.find((s) => s.status === 'completed')
   const actionLogMessages = usePatientActionLog(patient.id, initialMessages)
 
@@ -343,7 +349,7 @@ export default function PatientDetailClient({
           questionnaireCompletedAt={patient.questionnaire_completed_at}
           questionnaireSummary={patient.questionnaire_summary}
           bridgeStatus={questionnaireStatus}
-          canManage={canManageQuestionnaire}
+          canManage={canManageQuestionnaireEffective}
           initialLanguage={questionnaireLanguage}
           initialFormTypes={questionnaireFormTypes}
           onSendLink={sendQuestionnaireLink}
@@ -377,7 +383,7 @@ export default function PatientDetailClient({
             />
           )}
 
-          <DocumentsSection patientId={patient.id} canManage={viewConfig.canManageDocuments} />
+          <DocumentsSection patientId={patient.id} canManage={canManageDocumentsEffective} />
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="border-b border-gray-200">
@@ -432,7 +438,7 @@ export default function PatientDetailClient({
                       patientId={patient.id}
                       initialQuoteAmount={patient.quote_amount}
                       initialProposedDate={patient.proposed_date}
-                      canEdit={userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'}
+                      canEdit={canEditCommercialEffective}
                     />
                   </Suspense>
 
@@ -487,7 +493,7 @@ export default function PatientDetailClient({
               questionnaireCompletedAt={patient.questionnaire_completed_at}
               questionnaireSummary={patient.questionnaire_summary}
               bridgeStatus={questionnaireStatus}
-              canManage={canManageQuestionnaire}
+              canManage={canManageQuestionnaireEffective}
               initialLanguage={questionnaireLanguage}
               initialFormTypes={questionnaireFormTypes}
               onSendLink={sendQuestionnaireLink}

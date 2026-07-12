@@ -12,7 +12,8 @@
 
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { canManagePatientDocuments } from '@/lib/access-control'
+import { canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import { parseQuestionnaireLanguageFromLinkBody } from '@/lib/integrations/questionnaire-language'
 import { parseFormTypesInput, coercePatientFormTypes } from '@/lib/integrations/questionnaire-form-types'
 import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
@@ -50,6 +51,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const archivedDeny = await denyIfArchivedPatientWrite(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (archivedDeny) return archivedDeny
 
   const body = await req.json().catch(() => ({}))
   const newSession = Boolean(body?.newSession)

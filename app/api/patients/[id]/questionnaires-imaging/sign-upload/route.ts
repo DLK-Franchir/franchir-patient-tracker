@@ -6,7 +6,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
-import { canManagePatientDocuments } from '@/lib/access-control'
+import { canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import { signQuestionnaireImagingUpload } from '@/lib/integrations/fetch-questionnaire-imaging'
 /** Plafond aligné sur MAX_IMAGING_FILES côté portail questionnaires. */
 const QUESTIONNAIRES_IMAGING_SIGN_MAX = 10
@@ -49,6 +50,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const archivedDeny = await denyIfArchivedPatientWrite(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (archivedDeny) return archivedDeny
 
   const body = await req.json().catch(() => null)
   const parsed = signUploadRequestSchema.safeParse(body)
