@@ -4,8 +4,10 @@ import { FormEvent, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  CLOSED_DOSSIER_GREY,
   globalStatusFromWorkflowStatus,
   getWorkflowHandoff,
+  isClosedGlobalStatus,
   isWaitingOnOther,
   type GlobalStatus,
   type UserRole,
@@ -15,10 +17,6 @@ import {
   questionnaireStatusLabel,
   questionnaireStatusVariant,
 } from '@/components/ui/status-badge'
-import {
-  CLOSED_DOSSIER_GREY,
-  isCaseClosedPatient,
-} from '@/lib/patient-dossier-state'
 
 type SortColumn = 'created_at' | 'patient_name' | 'current_status_id'
 type SortDirection = 'asc' | 'desc'
@@ -304,8 +302,8 @@ export default function PatientList({
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
             {initialPatients.map((patient) => {
-              const isClosed = isCaseClosedPatient(patient)
               const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
+              const isClosed = isClosedGlobalStatus(globalStatus)
               const pendingAction = isClosed ? null : pendingActionLabel(globalStatus, userRole)
               const creatorName = patient.profiles?.full_name || '—'
               const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
@@ -395,8 +393,8 @@ export default function PatientList({
 
       <div className="space-y-3 md:hidden">
         {initialPatients.map((patient) => {
-          const isClosed = isCaseClosedPatient(patient)
           const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
+          const isClosed = isClosedGlobalStatus(globalStatus)
           const pendingAction = isClosed ? null : pendingActionLabel(globalStatus, userRole)
           const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
           return (

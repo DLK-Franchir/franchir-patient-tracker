@@ -1,3 +1,9 @@
+/** Code stable en base (`workflow_statuses.code`). */
+export const CASE_CLOSED_STATUS_CODE = 'case_closed'
+
+/** Présentation liste dashboard pour dossiers archivés. */
+export const CLOSED_DOSSIER_GREY = '#9CA3AF'
+
 export type GlobalStatus = 
   | 'draft'
   | 'medical_review'
@@ -6,6 +12,10 @@ export type GlobalStatus =
   | 'commercial_in_progress'
   | 'scheduled'
   | 'closed'
+
+export function isClosedGlobalStatus(status: GlobalStatus): boolean {
+  return status === 'closed'
+}
 
 export type UserRole = 'marcel' | 'franchir' | 'gilles' | 'admin'
 
@@ -140,10 +150,6 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
 
   if (text.includes('refus') || text.includes('rejet')) {
     return 'rejected'
-  }
-
-  if (text.includes('fermé') || text.includes('ferme') || text.includes('archiv')) {
-    return 'closed'
   }
 
   if (
