@@ -1,3 +1,4 @@
+import { BRAND } from '@/lib/brand-tokens'
 import {
   CASE_CLOSED_STATUS_CODE,
   getWorkflowHandoff,
@@ -16,6 +17,11 @@ export type SummaryPatient = {
   workflow_statuses: WorkflowStatus | null
 }
 
+export type SummaryPatientExtended = SummaryPatient & {
+  quote_accepted?: boolean
+  date_accepted?: boolean
+}
+
 export type MineBreakdownEntry = {
   globalStatus: GlobalStatus
   count: number
@@ -27,9 +33,74 @@ export type DashboardSummary = {
   byGlobalStatus: Record<GlobalStatus, number>
   totalActive: number
   closed: number
+  /** Commercial en attente de confirmation devis/date (rôles marcel/franchir/admin). */
+  toConfirm: number
   /** Dossiers « mine » regroupés par GlobalStatus (tri décroissant). */
   mineBreakdown: MineBreakdownEntry[]
 }
+
+export type DashboardKpiId = 'actifs' | 'revue' | 'toConfirm' | 'scheduled' | 'completer'
+
+export type DashboardTabId =
+  | 'actifs'
+  | 'revue'
+  | 'completer'
+  | 'commercial'
+  | 'scheduled'
+  | 'rejected'
+  | 'all'
+
+export type DashboardKpi = {
+  id: DashboardKpiId
+  label: string
+  sub: string
+  count: number
+  accentColor: string
+  dotColor: string
+  urgent?: boolean
+  filter: {
+    kpi?: DashboardKpiId | null
+    tab?: DashboardTabId | null
+    focus?: DashboardFocus | null
+    status?: string[] | null
+  }
+}
+
+export const DASHBOARD_TABS: Array<{
+  id: DashboardTabId
+  label: string
+  globalStatuses: GlobalStatus[]
+}> = [
+  {
+    id: 'actifs',
+    label: 'Actifs',
+    globalStatuses: [
+      'draft',
+      'medical_review',
+      'medical_more_info',
+      'commercial_in_progress',
+      'scheduled',
+    ],
+  },
+  { id: 'revue', label: 'Revue méd.', globalStatuses: ['medical_review'] },
+  { id: 'completer', label: 'À compléter', globalStatuses: ['medical_more_info'] },
+  { id: 'commercial', label: 'Commercial', globalStatuses: ['commercial_in_progress'] },
+  { id: 'scheduled', label: 'Programmé', globalStatuses: ['scheduled'] },
+  { id: 'rejected', label: 'Refusé', globalStatuses: ['rejected'] },
+  {
+    id: 'all',
+    label: 'Tous',
+    globalStatuses: [
+      'draft',
+      'medical_review',
+      'medical_more_info',
+      'commercial_in_progress',
+      'scheduled',
+      'rejected',
+      'closed',
+    ],
+  },
+]
 
 /** Codes DB (`workflow_statuses.code`) par GlobalStatus — aligné sur globalStatusFromWorkflowStatus. */
 export const GLOBAL_STATUS_DB_CODES: Record<GlobalStatus, string[]> = {
@@ -173,6 +244,7 @@ export function formatMineBreakdown(
 export function computeDashboardSummary(
   patients: SummaryPatient[],
   role: UserRole,
+  patientsExtended?: SummaryPatientExtended[],
 ): DashboardSummary {
   const byGlobalStatus = EMPTY_BY_STATUS()
   const mineByStatus = EMPTY_BY_STATUS()
@@ -202,14 +274,187 @@ export function computeDashboardSummary(
     .filter((entry) => entry.count > 0)
     .sort((a, b) => b.count - a.count)
 
+  const extended = patientsExtended ?? (patients as SummaryPatientExtended[])
+
   return {
     mine,
     waiting,
     byGlobalStatus,
     totalActive: patients.length - closed,
     closed,
+    toConfirm: countToConfirm(extended, role),
     mineBreakdown,
   }
+}
+
+const TO_CONFIRM_ROLES: UserRole[] = ['marcel', 'franchir', 'admin']
+
+export function isToConfirmPatient(patient: SummaryPatientExtended): boolean {
+  const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
+  if (globalStatus !== 'commercial_in_progress') return false
+  return !patient.quote_accepted || !patient.date_accepted
+}
+
+export function countToConfirm(patients: SummaryPatientExtended[], role: UserRole): number {
+  if (!TO_CONFIRM_ROLES.includes(role)) return 0
+  return patients.filter(isToConfirmPatient).length
+}
+
+export function getActifsPatientIds(patients: SummaryPatient[]): string[] {
+  return patients
+    .filter((patient) => {
+      const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
+      return !isClosedGlobalStatus(globalStatus) && globalStatus !== 'rejected'
+    })
+    .map((patient) => patient.id)
+}
+
+export function getToConfirmPatientIds(patients: SummaryPatientExtended[]): string[] {
+  return patients.filter(isToConfirmPatient).map((patient) => patient.id)
+}
+
+export function getTabPatientIds(
+  patients: SummaryPatient[],
+  tab: DashboardTabId,
+): string[] {
+  if (tab === 'actifs') {
+    return getActifsPatientIds(patients)
+  }
+
+  const tabDef = DASHBOARD_TABS.find((entry) => entry.id === tab)
+  if (!tabDef) return patients.map((patient) => patient.id)
+
+  const allowed = new Set(tabDef.globalStatuses)
+  return patients
+    .filter((patient) => allowed.has(globalStatusFromWorkflowStatus(patient.workflow_statuses)))
+    .map((patient) => patient.id)
+}
+
+export function getTabCount(summary: DashboardSummary, tab: DashboardTabId): number {
+  if (tab === 'actifs') {
+    return summary.totalActive - summary.byGlobalStatus.rejected
+  }
+  if (tab === 'all') {
+    return summary.totalActive + summary.closed
+  }
+  const tabDef = DASHBOARD_TABS.find((entry) => entry.id === tab)
+  if (!tabDef) return 0
+  return tabDef.globalStatuses.reduce((sum, status) => sum + summary.byGlobalStatus[status], 0)
+}
+
+export function getDashboardKpis(
+  summary: DashboardSummary,
+  role: UserRole,
+  patientsExtended?: SummaryPatientExtended[],
+): DashboardKpi[] {
+  const toConfirm =
+    patientsExtended !== undefined
+      ? countToConfirm(patientsExtended, role)
+      : summary.toConfirm
+
+  const actifsCount = summary.totalActive - summary.byGlobalStatus.rejected
+
+  const kpis: DashboardKpi[] = [
+    {
+      id: 'actifs',
+      label: 'Dossiers actifs',
+      sub: 'Total en cours',
+      count: actifsCount,
+      accentColor: BRAND.navy,
+      dotColor: BRAND.navyLight,
+      filter: { kpi: 'actifs', tab: 'actifs', focus: null, status: null },
+    },
+    {
+      id: 'revue',
+      label: 'Revue médicale',
+      sub: 'Att. Dr. Gilles',
+      count: summary.byGlobalStatus.medical_review,
+      accentColor: BRAND.revue,
+      dotColor: BRAND.revue,
+      urgent: summary.byGlobalStatus.medical_review > 0,
+      filter: {
+        kpi: 'revue',
+        tab: 'revue',
+        focus: null,
+        status: GLOBAL_STATUS_DB_CODES.medical_review,
+      },
+    },
+    {
+      id: 'toConfirm',
+      label: 'À confirmer',
+      sub: 'Budget ou date en attente',
+      count: toConfirm,
+      accentColor: BRAND.commercial,
+      dotColor: BRAND.commercial,
+      urgent: toConfirm > 0 && TO_CONFIRM_ROLES.includes(role),
+      filter: {
+        kpi: 'toConfirm',
+        tab: 'commercial',
+        focus: null,
+        status: GLOBAL_STATUS_DB_CODES.commercial_in_progress,
+      },
+    },
+    {
+      id: 'scheduled',
+      label: 'Programmés',
+      sub: 'Intervention planifiée',
+      count: summary.byGlobalStatus.scheduled,
+      accentColor: BRAND.green,
+      dotColor: BRAND.green,
+      filter: {
+        kpi: 'scheduled',
+        tab: 'scheduled',
+        focus: null,
+        status: GLOBAL_STATUS_DB_CODES.scheduled,
+      },
+    },
+    {
+      id: 'completer',
+      label: 'À compléter',
+      sub: 'Pièces manquantes',
+      count: summary.byGlobalStatus.medical_more_info,
+      accentColor: BRAND.coral,
+      dotColor: BRAND.coral,
+      urgent: summary.byGlobalStatus.medical_more_info > 0,
+      filter: {
+        kpi: 'completer',
+        tab: 'completer',
+        focus: null,
+        status: GLOBAL_STATUS_DB_CODES.medical_more_info,
+      },
+    },
+  ]
+
+  if (role === 'gilles') {
+    const revue = kpis.find((kpi) => kpi.id === 'revue')
+    const rest = kpis.filter((kpi) => kpi.id !== 'revue')
+    return revue ? [revue, ...rest] : kpis
+  }
+
+  return kpis
+}
+
+export function normalizeDashboardTab(value: string | undefined): DashboardTabId | null {
+  const valid: DashboardTabId[] = [
+    'actifs',
+    'revue',
+    'completer',
+    'commercial',
+    'scheduled',
+    'rejected',
+    'all',
+  ]
+  return valid.includes(value as DashboardTabId) ? (value as DashboardTabId) : null
+}
+
+export function normalizeDashboardKpi(value: string | undefined): DashboardKpiId | null {
+  const valid: DashboardKpiId[] = ['actifs', 'revue', 'toConfirm', 'scheduled', 'completer']
+  return valid.includes(value as DashboardKpiId) ? (value as DashboardKpiId) : null
+}
+
+/** Libellé court pour la colonne « Étape courante ». */
+export function getCurrentStepLabel(globalStatus: GlobalStatus, role: UserRole): string {
+  return getWorkflowHandoff(globalStatus, role).guidance
 }
 
 export function getFocusPatientIds(
