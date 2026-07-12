@@ -114,13 +114,11 @@ export default function PatientList({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [query, setQuery] = useState(searchQuery)
-  const [statusCodes, setStatusCodes] = useState<string[]>(selectedStatuses)
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setQuery(searchQuery)
-    setStatusCodes(selectedStatuses)
-  }, [searchQuery, selectedStatuses])
+  }, [searchQuery])
 
   const pageStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1
   const pageEnd = Math.min(currentPage * itemsPerPage, total)
@@ -163,13 +161,12 @@ export default function PatientList({
   const applyFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     startTransition(() => {
-      router.push(buildUrl({ page: 1, q: query.trim(), status: statusCodes }))
+      router.push(buildUrl({ page: 1, q: query.trim() }))
     })
   }
 
   const resetFilters = () => {
     setQuery('')
-    setStatusCodes([])
     startTransition(() => {
       router.push('/dashboard')
     })
@@ -177,7 +174,6 @@ export default function PatientList({
 
   const clearActiveFilters = () => {
     setQuery('')
-    setStatusCodes([])
     startTransition(() => {
       router.push(buildUrl({ page: 1, q: null, status: null, focus: null }))
     })
@@ -190,12 +186,6 @@ export default function PatientList({
     Boolean,
   ) as string[]
   const hasActiveFilters = activeFilterParts.length > 0
-
-  const toggleStatus = (code: string) => {
-    setStatusCodes((current) =>
-      current.includes(code) ? current.filter((value) => value !== code) : [...current, code],
-    )
-  }
 
   const sortBy = (column: SortColumn) => {
     const nextDirection = sort === column && direction === 'asc' ? 'desc' : 'asc'
@@ -261,38 +251,10 @@ export default function PatientList({
               />
             </div>
 
-            <fieldset>
-              <legend className="mb-2 text-sm font-semibold text-gray-700">
-                Filtrer par statut
-              </legend>
-              <div className="flex flex-wrap gap-2">
-                {statusOptions.map((status) => {
-                  const checked = statusCodes.includes(status.code)
-                  return (
-                    <label
-                      key={status.id}
-                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
-                        checked
-                          ? 'border-[#2563EB] bg-blue-50 text-[#2563EB]'
-                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleStatus(status.code)}
-                        className="sr-only"
-                      />
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: status.color }}
-                      />
-                      {status.label}
-                    </label>
-                  )
-                })}
-              </div>
-            </fieldset>
+            <p className="text-xs text-gray-500">
+              Filtrez par étape du parcours via les chips « Vue cockpit » ci-dessus (Brouillon,
+              Commercial, etc.).
+            </p>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row lg:flex-col lg:justify-end">

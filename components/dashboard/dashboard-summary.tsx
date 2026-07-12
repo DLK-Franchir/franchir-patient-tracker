@@ -108,7 +108,13 @@ export default function DashboardSummaryHeader({
   }
 
   const toggleFocus = (next: 'mine' | 'waiting') => {
-    navigate({ focus: focus === next ? 'all' : next })
+    if (focus === next) {
+      navigate({ focus: 'all' })
+      return
+    }
+    // Focus (Mes actions / En attente) et filtre pipeline sont exclusifs :
+    // évite une intersection vide (ex. Mes actions + Brouillon sans résultat).
+    navigate({ focus: next, status: null })
   }
 
   const togglePipelineStatus = (globalStatus: GlobalStatus) => {
@@ -117,10 +123,11 @@ export default function DashboardSummaryHeader({
       selectedPipelineStatus === globalStatus ||
       codes.every((code) => selectedStatuses.includes(code))
 
-    navigate({
-      status: isActive ? null : codes,
-      focus: focus !== 'all' ? focus : null,
-    })
+    if (isActive) {
+      navigate({ status: null })
+      return
+    }
+    navigate({ status: codes, focus: null })
   }
 
   return (
@@ -191,6 +198,8 @@ export default function DashboardSummaryHeader({
             : ''}
           {' · '}
           Rôle : <span className="font-semibold">{userRole}</span>
+          {' · '}
+          Un seul filtre actif à la fois (actions, attente ou étape pipeline).
         </p>
       </div>
     </div>
