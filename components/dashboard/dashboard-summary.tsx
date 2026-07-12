@@ -34,7 +34,7 @@ function ChipButton({
   onClick: () => void
   children: React.ReactNode
   count?: number
-  variant?: 'default' | 'action' | 'waiting'
+  variant?: 'default' | 'action'
 }) {
   const base =
     'inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]'
@@ -46,9 +46,6 @@ function ChipButton({
     action: active
       ? 'border-amber-500 bg-amber-100 text-amber-950'
       : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100',
-    waiting: active
-      ? 'border-blue-500 bg-blue-100 text-blue-950'
-      : 'border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100',
   }
 
   return (
@@ -107,14 +104,12 @@ export default function DashboardSummaryHeader({
     })
   }
 
-  const toggleFocus = (next: 'mine' | 'waiting') => {
-    if (focus === next) {
+  const toggleMineFocus = () => {
+    if (focus === 'mine') {
       navigate({ focus: 'all' })
       return
     }
-    // Focus (Mes actions / En attente) et filtre pipeline sont exclusifs :
-    // évite une intersection vide (ex. Mes actions + Brouillon sans résultat).
-    navigate({ focus: next, status: null })
+    navigate({ focus: 'mine', status: null })
   }
 
   const togglePipelineStatus = (globalStatus: GlobalStatus) => {
@@ -147,19 +142,11 @@ export default function DashboardSummaryHeader({
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <ChipButton
             active={focus === 'mine'}
-            onClick={() => toggleFocus('mine')}
+            onClick={toggleMineFocus}
             count={summary.mine}
             variant="action"
           >
             Mes actions
-          </ChipButton>
-          <ChipButton
-            active={focus === 'waiting'}
-            onClick={() => toggleFocus('waiting')}
-            count={summary.waiting}
-            variant="waiting"
-          >
-            En attente
           </ChipButton>
 
           <span className="mx-1 hidden h-8 w-px shrink-0 self-center bg-gray-200 sm:block" aria-hidden />
@@ -199,7 +186,7 @@ export default function DashboardSummaryHeader({
           {' · '}
           Rôle : <span className="font-semibold">{userRole}</span>
           {' · '}
-          Un seul filtre actif à la fois (actions, attente ou étape pipeline).
+          Un seul filtre actif : Mes actions ou une étape pipeline.
         </p>
       </div>
     </div>

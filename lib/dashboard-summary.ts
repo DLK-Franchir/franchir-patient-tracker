@@ -26,7 +26,7 @@ export type DashboardSummary = {
 
 /** Codes DB (`workflow_statuses.code`) par GlobalStatus — aligné sur globalStatusFromWorkflowStatus. */
 export const GLOBAL_STATUS_DB_CODES: Record<GlobalStatus, string[]> = {
-  draft: ['draft', 'prospect', 'created'],
+  draft: ['draft', 'prospect', 'created', 'prospect_created'],
   medical_review: ['medical_review', 'pending_medical', 'awaiting_medical'],
   medical_more_info: ['need_info', 'medical_more_info', 'incomplete'],
   rejected: ['rejected_medical', 'rejected', 'refused'],
@@ -153,6 +153,16 @@ export function getFocusPatientIds(
   return patients.filter((patient) => matcher(patient, role)).map((patient) => patient.id)
 }
 
+/** Filtre pipeline par GlobalStatus — même logique que computeDashboardSummary (compteur chips). */
+export function getPipelinePatientIds(
+  patients: SummaryPatient[],
+  globalStatus: GlobalStatus,
+): string[] {
+  return patients
+    .filter((patient) => globalStatusFromWorkflowStatus(patient.workflow_statuses) === globalStatus)
+    .map((patient) => patient.id)
+}
+
 export type DashboardPriorityBanner = {
   globalStatus: GlobalStatus
   guidance: string
@@ -208,12 +218,12 @@ export function getDashboardPriorityBanner(
 }
 
 export function normalizeDashboardFocus(value: string | undefined): DashboardFocus {
-  if (value === 'mine' || value === 'waiting') return value
+  if (value === 'mine') return 'mine'
+  // focus=waiting déprécié — plus de chip « En attente »
   return 'all'
 }
 
 export function focusFilterLabel(focus: DashboardFocus): string | null {
   if (focus === 'mine') return 'Mes actions'
-  if (focus === 'waiting') return 'En attente'
   return null
 }

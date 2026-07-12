@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeDashboardSummary,
   getFocusPatientIds,
+  getPipelinePatientIds,
   globalStatusToDbCodes,
   isMinePatient,
   isWaitingPatient,
@@ -41,7 +42,7 @@ describe('dashboard-summary', () => {
     expect(pendingActionLabel('medical_review', 'gilles')).toContain('Examinez')
   })
 
-  it('filtre les ids focus mine et waiting', () => {
+  it('filtre les ids focus mine', () => {
     const patients = [
       patient('1', 'draft'),
       patient('2', 'medical_review'),
@@ -49,11 +50,22 @@ describe('dashboard-summary', () => {
     ]
 
     const mineIds = getFocusPatientIds(patients, 'marcel', 'mine')
-    const waitingIds = getFocusPatientIds(patients, 'marcel', 'waiting')
 
     expect(mineIds).toEqual(['1'])
-    expect(waitingIds).toEqual(['2'])
     expect(getFocusPatientIds(patients, 'marcel', 'all')).toBeNull()
+  })
+
+  it('filtre pipeline brouillon avec prospect_created', () => {
+    const patients = [
+      patient('1', 'prospect_created'),
+      patient('2', 'medical_review'),
+      patient('3', 'draft'),
+    ]
+
+    const draftIds = getPipelinePatientIds(patients, 'draft')
+
+    expect(draftIds).toEqual(['1', '3'])
+    expect(globalStatusToDbCodes('draft')).toContain('prospect_created')
   })
 
   it('mappe les codes DB pour filtrage pipeline', () => {

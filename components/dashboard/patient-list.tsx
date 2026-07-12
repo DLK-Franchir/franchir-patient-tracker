@@ -182,10 +182,7 @@ export default function PatientList({
   const selectedPipelineStatus = selectedGlobalStatusFromCodes(selectedStatuses)
   const focusLabel = focusFilterLabel(focus)
   const pipelineLabel = selectedPipelineStatus ? GLOBAL_STATUS_LABELS[selectedPipelineStatus] : null
-  const activeFilterParts = [focusLabel, pipelineLabel, searchQuery ? `« ${searchQuery} »` : null].filter(
-    Boolean,
-  ) as string[]
-  const hasActiveFilters = activeFilterParts.length > 0
+  const hasCockpitFilter = Boolean(focusLabel || pipelineLabel)
 
   const sortBy = (column: SortColumn) => {
     const nextDirection = sort === column && direction === 'asc' ? 'desc' : 'asc'
@@ -209,23 +206,19 @@ export default function PatientList({
         priorityBanner={priorityBanner}
       />
 
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
-          <p>
-            <span className="font-bold">
-              {total} dossier{total > 1 ? 's' : ''}
-            </span>
-            {' — '}
-            {activeFilterParts.join(' · ')}
-          </p>
+      {hasCockpitFilter && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600">
+          <span>
+            {total} dossier{total > 1 ? 's' : ''} — {focusLabel || pipelineLabel}
+          </span>
           <button
             type="button"
             onClick={clearActiveFilters}
-            className="min-h-[44px] rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-sm font-semibold text-[#2563EB] transition hover:bg-blue-100"
+            className="font-semibold text-[#2563EB] underline-offset-2 hover:underline"
           >
-            Effacer
+            Effacer le filtre
           </button>
-        </div>
+        </p>
       )}
 
       <form

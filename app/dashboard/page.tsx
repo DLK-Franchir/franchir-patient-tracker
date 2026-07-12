@@ -10,7 +10,9 @@ import {
   computeDashboardSummary,
   getDashboardPriorityBanner,
   getFocusPatientIds,
+  getPipelinePatientIds,
   normalizeDashboardFocus,
+  selectedGlobalStatusFromCodes,
   type DashboardFocus,
   type SummaryPatient,
 } from '@/lib/dashboard-summary'
@@ -106,24 +108,17 @@ async function getAllPatientsForSummary(): Promise<SummaryPatient[]> {
 async function getPatients({
   page,
   query,
-  statuses,
   sort,
   direction,
-  statusOptions,
-  focusPatientIds,
+  filterPatientIds,
 }: {
   page: number
   query: string
-  statuses: string[]
   sort: SortColumn
   direction: SortDirection
-  statusOptions: WorkflowStatusOption[]
-  focusPatientIds?: string[] | null
+  filterPatientIds?: string[] | null
 }) {
   const supabase = await createServerClient()
-  const selectedStatusIds = statusOptions
-    .filter((status) => statuses.includes(status.code))
-    .map((status) => status.id)
 
   const from = (page - 1) * ITEMS_PER_PAGE
   const to = from + ITEMS_PER_PAGE - 1
@@ -146,16 +141,12 @@ async function getPatients({
     fullQuery.ilike('patient_name', `%${query}%`)
     baseQuery.ilike('patient_name', `%${query}%`)
   }
-  if (selectedStatusIds.length > 0) {
-    fullQuery.in('current_status_id', selectedStatusIds)
-    baseQuery.in('current_status_id', selectedStatusIds)
-  }
-  if (focusPatientIds !== null && focusPatientIds !== undefined) {
-    if (focusPatientIds.length === 0) {
+  if (filterPatientIds !== null && filterPatientIds !== undefined) {
+    if (filterPatientIds.length === 0) {
       return { patients: [], total: 0 }
     }
-    fullQuery.in('id', focusPatientIds)
-    baseQuery.in('id', focusPatientIds)
+    fullQuery.in('id', filterPatientIds)
+    baseQuery.in('id', filterPatientIds)
   }
 
   const fullResult = await fullQuery
@@ -228,16 +219,20 @@ export default async function DashboardPage({
   const statusOptions = await getWorkflowStatuses()
   const summaryPatients = await getAllPatientsForSummary()
   const dashboardSummary = computeDashboardSummary(summaryPatients, dashboardRole)
-  const focusPatientIds = getFocusPatientIds(summaryPatients, dashboardRole, focus)
+  const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
+  const filterPatientIds =
+    focus !== 'all'
+      ? getFocusPatientIds(summaryPatients, dashboardRole, focus)
+      : pipelineGlobalStatus
+        ? getPipelinePatientIds(summaryPatients, pipelineGlobalStatus)
+        : null
   const priorityBanner = getDashboardPriorityBanner(summaryPatients, dashboardRole, dashboardSummary)
   const { patients, total } = await getPatients({
     page: currentPage,
     query: searchQuery,
-    statuses: selectedStatuses,
     sort,
     direction,
-    statusOptions,
-    focusPatientIds,
+    filterPatientIds,
   })
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE))
 

@@ -100,7 +100,7 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     const code = status.code.toLowerCase()
 
     // Mapping strict par code
-    if (code === 'draft' || code === 'prospect' || code === 'created') {
+    if (code === 'draft' || code === 'prospect' || code === 'created' || code === 'prospect_created') {
       return 'draft'
     }
     if (code === 'medical_review' || code === 'pending_medical' || code === 'awaiting_medical') {
