@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   computeDashboardSummary,
+  filterPatientsForRole,
   formatMineBreakdown,
+  getDefaultDashboardTab,
   getFocusPatientIds,
   getPipelinePatientIds,
   getPriorityBannerContent,
+  getRoleScopedPatientIds,
   getShortPendingActionLabel,
   globalStatusToDbCodes,
+  intersectPatientIds,
   isMinePatient,
+  isRoleScopedPatient,
   isWaitingPatient,
   mineActionShortLabel,
   pendingActionLabel,
@@ -178,5 +183,29 @@ describe('dashboard-summary', () => {
     expect(getShortPendingActionLabel('commercial_in_progress', 'franchir')).toBe('Gérer devis/dates')
     expect(getShortPendingActionLabel('medical_review', 'marcel')).toBeNull()
     expect(getShortPendingActionLabel('commercial_in_progress', 'gilles')).toBeNull()
+  })
+
+  it('restreint la vue Gilles aux dossiers médicaux et suivi post-validation', () => {
+    const patients = [
+      patient('1', 'draft'),
+      patient('2', 'medical_review'),
+      patient('3', 'validated_medical'),
+      patient('4', 'surgery_scheduled'),
+      patient('5', 'case_closed'),
+      patient('6', 'prospect_created'),
+    ]
+
+    const scoped = filterPatientsForRole(patients, 'gilles')
+
+    expect(scoped.map((p) => p.id)).toEqual(['2', '3', '4'])
+    expect(getRoleScopedPatientIds(patients, 'marcel')).toBeNull()
+    expect(getDefaultDashboardTab('gilles', computeDashboardSummary(scoped, 'gilles'))).toBe(
+      'revue',
+    )
+    expect(
+      intersectPatientIds(['2', '3'], getRoleScopedPatientIds(patients, 'gilles')),
+    ).toEqual(['2', '3'])
+    expect(isRoleScopedPatient(patient('1', 'draft'), 'gilles')).toBe(false)
+    expect(isRoleScopedPatient(patient('3', 'validated_medical'), 'gilles')).toBe(true)
   })
 })

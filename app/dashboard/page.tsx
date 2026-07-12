@@ -7,11 +7,15 @@ import PatientList from '@/components/dashboard/patient-list'
 import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integrations/issue-questionnaire-link'
 import {
   computeDashboardSummary,
+  filterPatientsForRole,
+  getActifsPatientIds,
+  getDefaultDashboardTab,
   getFocusPatientIds,
   getPipelinePatientIds,
+  getRoleScopedPatientIds,
   getTabPatientIds,
   getToConfirmPatientIds,
-  getActifsPatientIds,
+  intersectPatientIds,
   normalizeDashboardFocus,
   normalizeDashboardKpi,
   normalizeDashboardTab,
@@ -223,24 +227,40 @@ export default async function DashboardPage({
   const userRole = profile?.role as Role
   const dashboardRole = userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'
   const focus: DashboardFocus = normalizeDashboardFocus(params.focus)
-  const activeTab = normalizeDashboardTab(params.tab)
-  const activeKpi = normalizeDashboardKpi(params.kpi)
   const summaryPatients = await getAllPatientsForSummary()
-  const dashboardSummary = computeDashboardSummary(summaryPatients, dashboardRole, summaryPatients)
+  const roleScopedPatients = filterPatientsForRole(summaryPatients, dashboardRole)
+  const roleScopeIds = getRoleScopedPatientIds(summaryPatients, dashboardRole)
+  const dashboardSummary = computeDashboardSummary(
+    roleScopedPatients,
+    dashboardRole,
+    roleScopedPatients,
+  )
+
+  const hasExplicitListFilter = Boolean(
+    params.focus || params.tab || params.kpi || params.status || params.q,
+  )
+  let activeTab = normalizeDashboardTab(params.tab)
+  if (!hasExplicitListFilter && !activeTab) {
+    activeTab = getDefaultDashboardTab(dashboardRole, dashboardSummary)
+  }
+
+  const activeKpi = normalizeDashboardKpi(params.kpi)
   const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
 
   let filterPatientIds: string[] | null = null
   if (focus !== 'all') {
-    filterPatientIds = getFocusPatientIds(summaryPatients, dashboardRole, focus)
+    filterPatientIds = getFocusPatientIds(roleScopedPatients, dashboardRole, focus)
   } else if (activeKpi === 'toConfirm') {
-    filterPatientIds = getToConfirmPatientIds(summaryPatients)
+    filterPatientIds = getToConfirmPatientIds(roleScopedPatients)
   } else if (activeKpi === 'actifs') {
-    filterPatientIds = getActifsPatientIds(summaryPatients)
+    filterPatientIds = getActifsPatientIds(roleScopedPatients)
   } else if (activeTab) {
-    filterPatientIds = getTabPatientIds(summaryPatients, activeTab)
+    filterPatientIds = getTabPatientIds(roleScopedPatients, activeTab)
   } else if (pipelineGlobalStatus) {
-    filterPatientIds = getPipelinePatientIds(summaryPatients, pipelineGlobalStatus)
+    filterPatientIds = getPipelinePatientIds(roleScopedPatients, pipelineGlobalStatus)
   }
+
+  filterPatientIds = intersectPatientIds(filterPatientIds, roleScopeIds)
 
   const { patients, total } = await getPatients({
     page: currentPage,
@@ -269,9 +289,10 @@ export default async function DashboardPage({
             sort={sort}
             direction={direction}
             userRole={dashboardRole}
+            userDisplayName={profile?.full_name ?? undefined}
             dashboardSummary={dashboardSummary}
             focus={focus}
-            totalPatients={summaryPatients.length}
+            totalPatients={roleScopedPatients.length}
           />
         </div>
       </div>

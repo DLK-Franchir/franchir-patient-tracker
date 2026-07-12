@@ -55,6 +55,7 @@ type PatientListProps = {
   sort: SortColumn
   direction: SortDirection
   userRole?: UserRole
+  userDisplayName?: string
   dashboardSummary: DashboardSummary
   focus: DashboardFocus
   totalPatients: number
@@ -103,6 +104,7 @@ export default function PatientList({
   sort,
   direction,
   userRole = 'admin',
+  userDisplayName,
   dashboardSummary,
   focus,
   totalPatients,
@@ -204,6 +206,7 @@ export default function PatientList({
         activeTab={activeTab}
         activeKpi={activeKpi}
         userRole={userRole}
+        userDisplayName={userDisplayName}
         searchQuery={query}
         totalPatients={totalPatients}
         onSearchChange={setQuery}

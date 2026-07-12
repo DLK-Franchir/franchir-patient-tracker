@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import PatientDetailClient from './client-page'
 import AppHeader from '@/components/app-header'
 import { type UserRole } from '@/lib/workflow-v2'
+import { isRoleScopedPatient } from '@/lib/dashboard-summary'
 import {
   fetchQuestionnaireStatus,
   reconcileQuestionnaireCompletion,
@@ -60,6 +61,15 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     .single()
 
   if (!patient) {
+    redirect('/dashboard')
+  }
+
+  if (
+    !isRoleScopedPatient(
+      { id: patient.id, workflow_statuses: patient.current_status },
+      userRole,
+    )
+  ) {
     redirect('/dashboard')
   }
 

@@ -189,6 +189,69 @@ export function isWaitingPatient(patient: SummaryPatient, role: UserRole): boole
   return isWaitingOnOther(handoff, role)
 }
 
+/** Dossiers visibles pour Gilles : revue, complément demandé, suivi post-validation ou refusé. */
+const GILLES_VISIBLE_STATUSES = new Set<GlobalStatus>([
+  'medical_review',
+  'medical_more_info',
+  'commercial_in_progress',
+  'scheduled',
+  'rejected',
+])
+
+export function isRoleScopedPatient(patient: SummaryPatient, role: UserRole): boolean {
+  if (role !== 'gilles') return true
+  const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
+  if (isClosedGlobalStatus(globalStatus)) return false
+  return GILLES_VISIBLE_STATUSES.has(globalStatus)
+}
+
+export function filterPatientsForRole<T extends SummaryPatient>(
+  patients: T[],
+  role: UserRole,
+): T[] {
+  if (role !== 'gilles') return patients
+  return patients.filter((patient) => isRoleScopedPatient(patient, role))
+}
+
+/** Restriction de liste par rôle (`null` = pas de filtre de base). */
+export function getRoleScopedPatientIds(
+  patients: SummaryPatient[],
+  role: UserRole,
+): string[] | null {
+  if (role !== 'gilles') return null
+  return filterPatientsForRole(patients, role).map((patient) => patient.id)
+}
+
+export function intersectPatientIds(
+  ...lists: Array<string[] | null | undefined>
+): string[] | null {
+  const defined = lists.filter((list): list is string[] => Array.isArray(list))
+  if (defined.length === 0) return null
+  return defined.reduce((acc, list) => acc.filter((id) => list.includes(id)))
+}
+
+export function getDashboardTabsForRole(role: UserRole): typeof DASHBOARD_TABS {
+  if (role === 'gilles') {
+    return DASHBOARD_TABS.filter((tab) =>
+      ['revue', 'completer', 'commercial', 'scheduled', 'rejected'].includes(tab.id),
+    )
+  }
+  return DASHBOARD_TABS
+}
+
+export function getDefaultDashboardTab(
+  role: UserRole,
+  summary: DashboardSummary,
+): DashboardTabId | null {
+  if (role !== 'gilles') return null
+  if (summary.byGlobalStatus.medical_review > 0) return 'revue'
+  if (summary.byGlobalStatus.medical_more_info > 0) return 'completer'
+  if (summary.byGlobalStatus.commercial_in_progress > 0) return 'commercial'
+  if (summary.byGlobalStatus.scheduled > 0) return 'scheduled'
+  if (summary.byGlobalStatus.rejected > 0) return 'rejected'
+  return 'revue'
+}
+
 export function globalStatusToDbCodes(globalStatus: GlobalStatus): string[] {
   return GLOBAL_STATUS_DB_CODES[globalStatus]
 }
@@ -426,9 +489,20 @@ export function getDashboardKpis(
   ]
 
   if (role === 'gilles') {
-    const revue = kpis.find((kpi) => kpi.id === 'revue')
-    const rest = kpis.filter((kpi) => kpi.id !== 'revue')
-    return revue ? [revue, ...rest] : kpis
+    const gillesKpis = kpis
+      .filter((kpi) => ['revue', 'commercial', 'scheduled', 'completer'].includes(kpi.id))
+      .map((kpi) => {
+        if (kpi.id === 'revue') {
+          return { ...kpi, sub: 'Action requise de votre part' }
+        }
+        if (kpi.id === 'commercial') {
+          return { ...kpi, label: 'Suivi commercial', sub: 'Chirurgien et date proposée' }
+        }
+        return kpi
+      })
+    const revue = gillesKpis.find((kpi) => kpi.id === 'revue')
+    const rest = gillesKpis.filter((kpi) => kpi.id !== 'revue')
+    return revue ? [revue, ...rest] : gillesKpis
   }
 
   return kpis

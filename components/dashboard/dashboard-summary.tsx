@@ -10,6 +10,7 @@ import {
   DASHBOARD_TABS,
   formatMineBreakdown,
   getDashboardKpis,
+  getDashboardTabsForRole,
   getTabCount,
   GLOBAL_STATUS_DB_CODES,
   selectedGlobalStatusFromCodes,
@@ -27,6 +28,7 @@ type DashboardSummaryHeaderProps = {
   activeTab: DashboardTabId | null
   activeKpi: string | null
   userRole: UserRole
+  userDisplayName?: string
   searchQuery: string
   totalPatients: number
   onSearchChange: (value: string) => void
@@ -40,6 +42,7 @@ export default function DashboardSummaryHeader({
   activeTab,
   activeKpi,
   userRole,
+  userDisplayName,
   searchQuery,
   totalPatients,
   onSearchChange,
@@ -50,6 +53,7 @@ export default function DashboardSummaryHeader({
   const [isPending, startTransition] = useTransition()
 
   const kpis = getDashboardKpis(summary, userRole)
+  const dashboardTabs = getDashboardTabsForRole(userRole)
   const selectedPipelineStatus = selectedGlobalStatusFromCodes(selectedStatuses)
   const resolvedTab =
     activeTab ??
@@ -169,6 +173,9 @@ export default function DashboardSummaryHeader({
             }}
           >
             Synthèse des dossiers
+            {userDisplayName ? (
+              <span style={{ fontWeight: 700, color: BRAND.ink }}> · {userDisplayName}</span>
+            ) : null}
           </h2>
           <span style={{ fontSize: '14px', color: BRAND.slate }}>
             · {totalPatients} dossier{totalPatients > 1 ? 's' : ''} au total
@@ -227,7 +234,7 @@ export default function DashboardSummaryHeader({
               </button>
             )}
 
-            {DASHBOARD_TABS.map((tab) => {
+            {dashboardTabs.map((tab) => {
               const count = getTabCount(summary, tab.id)
               const active =
                 !activeKpi &&
