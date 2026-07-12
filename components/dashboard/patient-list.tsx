@@ -39,13 +39,6 @@ type Patient = {
   profiles: { full_name: string } | null
 }
 
-type StatusOption = {
-  id: string
-  code: string
-  label: string
-  color: string
-}
-
 type PatientListProps = {
   initialPatients: Patient[]
   total: number
@@ -54,7 +47,6 @@ type PatientListProps = {
   itemsPerPage: number
   searchQuery: string
   selectedStatuses: string[]
-  statusOptions: StatusOption[]
   sort: SortColumn
   direction: SortDirection
   userRole?: UserRole
@@ -103,7 +95,6 @@ export default function PatientList({
   itemsPerPage,
   searchQuery,
   selectedStatuses,
-  statusOptions,
   sort,
   direction,
   userRole = 'admin',

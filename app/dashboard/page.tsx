@@ -78,16 +78,6 @@ function normalizeDirection(direction: string | undefined): SortDirection {
     : 'desc'
 }
 
-async function getWorkflowStatuses(): Promise<WorkflowStatusOption[]> {
-  const supabase = await createServerClient()
-  const { data } = await supabase
-    .from('workflow_statuses')
-    .select('id, code, label, color')
-    .order('order_position', { ascending: true })
-
-  return (data || []) as WorkflowStatusOption[]
-}
-
 type SummaryQueryRow = {
   id: string
   workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
@@ -216,7 +206,6 @@ export default async function DashboardPage({
   const userRole = profile?.role as Role
   const dashboardRole = userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'
   const focus: DashboardFocus = normalizeDashboardFocus(params.focus)
-  const statusOptions = await getWorkflowStatuses()
   const summaryPatients = await getAllPatientsForSummary()
   const dashboardSummary = computeDashboardSummary(summaryPatients, dashboardRole)
   const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
@@ -266,7 +255,6 @@ export default async function DashboardPage({
             itemsPerPage={ITEMS_PER_PAGE}
             searchQuery={searchQuery}
             selectedStatuses={selectedStatuses}
-            statusOptions={statusOptions}
             sort={sort}
             direction={direction}
             userRole={dashboardRole}
