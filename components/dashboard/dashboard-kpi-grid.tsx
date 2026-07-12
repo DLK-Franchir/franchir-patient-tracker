@@ -55,7 +55,7 @@ function KpiCard({
         style={{
           fontSize: '48px',
           color: kpi.accentColor,
-          fontFamily: "'Nunito', sans-serif",
+          fontFamily: 'var(--font-nunito), var(--font-geist-sans), sans-serif',
         }}
       >
         {kpi.count}
