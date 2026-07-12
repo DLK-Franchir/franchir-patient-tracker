@@ -512,6 +512,14 @@ export function getDashboardKpis(
     if (revue) {
       gillesKpis[0] = { ...revue, sub: 'Action requise de votre part' }
     }
+    const completerIdx = gillesKpis.findIndex((kpi) => kpi.id === 'completer')
+    if (completerIdx >= 0) {
+      gillesKpis[completerIdx] = {
+        ...gillesKpis[completerIdx],
+        sub: 'Complément demandé — en attente de Marcel',
+        urgent: false,
+      }
+    }
     return gillesKpis
   }
 
@@ -560,6 +568,112 @@ export function normalizeDashboardKpiForRole(
 ): DashboardKpiId | null {
   if (!kpi || role !== 'gilles') return kpi
   return GILLES_KPI_IDS.has(kpi) ? kpi : null
+}
+
+export type DashboardListFilterParams = {
+  focus?: string
+  tab?: string
+  kpi?: string
+  status?: string | string[]
+  q?: string
+  all?: string
+}
+
+/** True si l'utilisateur a choisi un filtre liste explicite (hors pagination/tri). */
+export function hasExplicitDashboardListFilter(params: DashboardListFilterParams): boolean {
+  if (params.all === '1') return true
+  if (params.focus?.trim()) return true
+  if (params.tab?.trim()) return true
+  if (params.kpi?.trim()) return true
+  if ((params.q || '').trim()) return true
+  const statuses = Array.isArray(params.status)
+    ? params.status
+    : params.status
+      ? [params.status]
+      : []
+  return statuses.some((code) => code.trim().length > 0)
+}
+
+/** Vue « tous les dossiers » explicite (Gilles) — ignore tab/kpi/focus/status résiduels. */
+export function isDashboardShowAllScope(params: DashboardListFilterParams): boolean {
+  return params.all === '1'
+}
+
+const KPI_TO_TAB: Partial<Record<DashboardKpiId, DashboardTabId>> = {
+  revue: 'revue',
+  completer: 'completer',
+  scheduled: 'scheduled',
+  suiviCommercial: 'commercial',
+  toConfirm: 'commercial',
+}
+
+/** Onglet effectif dérivé uniquement des paramètres URL tab/kpi (pas d'inférence visuelle). */
+export function getEffectiveDashboardTab(
+  activeTab: DashboardTabId | null,
+  activeKpi: DashboardKpiId | null,
+): DashboardTabId | null {
+  if (activeTab) return activeTab
+  if (activeKpi && KPI_TO_TAB[activeKpi]) return KPI_TO_TAB[activeKpi] ?? null
+  return null
+}
+
+/** Résout les IDs liste dashboard à partir des paramètres cockpit (source unique serveur). */
+export function resolveDashboardListFilterIds(
+  patients: SummaryPatient[],
+  role: UserRole,
+  options: {
+    focus: DashboardFocus
+    activeTab: DashboardTabId | null
+    activeKpi: DashboardKpiId | null
+    pipelineGlobalStatus: GlobalStatus | null
+    patientsExtended?: SummaryPatientExtended[]
+  },
+): string[] | null {
+  const { focus, activeTab, activeKpi, pipelineGlobalStatus, patientsExtended } = options
+
+  if (focus !== 'all') {
+    return getFocusPatientIds(patients, role, focus)
+  }
+
+  if (activeKpi === 'toConfirm') {
+    return getToConfirmPatientIds((patientsExtended ?? patients) as SummaryPatientExtended[])
+  }
+  if (activeKpi === 'actifs') {
+    return getActifsPatientIds(patients)
+  }
+
+  const tabFromKpi = activeKpi ? KPI_TO_TAB[activeKpi] : null
+  const effectiveTab = activeTab ?? tabFromKpi ?? null
+  if (effectiveTab) {
+    return getTabPatientIds(patients, effectiveTab)
+  }
+
+  if (pipelineGlobalStatus) {
+    return getPipelinePatientIds(patients, pipelineGlobalStatus)
+  }
+
+  return null
+}
+
+/** Message prioritaire direct pour le Dr Dubois. */
+export function getGillesPriorityMessage(summary: DashboardSummary): string | null {
+  const count = summary.byGlobalStatus.medical_review
+  if (count <= 0) return null
+  if (count === 1) {
+    return 'Vous avez 1 revue médicale à traiter.'
+  }
+  return `Vous avez ${count} revues médicales à traiter.`
+}
+
+/** Redirection d'atterrissage Gilles : vue « Tous les dossiers » par défaut. */
+export function getGillesDashboardLandingRedirect(
+  _summary: DashboardSummary,
+  params: DashboardListFilterParams,
+  role: UserRole,
+): string | null {
+  if (role !== 'gilles') return null
+  if (hasExplicitDashboardListFilter(params)) return null
+  return '/dashboard?all=1'
 }
 
 /** Filtre URL invalidé par le rôle (ex. bookmark Marcel `tab=actifs` pour Gilles). */

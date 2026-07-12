@@ -11,12 +11,13 @@ import {
   formatMineBreakdown,
   getDashboardKpis,
   getDashboardTabsForRole,
-  getDefaultDashboardTab,
+  getEffectiveDashboardTab,
+  getGillesPriorityMessage,
   getTabCount,
   GLOBAL_STATUS_DB_CODES,
-  selectedGlobalStatusFromCodes,
   type DashboardFocus,
   type DashboardKpi,
+  type DashboardKpiId,
   type DashboardSummary,
   type DashboardTabId,
 } from '@/lib/dashboard-summary'
@@ -39,7 +40,7 @@ type DashboardSummaryHeaderProps = {
 export default function DashboardSummaryHeader({
   summary,
   focus,
-  selectedStatuses,
+  selectedStatuses: _selectedStatuses,
   activeTab,
   activeKpi,
   userRole,
@@ -55,21 +56,23 @@ export default function DashboardSummaryHeader({
 
   const kpis = getDashboardKpis(summary, userRole)
   const dashboardTabs = getDashboardTabsForRole(userRole)
-  const defaultTab = getDefaultDashboardTab(userRole, summary)
-  const selectedPipelineStatus = selectedGlobalStatusFromCodes(selectedStatuses)
-  const resolvedTab =
-    activeTab ??
-    (selectedPipelineStatus
-      ? (DASHBOARD_TABS.find(
-          (tab) =>
-            tab.globalStatuses.length === 1 &&
-            tab.globalStatuses[0] === selectedPipelineStatus,
-        )?.id ?? null)
-      : focus === 'mine'
-        ? null
-        : userRole === 'gilles'
-          ? defaultTab
-          : 'actifs')
+  const showAllScoped = searchParams.get('all') === '1'
+  const effectiveTab = getEffectiveDashboardTab(
+    activeTab,
+    (activeKpi as DashboardKpiId | null) ?? null,
+  )
+  const hasActiveListFilter =
+    !showAllScoped && (focus !== 'all' || Boolean(effectiveTab) || Boolean(activeKpi))
+  const gillesPriorityMessage =
+    userRole === 'gilles' ? getGillesPriorityMessage(summary) : null
+  const gillesFirstName =
+    userRole === 'gilles'
+      ? (userDisplayName?.replace(/^Dr\.?\s+/i, '').trim().split(/\s+/)[0] ?? 'Gilles')
+      : null
+
+  const showAllDossiers = () => {
+    navigate({ all: true, focus: null, tab: null, kpi: null, status: null })
+  }
 
   const buildUrl = (updates: {
     focus?: DashboardFocus | null
@@ -78,6 +81,7 @@ export default function DashboardSummaryHeader({
     kpi?: string | null
     q?: string | null
     page?: number
+    all?: boolean | null
   }) => {
     const params = new URLSearchParams(searchParams.toString())
 
@@ -106,6 +110,11 @@ export default function DashboardSummaryHeader({
       else params.delete('q')
     }
 
+    if (updates.all !== undefined) {
+      if (updates.all) params.set('all', '1')
+      else params.delete('all')
+    }
+
     params.set('page', String(updates.page ?? 1))
     return `/dashboard?${params.toString()}`
   }
@@ -118,7 +127,7 @@ export default function DashboardSummaryHeader({
 
   const clearListFilters = () => {
     if (userRole === 'gilles') {
-      navigate({ kpi: null, tab: null, focus: null, status: null })
+      navigate({ kpi: null, tab: null, focus: null, status: null, all: true })
       return
     }
     navigate({ kpi: null, tab: 'actifs', focus: null, status: null })
@@ -135,18 +144,19 @@ export default function DashboardSummaryHeader({
       tab: kpi.filter.tab ?? null,
       focus: null,
       status: kpi.filter.status ?? null,
+      all: null,
     })
   }
 
   const handleTabClick = (tabId: DashboardTabId) => {
-    const isActive = resolvedTab === tabId && !activeKpi && focus !== 'mine'
+    const isActive = effectiveTab === tabId && focus !== 'mine' && !showAllScoped
     if (isActive) {
       clearListFilters()
       return
     }
 
     if (tabId === 'actifs' || tabId === 'all') {
-      navigate({ tab: tabId, status: null, focus: null, kpi: null })
+      navigate({ tab: tabId, status: null, focus: null, kpi: null, all: null })
       return
     }
 
@@ -156,15 +166,15 @@ export default function DashboardSummaryHeader({
         (globalStatus) => GLOBAL_STATUS_DB_CODES[globalStatus],
       ) ?? null
 
-    navigate({ tab: tabId, status: statusCodes, focus: null, kpi: null })
+    navigate({ tab: tabId, status: statusCodes, focus: null, kpi: null, all: null })
   }
 
   const toggleMineFocus = () => {
     if (focus === 'mine') {
-      navigate({ focus: null, kpi: null })
+      navigate({ focus: null, kpi: null, tab: null, status: null, all: true })
       return
     }
-    navigate({ focus: 'mine', status: null, tab: null, kpi: null })
+    navigate({ focus: 'mine', status: null, tab: null, kpi: null, all: null })
   }
 
   const clearSearch = () => {
@@ -194,9 +204,42 @@ export default function DashboardSummaryHeader({
           </span>
         </div>
 
-        <DashboardKpiGrid kpis={kpis} activeKpiId={activeKpi} onKpiClick={handleKpiClick} />
+        <DashboardKpiGrid
+          kpis={kpis}
+          activeKpiId={showAllScoped ? null : activeKpi}
+          onKpiClick={handleKpiClick}
+        />
 
-        {summary.mine > 0 && (
+        {gillesPriorityMessage && (
+          <div
+            className="mt-4 flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"
+            style={{ borderColor: `${BRAND.revue}55`, background: `${BRAND.revue}14` }}
+          >
+            <p className="text-[15px] font-bold leading-snug" style={{ color: BRAND.navy }}>
+              Dr {gillesFirstName}, {gillesPriorityMessage}
+            </p>
+            {focus !== 'mine' && (
+              <button
+                type="button"
+                onClick={() =>
+                  navigate({ focus: 'mine', tab: null, kpi: null, status: null, all: null })
+                }
+                className="shrink-0 rounded-xl px-4 py-2 text-[13px] font-bold text-white"
+                style={{ background: BRAND.coral }}
+              >
+                Voir les {summary.byGlobalStatus.medical_review} dossier
+                {summary.byGlobalStatus.medical_review > 1 ? 's' : ''} à valider →
+              </button>
+            )}
+            {focus === 'mine' && (
+              <span className="text-[13px] font-semibold" style={{ color: BRAND.revue }}>
+                Liste filtrée sur vos actions en cours
+              </span>
+            )}
+          </div>
+        )}
+
+        {summary.mine > 0 && userRole !== 'gilles' && (
           <p className="mt-4 text-sm" style={{ color: BRAND.ink }}>
             <button
               type="button"
@@ -229,17 +272,65 @@ export default function DashboardSummaryHeader({
           </div>
 
           <div className="flex flex-1 items-center gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {focus === 'mine' && (
+            {userRole === 'gilles' && (
+              <button
+                type="button"
+                onClick={showAllDossiers}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold whitespace-nowrap transition-all"
+                style={{
+                  background: showAllScoped || !hasActiveListFilter ? BRAND.navy : 'transparent',
+                  color: showAllScoped || !hasActiveListFilter ? 'white' : BRAND.ink,
+                }}
+                onMouseEnter={(event) => {
+                  if (!showAllScoped && hasActiveListFilter) {
+                    event.currentTarget.style.background = BRAND.creamDark
+                  }
+                }}
+                onMouseLeave={(event) => {
+                  if (!showAllScoped && hasActiveListFilter) {
+                    event.currentTarget.style.background = 'transparent'
+                  }
+                }}
+              >
+                Tous les dossiers
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[11px] leading-none font-bold"
+                  style={{
+                    background:
+                      showAllScoped || !hasActiveListFilter
+                        ? 'rgba(255,255,255,0.25)'
+                        : BRAND.creamDark,
+                    color: showAllScoped || !hasActiveListFilter ? 'white' : BRAND.slate,
+                  }}
+                >
+                  {totalPatients}
+                </span>
+              </button>
+            )}
+
+            {summary.mine > 0 && userRole !== 'gilles' && (
               <button
                 type="button"
                 onClick={toggleMineFocus}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold whitespace-nowrap"
-                style={{ background: BRAND.coral, color: 'white' }}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold whitespace-nowrap transition-all"
+                style={{
+                  background: focus === 'mine' ? BRAND.coral : 'transparent',
+                  color: focus === 'mine' ? 'white' : BRAND.ink,
+                }}
+                onMouseEnter={(event) => {
+                  if (focus !== 'mine') event.currentTarget.style.background = BRAND.creamDark
+                }}
+                onMouseLeave={(event) => {
+                  if (focus !== 'mine') event.currentTarget.style.background = 'transparent'
+                }}
               >
                 Mes actions
                 <span
                   className="rounded-full px-1.5 py-0.5 text-[11px] leading-none font-bold"
-                  style={{ background: 'rgba(255,255,255,0.25)' }}
+                  style={{
+                    background: focus === 'mine' ? 'rgba(255,255,255,0.25)' : BRAND.creamDark,
+                    color: focus === 'mine' ? 'white' : BRAND.slate,
+                  }}
                 >
                   {summary.mine}
                 </span>
@@ -249,12 +340,7 @@ export default function DashboardSummaryHeader({
             {dashboardTabs.map((tab) => {
               const count = getTabCount(summary, tab.id)
               const active =
-                !activeKpi &&
-                focus !== 'mine' &&
-                (resolvedTab === tab.id ||
-                  (tab.id !== 'actifs' &&
-                    tab.globalStatuses.length === 1 &&
-                    selectedPipelineStatus === tab.globalStatuses[0]))
+                !showAllScoped && focus !== 'mine' && effectiveTab === tab.id
 
               return (
                 <button

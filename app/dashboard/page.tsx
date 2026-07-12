@@ -9,14 +9,13 @@ import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integration
 import {
   computeDashboardSummary,
   filterPatientsForRole,
-  getActifsPatientIds,
-  getFocusPatientIds,
-  getPipelinePatientIds,
+  getGillesDashboardLandingRedirect,
   getRoleScopedPatientIds,
-  getTabPatientIds,
-  getToConfirmPatientIds,
   hadRoleInvalidatedListFilter,
   intersectPatientIds,
+  isDashboardShowAllScope,
+  resolveDashboardListFilterIds,
+  type DashboardKpiId,
   normalizeDashboardFocus,
   normalizeDashboardKpi,
   normalizeDashboardKpiForRole,
@@ -41,6 +40,7 @@ type DashboardSearchParams = {
   focus?: string
   tab?: string
   kpi?: string
+  all?: string
   sort?: string
   dir?: string
 }
@@ -256,6 +256,15 @@ export default async function DashboardPage({
     roleScopedPatients,
   )
 
+  const gillesLandingRedirect = getGillesDashboardLandingRedirect(
+    dashboardSummary,
+    params,
+    dashboardRole,
+  )
+  if (gillesLandingRedirect) {
+    redirect(gillesLandingRedirect)
+  }
+
   const activeTab = normalizeDashboardTabForRole(
     normalizeDashboardTab(params.tab),
     dashboardRole,
@@ -266,21 +275,17 @@ export default async function DashboardPage({
   )
 
   const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
+  const showAllScoped = isDashboardShowAllScope(params)
 
-  let filterPatientIds: string[] | null = null
-  if (focus !== 'all') {
-    filterPatientIds = getFocusPatientIds(roleScopedPatients, dashboardRole, focus)
-  } else if (activeKpi === 'toConfirm') {
-    filterPatientIds = getToConfirmPatientIds(roleScopedPatients)
-  } else if (activeKpi === 'suiviCommercial') {
-    filterPatientIds = getTabPatientIds(roleScopedPatients, 'commercial')
-  } else if (activeKpi === 'actifs') {
-    filterPatientIds = getActifsPatientIds(roleScopedPatients)
-  } else if (activeTab) {
-    filterPatientIds = getTabPatientIds(roleScopedPatients, activeTab)
-  } else if (pipelineGlobalStatus) {
-    filterPatientIds = getPipelinePatientIds(roleScopedPatients, pipelineGlobalStatus)
-  }
+  let filterPatientIds: string[] | null = showAllScoped
+    ? null
+    : resolveDashboardListFilterIds(roleScopedPatients, dashboardRole, {
+        focus,
+        activeTab,
+        activeKpi: activeKpi as DashboardKpiId | null,
+        pipelineGlobalStatus,
+        patientsExtended: roleScopedPatients,
+      })
 
   filterPatientIds = intersectPatientIds(filterPatientIds, roleScopeIds)
 

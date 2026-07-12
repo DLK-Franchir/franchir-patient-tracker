@@ -134,6 +134,7 @@ export default function PatientList({
     focus?: DashboardFocus | null
     sort?: SortColumn
     dir?: SortDirection
+    all?: boolean | null
   }) => {
     const params = new URLSearchParams(searchParams.toString())
 
@@ -149,6 +150,10 @@ export default function PatientList({
     if (updates.focus !== undefined) {
       if (updates.focus && updates.focus !== 'all') params.set('focus', updates.focus)
       else params.delete('focus')
+    }
+    if (updates.all !== undefined) {
+      if (updates.all) params.set('all', '1')
+      else params.delete('all')
     }
     if (updates.sort) params.set('sort', updates.sort)
     if (updates.dir) params.set('dir', updates.dir)
@@ -166,14 +171,24 @@ export default function PatientList({
   const clearActiveFilters = () => {
     setQuery('')
     startTransition(() => {
-      router.push('/dashboard')
+      if (userRole === 'gilles') {
+        router.push('/dashboard?all=1')
+        return
+      }
+      router.push('/dashboard?tab=actifs')
     })
   }
 
   const selectedPipelineStatus = selectedGlobalStatusFromCodes(selectedStatuses)
+  const showAllScoped = searchParams.get('all') === '1'
   const focusLabel = focusFilterLabel(focus)
-  const pipelineLabel = selectedPipelineStatus ? GLOBAL_STATUS_LABELS[selectedPipelineStatus] : null
-  const hasCockpitFilter = Boolean(focusLabel || pipelineLabel || activeKpi || activeTab)
+  const pipelineLabel =
+    !showAllScoped && selectedPipelineStatus
+      ? GLOBAL_STATUS_LABELS[selectedPipelineStatus]
+      : null
+  const hasCockpitFilter =
+    !showAllScoped &&
+    Boolean(focusLabel || pipelineLabel || activeKpi || activeTab)
 
   const sortBy = (column: SortColumn) => {
     const nextDirection = sort === column && direction === 'asc' ? 'desc' : 'asc'

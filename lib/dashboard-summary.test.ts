@@ -4,6 +4,11 @@ import {
   filterPatientsForRole,
   formatMineBreakdown,
   getDefaultDashboardTab,
+  getEffectiveDashboardTab,
+  getGillesDashboardLandingRedirect,
+  getGillesPriorityMessage,
+  hasExplicitDashboardListFilter,
+  isDashboardShowAllScope,
   normalizeDashboardKpiForRole,
   normalizeDashboardTabForRole,
   getFocusPatientIds,
@@ -20,6 +25,7 @@ import {
   mineActionShortLabel,
   pendingActionLabel,
   PIPELINE_GLOBAL_STATUSES,
+  resolveDashboardListFilterIds,
 } from './dashboard-summary'
 
 const patient = (id: string, code: string) => ({
@@ -221,5 +227,89 @@ describe('dashboard-summary', () => {
     expect(hadRoleInvalidatedListFilter({ kpi: 'toConfirm' }, 'gilles')).toBe(true)
     expect(hadRoleInvalidatedListFilter({ tab: 'revue' }, 'gilles')).toBe(false)
     expect(hadRoleInvalidatedListFilter({ tab: 'actifs' }, 'marcel')).toBe(false)
+  })
+
+  it('détecte un filtre explicite dans l\'URL du dashboard', () => {
+    expect(hasExplicitDashboardListFilter({})).toBe(false)
+    expect(hasExplicitDashboardListFilter({ focus: 'mine' })).toBe(true)
+    expect(hasExplicitDashboardListFilter({ tab: 'revue' })).toBe(true)
+    expect(hasExplicitDashboardListFilter({ kpi: 'revue' })).toBe(true)
+    expect(hasExplicitDashboardListFilter({ status: 'medical_review' })).toBe(true)
+    expect(hasExplicitDashboardListFilter({ all: '1' })).toBe(true)
+  })
+
+  it('filtre la liste via kpi=revue même sans tab explicite', () => {
+    const patients = [
+      patient('1', 'medical_review'),
+      patient('2', 'validated_medical'),
+      patient('3', 'medical_review'),
+    ]
+    const scoped = filterPatientsForRole(patients, 'gilles')
+
+    const ids = resolveDashboardListFilterIds(scoped, 'gilles', {
+      focus: 'all',
+      activeTab: null,
+      activeKpi: 'revue',
+      pipelineGlobalStatus: null,
+    })
+
+    expect(ids).toEqual(['1', '3'])
+  })
+
+  it('all=1 affiche tout le périmètre Gilles sans filtrer par tab résiduel', () => {
+    expect(isDashboardShowAllScope({ all: '1' })).toBe(true)
+
+    const patients = [
+      patient('1', 'medical_review'),
+      patient('2', 'validated_medical'),
+    ]
+    const scoped = filterPatientsForRole(patients, 'gilles')
+    const filtered = resolveDashboardListFilterIds(scoped, 'gilles', {
+      focus: 'all',
+      activeTab: 'revue',
+      activeKpi: null,
+      pipelineGlobalStatus: null,
+    })
+
+    expect(filtered).toEqual(['1'])
+    expect(scoped.map((p) => p.id)).toEqual(['1', '2'])
+  })
+
+  it('message prioritaire Gilles pour les revues en attente', () => {
+    const patients = [patient('1', 'medical_review'), patient('2', 'medical_review')]
+    const summary = computeDashboardSummary(filterPatientsForRole(patients, 'gilles'), 'gilles')
+    expect(getGillesPriorityMessage(summary)).toBe('Vous avez 2 revues médicales à traiter.')
+  })
+
+  it('onglet effectif uniquement via tab ou kpi URL', () => {
+    expect(getEffectiveDashboardTab('revue', null)).toBe('revue')
+    expect(getEffectiveDashboardTab(null, 'revue')).toBe('revue')
+    expect(getEffectiveDashboardTab(null, null)).toBeNull()
+    expect(getEffectiveDashboardTab('commercial', 'revue')).toBe('commercial')
+  })
+
+  it('redirige Gilles vers all=1 sur landing sans filtre explicite', () => {
+    const patients = [
+      patient('1', 'medical_review'),
+      patient('2', 'validated_medical'),
+      patient('3', 'validated_medical'),
+    ]
+    const scoped = filterPatientsForRole(patients, 'gilles')
+    const summary = computeDashboardSummary(scoped, 'gilles')
+
+    expect(summary.mine).toBe(1)
+    expect(getGillesDashboardLandingRedirect(summary, {}, 'gilles')).toBe(
+      '/dashboard?all=1',
+    )
+    expect(getGillesDashboardLandingRedirect(summary, { all: '1' }, 'gilles')).toBeNull()
+    expect(getGillesDashboardLandingRedirect(summary, { tab: 'revue' }, 'gilles')).toBeNull()
+    expect(getGillesDashboardLandingRedirect(summary, { focus: 'mine' }, 'gilles')).toBeNull()
+    expect(getGillesDashboardLandingRedirect(summary, {}, 'marcel')).toBeNull()
+
+    const noMineSummary = computeDashboardSummary(
+      filterPatientsForRole([patient('2', 'validated_medical')], 'gilles'),
+      'gilles',
+    )
+    expect(getGillesDashboardLandingRedirect(noMineSummary, {}, 'gilles')).toBe('/dashboard?all=1')
   })
 })
