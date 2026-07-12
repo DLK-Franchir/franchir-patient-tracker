@@ -39,7 +39,7 @@ export type DashboardSummary = {
   mineBreakdown: MineBreakdownEntry[]
 }
 
-export type DashboardKpiId = 'actifs' | 'revue' | 'toConfirm' | 'scheduled' | 'completer'
+export type DashboardKpiId = 'actifs' | 'revue' | 'toConfirm' | 'scheduled' | 'completer' | 'suiviCommercial'
 
 export type DashboardTabId =
   | 'actifs'
@@ -489,20 +489,30 @@ export function getDashboardKpis(
   ]
 
   if (role === 'gilles') {
-    const gillesKpis = kpis
-      .filter((kpi) => ['revue', 'commercial', 'scheduled', 'completer'].includes(kpi.id))
-      .map((kpi) => {
-        if (kpi.id === 'revue') {
-          return { ...kpi, sub: 'Action requise de votre part' }
-        }
-        if (kpi.id === 'commercial') {
-          return { ...kpi, label: 'Suivi commercial', sub: 'Chirurgien et date proposée' }
-        }
-        return kpi
-      })
-    const revue = gillesKpis.find((kpi) => kpi.id === 'revue')
-    const rest = gillesKpis.filter((kpi) => kpi.id !== 'revue')
-    return revue ? [revue, ...rest] : gillesKpis
+    const revue = kpis.find((kpi) => kpi.id === 'revue')
+    const completer = kpis.find((kpi) => kpi.id === 'completer')
+    const scheduled = kpis.find((kpi) => kpi.id === 'scheduled')
+    const suiviCommercial: DashboardKpi = {
+      id: 'suiviCommercial',
+      label: 'Suivi commercial',
+      sub: 'Chirurgien et date proposée',
+      count: summary.byGlobalStatus.commercial_in_progress,
+      accentColor: BRAND.navy,
+      dotColor: BRAND.navyLight,
+      filter: {
+        kpi: 'suiviCommercial',
+        tab: 'commercial',
+        focus: null,
+        status: GLOBAL_STATUS_DB_CODES.commercial_in_progress,
+      },
+    }
+    const gillesKpis = [revue, suiviCommercial, scheduled, completer].filter(
+      (kpi): kpi is DashboardKpi => kpi != null,
+    )
+    if (revue) {
+      gillesKpis[0] = { ...revue, sub: 'Action requise de votre part' }
+    }
+    return gillesKpis
   }
 
   return kpis
@@ -522,8 +532,34 @@ export function normalizeDashboardTab(value: string | undefined): DashboardTabId
 }
 
 export function normalizeDashboardKpi(value: string | undefined): DashboardKpiId | null {
-  const valid: DashboardKpiId[] = ['actifs', 'revue', 'toConfirm', 'scheduled', 'completer']
+  const valid: DashboardKpiId[] = ['actifs', 'revue', 'toConfirm', 'scheduled', 'completer', 'suiviCommercial']
   return valid.includes(value as DashboardKpiId) ? (value as DashboardKpiId) : null
+}
+
+const GILLES_TAB_IDS = new Set<DashboardTabId>([
+  'revue',
+  'completer',
+  'commercial',
+  'scheduled',
+  'rejected',
+])
+
+const GILLES_KPI_IDS = new Set<DashboardKpiId>(['revue', 'completer', 'scheduled', 'suiviCommercial'])
+
+export function normalizeDashboardTabForRole(
+  tab: DashboardTabId | null,
+  role: UserRole,
+): DashboardTabId | null {
+  if (!tab || role !== 'gilles') return tab
+  return GILLES_TAB_IDS.has(tab) ? tab : null
+}
+
+export function normalizeDashboardKpiForRole(
+  kpi: DashboardKpiId | null,
+  role: UserRole,
+): DashboardKpiId | null {
+  if (!kpi || role !== 'gilles') return kpi
+  return GILLES_KPI_IDS.has(kpi) ? kpi : null
 }
 
 /** Libellé court pour la colonne « Étape courante ». */

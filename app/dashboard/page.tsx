@@ -9,7 +9,6 @@ import {
   computeDashboardSummary,
   filterPatientsForRole,
   getActifsPatientIds,
-  getDefaultDashboardTab,
   getFocusPatientIds,
   getPipelinePatientIds,
   getRoleScopedPatientIds,
@@ -18,7 +17,9 @@ import {
   intersectPatientIds,
   normalizeDashboardFocus,
   normalizeDashboardKpi,
+  normalizeDashboardKpiForRole,
   normalizeDashboardTab,
+  normalizeDashboardTabForRole,
   selectedGlobalStatusFromCodes,
   type DashboardFocus,
   type SummaryPatientExtended,
@@ -236,15 +237,21 @@ export default async function DashboardPage({
     roleScopedPatients,
   )
 
-  const hasExplicitListFilter = Boolean(
+  const hasRawListFilter = Boolean(
     params.focus || params.tab || params.kpi || params.status || params.q,
   )
-  let activeTab = normalizeDashboardTab(params.tab)
-  if (!hasExplicitListFilter && !activeTab) {
-    activeTab = getDefaultDashboardTab(dashboardRole, dashboardSummary)
-  }
+  let activeTab = normalizeDashboardTabForRole(
+    normalizeDashboardTab(params.tab),
+    dashboardRole,
+  )
+  let activeKpi = normalizeDashboardKpiForRole(
+    normalizeDashboardKpi(params.kpi),
+    dashboardRole,
+  )
 
-  const activeKpi = normalizeDashboardKpi(params.kpi)
+  const hasExplicitListFilter = Boolean(
+    params.focus || (params.tab && activeTab) || (params.kpi && activeKpi) || params.status || params.q,
+  )
   const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
 
   let filterPatientIds: string[] | null = null
@@ -252,6 +259,8 @@ export default async function DashboardPage({
     filterPatientIds = getFocusPatientIds(roleScopedPatients, dashboardRole, focus)
   } else if (activeKpi === 'toConfirm') {
     filterPatientIds = getToConfirmPatientIds(roleScopedPatients)
+  } else if (activeKpi === 'suiviCommercial') {
+    filterPatientIds = getTabPatientIds(roleScopedPatients, 'commercial')
   } else if (activeKpi === 'actifs') {
     filterPatientIds = getActifsPatientIds(roleScopedPatients)
   } else if (activeTab) {
@@ -261,6 +270,15 @@ export default async function DashboardPage({
   }
 
   filterPatientIds = intersectPatientIds(filterPatientIds, roleScopeIds)
+
+  if (
+    filterPatientIds?.length === 0 &&
+    roleScopeIds &&
+    roleScopeIds.length > 0 &&
+    hasRawListFilter
+  ) {
+    filterPatientIds = roleScopeIds
+  }
 
   const { patients, total } = await getPatients({
     page: currentPage,

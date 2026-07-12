@@ -4,6 +4,8 @@ import {
   filterPatientsForRole,
   formatMineBreakdown,
   getDefaultDashboardTab,
+  normalizeDashboardKpiForRole,
+  normalizeDashboardTabForRole,
   getFocusPatientIds,
   getPipelinePatientIds,
   getPriorityBannerContent,
@@ -207,5 +209,11 @@ describe('dashboard-summary', () => {
     ).toEqual(['2', '3'])
     expect(isRoleScopedPatient(patient('1', 'draft'), 'gilles')).toBe(false)
     expect(isRoleScopedPatient(patient('3', 'validated_medical'), 'gilles')).toBe(true)
+  })
+
+  it('ignore les filtres URL invalides pour Gilles', () => {
+    expect(normalizeDashboardTabForRole('actifs', 'gilles')).toBeNull()
+    expect(normalizeDashboardKpiForRole('toConfirm', 'gilles')).toBeNull()
+    expect(normalizeDashboardTabForRole('revue', 'gilles')).toBe('revue')
   })
 })
