@@ -24,12 +24,14 @@ Vous êtes le chef d'orchestre du dossier.
 Vous garantissez la faisabilité médicale.
 *   **Votre rôle :** Consulter les dossiers en attente et donner votre avis expert.
 *   **Ce que vous ne voyez pas :** les brouillons Marcel, les prospects et les dossiers fermés — uniquement le périmètre médical et le suivi post-validation.
+*   **À l'ouverture du tableau de bord :** vue **« Tous les dossiers »** (ensemble de votre périmètre, ~15 dossiers) ; un **bandeau bleu** indique clairement combien de revues médicales vous attendent (ex. *« Dr Gilles, vous avez 3 revues médicales à traiter »*).
 *   **Vos actions principales :**
-    *   Recevoir une notification pour une "Revue médicale".
+    *   Cliquer **« Voir les X dossiers à valider »** (bandeau) ou la puce **Revue méd.** pour n'afficher que les dossiers en attente de décision.
     *   **Valider** le dossier (et recommander un chirurgien).
     *   **Refuser** le dossier (avec justification).
     *   Demander des compléments d'informations (si le dossier est incomplet).
-    *   Après validation : proposer budget et dates (phase commerciale pilotée par Marcel ensuite).
+    *   Revenir à **« Tous les dossiers »** à tout moment via la puce dédiée (première puce du filtre).
+    *   Après validation : le dossier passe en suivi commercial (Marcel / Franchir pilotent devis et dates).
 
 ### 3. Erik Boulard (Administration)
 Vous supervisez l'ensemble de l'activité.
@@ -78,11 +80,16 @@ La section **« Synthèse des dossiers »** affiche votre nom connecté (ex. *Sy
 | Programmés | ✅ | ✅ |
 | À compléter | ✅ | ✅ |
 
-Cliquer une carte filtre la liste ; un second clic réinitialise le filtre.
+Cliquer une carte filtre la liste ; un second clic ou **« Tous les dossiers »** (Gilles) réinitialise le filtre.
 
 ### Filtres et navigation
 
-*   **Mes actions** : filtre les dossiers où **votre rôle** doit agir maintenant (soumission médicale, revue Gilles, complément, confirmation devis/date…). Le chiffre sur la puce correspond au nombre de dossiers concernés.
+*   **Dr Gilles — parcours recommandé :**
+    1. Arrivée sur **Tous les dossiers** (puce active, compteur total).
+    2. Bandeau : *« Dr Gilles, vous avez N revue(s) médicale(s) à traiter »* → bouton **Voir les N dossiers à valider**.
+    3. Puce **Revue méd.** → liste filtrée (uniquement dossiers `medical_review`, bouton **Valider**).
+    4. Puce **Tous les dossiers** → retour à la vue complète.
+*   **Mes actions** (Marcel / Erik) : filtre les dossiers où **votre rôle** doit agir maintenant (soumission médicale, complément, confirmation devis/date…). Pour Gilles, le bandeau + puce Revue méd. remplacent ce parcours.
 *   **Puces pipeline** : filtrent par étape globale (Brouillon, Revue médicale, Commercial, Programmé, etc.). Le compteur de chaque puce correspond au nombre de dossiers à cette étape.
 *   **Bandeau priorité** : résume le total de dossiers actifs et ventile vos actions en attente (ex. « 3 à soumettre · 2 devis à confirmer »).
 *   **Infobulles** : survolez les libellés tronqués (statut, action en attente) pour lire le texte complet.
@@ -91,14 +98,16 @@ Cliquer une carte filtre la liste ; un second clic réinitialise le filtre.
 
 ### Vue limitée Dr Gilles (tableau de bord)
 
-Gilles ne voit **pas** les dossiers en **brouillon** (création Marcel), **prospect** ni **fermés**. Seuls apparaissent :
+Gilles ne voit **pas** les dossiers en **brouillon** (création Marcel), **prospect** ni **fermés**. Seuls apparaissent dans **Tous les dossiers** :
 
 *   Revue médicale (à valider / refuser / demander complément)
-*   À compléter (pièces manquantes demandées par Gilles)
+*   À compléter (complément demandé — en attente de Marcel, pas une action Gilles)
 *   Suivi commercial (post-validation : chirurgien et date proposée)
 *   Programmés et refusés (historique médical)
 
 Les onglets pipeline « Actifs », « Tous » et le KPI « À confirmer » sont **inaccessibles** pour ce rôle.
+
+**Paramètres URL (technique / support)** : `?all=1` = tous les dossiers ; `?tab=revue` ou `?kpi=revue` = revue médicale seule ; `?focus=mine` = vos actions en cours (équivalent revues en attente).
 
 ### Fiche patient — retour et fil d'Ariane
 

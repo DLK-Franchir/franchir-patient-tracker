@@ -14,12 +14,13 @@ Application web sécurisée de gestion de parcours patients pour le réseau FRAN
 
 ## Interface V3 (juillet 2026)
 
-Release prod `main` @ `11aa551` — cockpit dashboard et fiche patient alignés sur la maquette Figma V3 :
+Release prod `main` @ `9b728c9` — cockpit dashboard et fiche patient alignés sur la maquette Figma V3 :
 
 - **Grille KPI synthèse** (`components/dashboard/dashboard-kpi-grid.tsx`) : cartes cliquables, compteurs par étape, libellé personnalisé selon le rôle.
 - **Nom utilisateur** dans le titre « Synthèse des dossiers · {nom} » (`dashboard-summary.tsx`).
 - **Header navy** : fil d'Ariane patient + lien retour tableau de suivi (`app-header.tsx`, `patient-page-header.tsx`).
 - **Scoping Gilles** : liste et KPI restreints — pas de brouillon/prospect/fermé (`lib/dashboard-summary.ts` : `filterPatientsForRole`, `getDashboardKpis`).
+- **UX Gilles dashboard (`9b728c9`)** : atterrissage **Tous les dossiers** (`?all=1`), bandeau *« vous avez N revues à traiter »*, filtre serveur aligné sur les puces (`resolveDashboardListFilterIds`, `getEffectiveDashboardTab`).
 - **Tokens marque** : navy / coral / cream (`lib/brand-tokens.ts`).
 
 Maquette de référence Figma (prototype Vite local, **non déployé**) : `docs/Design responsive UI_UX_Tracker_V3/` — export Figma, peut contenir des captures d'écran ; non versionné (voir `.gitignore`).
@@ -213,9 +214,9 @@ franchir-patient-tracker/
 | `gilles` | Dr Gilles Dubois | duboisgilles31@gmail.com |
 | `admin` / `franchir` | Erik Boulard | erik.boulard@franchir.eu |
 
-**Gilles (P0 + V3 scoping)** :
+**Gilles (P0 + V3 scoping + cockpit juillet 2026)** :
 
-- **Dashboard** : KPI et onglets limités (revue, complément, suivi commercial, programmés, refusés) ; masque brouillons, prospects et dossiers fermés (`filterPatientsForRole`).
+- **Dashboard** : atterrissage sur **Tous les dossiers** ; bandeau prioritaire avec le nombre de revues médicales en attente ; puces **Tous les dossiers** + **Revue méd.** / complément / commercial / programmés / refusés ; masque brouillons, prospects et dossiers fermés (`filterPatientsForRole`, `getGillesDashboardLandingRedirect`, `resolveDashboardListFilterIds`).
 - **Fiche patient** : vue épurée via `getPatientDetailViewConfig('gilles')` — masque SharePoint, upload docs, onglet commercial, gestion questionnaire ; conserve workflow médical + **synthèse Anamneze/PDF questionnaire (P1)**.
 - Gilles **n'utilise pas** le portail clinicien questionnaires (`questionnaire.franchir.eu/clinician`).
 

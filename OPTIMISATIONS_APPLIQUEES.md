@@ -85,6 +85,7 @@ Cette application a été entièrement analysée et optimisée pour la productio
 - ✅ Workflow visuel avec badges colorés
 - ✅ Interface intuitive et accessible
 - ✅ **Interface V3 (juillet 2026)** : grille KPI synthèse, tokens marque navy/coral, scoping dashboard Gilles, fil d'Ariane fiche patient — voir `GUIDE_UTILISATEUR.md` et `README.md` (section Interface V3)
+- ✅ **Cockpit Gilles (juillet 2026, `9b728c9`)** : vue par défaut Tous les dossiers, bandeau « N revues à traiter », filtre serveur synchronisé avec puces Revue méd. / KPI, param URL `all=1` | `tab=revue` | `focus=mine`
 
 ## 📦 Scripts Disponibles
 
