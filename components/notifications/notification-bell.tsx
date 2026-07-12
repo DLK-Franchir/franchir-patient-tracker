@@ -25,7 +25,7 @@ function typeDotClass(type: string): string {
   return 'bg-blue-500'
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ onDark = false }: { onDark?: boolean }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
@@ -162,7 +162,12 @@ export default function NotificationBell() {
       <button
         onClick={handleToggleOpen}
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} non lues` : ''}`}
-        className="relative p-2 text-gray-600 hover:text-gray-900 transition min-w-[44px] min-h-[44px] flex items-center justify-center"
+        className={`relative flex min-h-[36px] min-w-[36px] items-center justify-center rounded-xl p-2 transition ${
+          onDark
+            ? 'text-white hover:bg-white/15'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+        style={onDark ? { background: 'rgba(255,255,255,0.1)' } : undefined}
       >
         <svg
           className="w-6 h-6"
@@ -178,7 +183,10 @@ export default function NotificationBell() {
           />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[20px]">
+          <span
+            className="absolute -right-0.5 -top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white"
+            style={{ background: '#E8534A' }}
+          >
             {formatBadgeCount(unreadCount)}
           </span>
         )}

@@ -1,6 +1,7 @@
 'use client'
 
-import { Mail, Phone } from 'lucide-react'
+import { CheckCircle, Clock, Mail, Phone } from 'lucide-react'
+import { BRAND } from '@/lib/brand-tokens'
 import {
   type QuestionnaireFormType,
   formatFormTypesLabel,
@@ -18,6 +19,13 @@ interface PatientDossierIdentityCardProps {
   parcoursLabel?: string | null
   clinicalSummary?: string | null
   showClinicalSummary?: boolean
+  /** Données commerciales en lecture seule (édition via panneau actions). */
+  showCommercialData?: boolean
+  quoteAmount?: number | null
+  proposedDate?: string | null
+  quoteAccepted?: boolean
+  dateAccepted?: boolean
+  assignedSurgeonName?: string | null
 }
 
 function FormTypeBadges({ types }: { types: QuestionnaireFormType[] }) {
@@ -42,6 +50,38 @@ function languageDisplayLabel(language: 'fr' | 'en'): string {
   return language === 'en' ? 'English' : 'Français'
 }
 
+function CommercialDataField({
+  label,
+  value,
+  confirmed,
+}: {
+  label: string
+  value: string
+  confirmed?: boolean
+}) {
+  return (
+    <div className="pb-3 border-b last:border-0 last:pb-0" style={{ borderColor: BRAND.cream }}>
+      <p
+        className="text-xs font-bold uppercase tracking-wide mb-1.5"
+        style={{ color: BRAND.slateLight }}
+      >
+        {label}
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-base font-semibold" style={{ color: BRAND.dark }}>
+          {value}
+        </span>
+        {confirmed !== undefined &&
+          (confirmed ? (
+            <CheckCircle size={14} className="text-green-600 shrink-0" aria-label="Confirmé" />
+          ) : (
+            <Clock size={14} className="text-amber-600 shrink-0" aria-label="En attente" />
+          ))}
+      </div>
+    </div>
+  )
+}
+
 export function PatientDossierIdentityCard({
   patientName,
   patientEmail,
@@ -51,6 +91,12 @@ export function PatientDossierIdentityCard({
   parcoursLabel,
   clinicalSummary,
   showClinicalSummary = true,
+  showCommercialData = false,
+  quoteAmount,
+  proposedDate,
+  quoteAccepted = false,
+  dateAccepted = false,
+  assignedSurgeonName,
 }: PatientDossierIdentityCardProps) {
   const languageLabel = languageDisplayLabel(questionnaireLanguage)
   const displayParcours = resolveParcoursDisplayLabel({ spineRegionLabel: parcoursLabel, formTypes })
@@ -118,6 +164,46 @@ export function PatientDossierIdentityCard({
             {clinicalSummary?.trim() ? clinicalSummary : (
               <span className="italic text-gray-400">Aucun résumé clinique fourni.</span>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {showCommercialData ? (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p
+            className="text-xs font-bold uppercase tracking-wide mb-4"
+            style={{ color: BRAND.slateLight }}
+          >
+            Données commerciales
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <CommercialDataField
+              label="Chirurgien"
+              value={assignedSurgeonName ?? 'Non assigné'}
+              confirmed={assignedSurgeonName ? true : undefined}
+            />
+            <CommercialDataField
+              label="Budget"
+              value={
+                quoteAmount != null
+                  ? `${quoteAmount.toLocaleString('fr-FR')} €`
+                  : 'Non défini'
+              }
+              confirmed={quoteAmount != null ? quoteAccepted : undefined}
+            />
+            <CommercialDataField
+              label="Date proposée"
+              value={
+                proposedDate
+                  ? new Date(proposedDate).toLocaleDateString('fr-FR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })
+                  : 'Non définie'
+              }
+              confirmed={proposedDate ? dateAccepted : undefined}
+            />
           </div>
         </div>
       ) : null}

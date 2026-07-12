@@ -2,19 +2,22 @@ import { createServerClient } from '@/lib/supabase/server'
 import { isStaffProfile } from '@/lib/access-control'
 import { type Role } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
-import NotificationBell from '@/components/notifications/notification-bell'
 import AppHeader from '@/components/app-header'
 import PatientList from '@/components/dashboard/patient-list'
 import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integrations/issue-questionnaire-link'
 import {
   computeDashboardSummary,
-  getPriorityBannerContent,
   getFocusPatientIds,
   getPipelinePatientIds,
+  getTabPatientIds,
+  getToConfirmPatientIds,
+  getActifsPatientIds,
   normalizeDashboardFocus,
+  normalizeDashboardKpi,
+  normalizeDashboardTab,
   selectedGlobalStatusFromCodes,
   type DashboardFocus,
-  type SummaryPatient,
+  type SummaryPatientExtended,
 } from '@/lib/dashboard-summary'
 
 const ITEMS_PER_PAGE = 20
@@ -29,6 +32,8 @@ type DashboardSearchParams = {
   q?: string
   status?: string | string[]
   focus?: string
+  tab?: string
+  kpi?: string
   sort?: string
   dir?: string
 }
@@ -47,6 +52,8 @@ type PatientQueryRow = {
   questionnaire_status: string | null
   proposed_date: string | null
   quote_amount: number | null
+  quote_accepted: boolean | null
+  date_accepted: boolean | null
   assigned_surgeon: { full_name: string } | { full_name: string }[] | null
   workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
   profiles: { full_name: string } | { full_name: string }[] | null
@@ -81,17 +88,23 @@ function normalizeDirection(direction: string | undefined): SortDirection {
 
 type SummaryQueryRow = {
   id: string
+  quote_accepted: boolean | null
+  date_accepted: boolean | null
   workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
 }
 
-async function getAllPatientsForSummary(): Promise<SummaryPatient[]> {
+async function getAllPatientsForSummary(): Promise<SummaryPatientExtended[]> {
   const supabase = await createServerClient()
   const { data } = await supabase
     .from('patients')
-    .select('id, workflow_statuses!current_status_id (id, code, label)')
+    .select(
+      'id, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label)',
+    )
 
   return ((data || []) as SummaryQueryRow[]).map((patient) => ({
     id: patient.id,
+    quote_accepted: patient.quote_accepted ?? false,
+    date_accepted: patient.date_accepted ?? false,
     workflow_statuses: firstRelation(patient.workflow_statuses),
   }))
 }
@@ -117,14 +130,14 @@ async function getPatients({
   const fullQuery = supabase
     .from('patients')
     .select(
-      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
+      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
       { count: 'exact' },
     )
 
   const baseQuery = supabase
     .from('patients')
     .select(
-      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
+      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
       { count: 'exact' },
     )
 
@@ -157,6 +170,8 @@ async function getPatients({
     questionnaire_status: patient.questionnaire_status ?? null,
     proposed_date: patient.proposed_date,
     quote_amount: patient.quote_amount ?? null,
+    quote_accepted: patient.quote_accepted ?? false,
+    date_accepted: patient.date_accepted ?? false,
     assigned_surgeon_name: firstRelation(patient.assigned_surgeon)?.full_name ?? null,
     workflow_statuses: firstRelation(patient.workflow_statuses),
     profiles: firstRelation(patient.profiles),
@@ -208,16 +223,25 @@ export default async function DashboardPage({
   const userRole = profile?.role as Role
   const dashboardRole = userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'
   const focus: DashboardFocus = normalizeDashboardFocus(params.focus)
+  const activeTab = normalizeDashboardTab(params.tab)
+  const activeKpi = normalizeDashboardKpi(params.kpi)
   const summaryPatients = await getAllPatientsForSummary()
-  const dashboardSummary = computeDashboardSummary(summaryPatients, dashboardRole)
+  const dashboardSummary = computeDashboardSummary(summaryPatients, dashboardRole, summaryPatients)
   const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
-  const filterPatientIds =
-    focus !== 'all'
-      ? getFocusPatientIds(summaryPatients, dashboardRole, focus)
-      : pipelineGlobalStatus
-        ? getPipelinePatientIds(summaryPatients, pipelineGlobalStatus)
-        : null
-  const priorityBanner = getPriorityBannerContent(dashboardSummary, dashboardRole)
+
+  let filterPatientIds: string[] | null = null
+  if (focus !== 'all') {
+    filterPatientIds = getFocusPatientIds(summaryPatients, dashboardRole, focus)
+  } else if (activeKpi === 'toConfirm') {
+    filterPatientIds = getToConfirmPatientIds(summaryPatients)
+  } else if (activeKpi === 'actifs') {
+    filterPatientIds = getActifsPatientIds(summaryPatients)
+  } else if (activeTab) {
+    filterPatientIds = getTabPatientIds(summaryPatients, activeTab)
+  } else if (pipelineGlobalStatus) {
+    filterPatientIds = getPipelinePatientIds(summaryPatients, pipelineGlobalStatus)
+  }
+
   const { patients, total } = await getPatients({
     page: currentPage,
     query: searchQuery,
@@ -230,8 +254,8 @@ export default async function DashboardPage({
   return (
     <>
       <AppHeader userRole={userRole} userName={profile?.full_name} showActions={true} />
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-        <div className="mx-auto max-w-6xl">
+      <div className="min-h-screen bg-franchir-cream p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto max-w-[1400px]">
           <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-2xl font-extrabold text-gray-900 sm:text-3xl">
@@ -244,9 +268,6 @@ export default async function DashboardPage({
                 {total} patient{total > 1 ? 's' : ''} trouvé{total > 1 ? 's' : ''}
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <NotificationBell />
-            </div>
           </div>
 
           <PatientList
@@ -257,12 +278,14 @@ export default async function DashboardPage({
             itemsPerPage={ITEMS_PER_PAGE}
             searchQuery={searchQuery}
             selectedStatuses={selectedStatuses}
+            activeTab={activeTab}
+            activeKpi={activeKpi}
             sort={sort}
             direction={direction}
             userRole={dashboardRole}
             dashboardSummary={dashboardSummary}
             focus={focus}
-            priorityBanner={priorityBanner}
+            totalPatients={summaryPatients.length}
           />
         </div>
       </div>
