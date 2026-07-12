@@ -249,9 +249,6 @@ export default async function DashboardPage({
     dashboardRole,
   )
 
-  const hasExplicitListFilter = Boolean(
-    params.focus || (params.tab && activeTab) || (params.kpi && activeKpi) || params.status || params.q,
-  )
   const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
 
   let filterPatientIds: string[] | null = null
