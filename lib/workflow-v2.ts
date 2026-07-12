@@ -557,8 +557,7 @@ export function getAvailableActions({
 
   if (
     canAssignViaWorkflow &&
-    globalStatus !== 'scheduled' &&
-    globalStatus !== 'closed'
+    globalStatus !== 'scheduled'
   ) {
     const assignEnabled = isMedicallyValidated(globalStatus)
     result.secondaryActions.push({
@@ -581,11 +580,7 @@ export function getAvailableActions({
     })
   }
 
-  if (
-    (role === 'marcel' || role === 'franchir' || role === 'admin') &&
-    globalStatus !== 'closed' &&
-    globalStatus !== 'rejected'
-  ) {
+  if (role === 'marcel' || role === 'franchir' || role === 'admin') {
     result.secondaryActions.push({
       id: 'close_case',
       label: 'Fermer le dossier',
