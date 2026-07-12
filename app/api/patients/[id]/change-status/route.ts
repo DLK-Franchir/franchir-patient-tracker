@@ -18,6 +18,27 @@ function getWriteClient(role: StaffRole, sessionClient: SupabaseClient): Supabas
   return sessionClient
 }
 
+function parseQuoteAmount(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  const text = String(raw).replace(/\s/g, '')
+  const match = text.match(/[\d]+(?:[.,]\d+)?/)
+  if (!match) return null
+  const value = parseFloat(match[0].replace(',', '.'))
+  return Number.isFinite(value) ? value : null
+}
+
+function parseFirstProposedDate(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  const parts = raw.split(/[,;\n]+/).map((part) => part.trim()).filter(Boolean)
+  for (const part of parts) {
+    const parsed = new Date(part)
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString()
+    }
+  }
+  return null
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -75,6 +96,8 @@ export async function POST(
     current_status?: { id: string; code: string; label: string; color: string }
     quote_accepted?: boolean
     date_accepted?: boolean
+    quote_amount?: number | null
+    proposed_date?: string | null
     assigned_surgeon?: { id: string; full_name: string; email?: string | null } | null
   } = {}
 
@@ -243,15 +266,41 @@ export async function POST(
         'Le dossier a été fermé. L\'historique est conservé ; aucune action workflow en attente.'
       break
 
-    case 'add_budget':
+    case 'add_budget': {
       messageTitle = 'Budget indicatif ajouté'
       messageBody = `Budget indicatif: ${data?.budget || 'Non spécifié'}`
+      const quoteAmount = parseQuoteAmount(data?.budget)
+      if (quoteAmount !== null) {
+        const { error: budgetError } = await writeClient
+          .from('patients')
+          .update({ quote_amount: quoteAmount })
+          .eq('id', patientId)
+        if (budgetError) {
+          log.error('Erreur enregistrement budget', budgetError)
+          return NextResponse.json({ error: budgetError.message }, { status: 500 })
+        }
+        updatedPatient.quote_amount = quoteAmount
+      }
       break
+    }
 
-    case 'propose_dates':
+    case 'propose_dates': {
       messageTitle = 'Dates proposées'
       messageBody = `Dates proposées:\n${data?.dates || 'Non spécifié'}`
+      const proposedDate = parseFirstProposedDate(data?.dates)
+      if (proposedDate) {
+        const { error: dateError } = await writeClient
+          .from('patients')
+          .update({ proposed_date: proposedDate })
+          .eq('id', patientId)
+        if (dateError) {
+          log.error('Erreur enregistrement date proposée', dateError)
+          return NextResponse.json({ error: dateError.message }, { status: 500 })
+        }
+        updatedPatient.proposed_date = proposedDate
+      }
       break
+    }
 
     default:
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
