@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -8,70 +8,79 @@ type Notification = {
   id: string
   title: string
   message: string
-  type: 'urgent' | 'info' | 'success'
+  type: string
   is_read: boolean
   created_at: string
   patient_id: string | null
 }
 
+function formatBadgeCount(count: number): string {
+  if (count > 99) return '99+'
+  return String(count)
+}
+
+function typeDotClass(type: string): string {
+  if (type === 'urgent') return 'bg-red-500'
+  if (type === 'success') return 'bg-green-500'
+  return 'bg-blue-500'
+}
+
 export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [markingAll, setMarkingAll] = useState(false)
   const router = useRouter()
 
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = createClient()
 
   useEffect(() => {
     const initUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUserId(user.id)
-      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) setUserId(user.id)
     }
-    initUser()
+    void initUser()
   }, [supabase])
 
   const loadNotifications = useCallback(async () => {
-    if (!userId) return
-
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_read', false)
-      .order('created_at', { ascending: false })
-      .limit(10)
-
-    if (data) {
-      setNotifications(data)
+    try {
+      const res = await fetch('/api/notifications')
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        unreadCount: number
+        notifications: Notification[]
+      }
+      setUnreadCount(data.unreadCount)
+      setNotifications(data.notifications)
+    } catch {
+      // silencieux — repli au prochain poll
     }
-  }, [userId, supabase])
+  }, [])
 
   useEffect(() => {
     if (!userId) return
 
-    loadNotifications()
+    void loadNotifications()
 
     const channel = supabase
-      .channel('notifications')
+      .channel('notifications-inbox')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
         () => {
-          loadNotifications()
-        }
+          void loadNotifications()
+        },
       )
       .subscribe()
 
-    // Realtime peut échouer silencieusement — repli polling au focus (60s).
-    // Décision produit : le cockpit « Mes actions » reste la source primaire des actions ;
-    // la cloche reste un canal secondaire (historique / alertes ponctuelles).
     const pollOnFocus = () => {
       void loadNotifications()
     }
@@ -85,37 +94,74 @@ export default function NotificationBell() {
     }
   }, [userId, supabase, loadNotifications])
 
-  const markAsRead = useCallback(async (id: string) => {
-    // Optimistic update: remove notification immediately from UI
-    setNotifications(prev => prev.filter(n => n.id !== id))
+  const markAsRead = useCallback(
+    async (id: string) => {
+      setNotifications((prev) => prev.filter((n) => n.id !== id))
+      setUnreadCount((prev) => Math.max(0, prev - 1))
 
-    // Then confirm with server
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', id)
+      try {
+        const res = await fetch('/api/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        })
+        if (!res.ok) {
+          void loadNotifications()
+          return
+        }
+        const data = (await res.json()) as { unreadCount: number }
+        setUnreadCount(data.unreadCount)
+      } catch {
+        void loadNotifications()
+      }
+    },
+    [loadNotifications],
+  )
 
-    // If server update fails, reload notifications to restore state
-    if (error) {
-      console.error('Failed to mark notification as read:', error)
-      loadNotifications()
+  const markAllAsRead = useCallback(async () => {
+    if (unreadCount === 0 || markingAll) return
+    setMarkingAll(true)
+    setNotifications([])
+    setUnreadCount(0)
+
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true }),
+      })
+      if (!res.ok) void loadNotifications()
+    } catch {
+      void loadNotifications()
+    } finally {
+      setMarkingAll(false)
     }
-  }, [supabase, loadNotifications])
+  }, [unreadCount, markingAll, loadNotifications])
 
-  const handleNotificationClick = useCallback((notification: Notification) => {
-    markAsRead(notification.id)
-    if (notification.patient_id) {
-      router.push(`/dashboard/patient/${notification.patient_id}`)
-      setIsOpen(false)
-    }
-  }, [markAsRead, router])
+  const handleNotificationClick = useCallback(
+    (notification: Notification) => {
+      void markAsRead(notification.id)
+      if (notification.patient_id) {
+        router.push(`/dashboard/patient/${notification.patient_id}`)
+        setIsOpen(false)
+      }
+    },
+    [markAsRead, router],
+  )
 
-  const unreadCount = notifications.length
+  const handleToggleOpen = useCallback(() => {
+    setIsOpen((prev) => {
+      const next = !prev
+      if (next) void loadNotifications()
+      return next
+    })
+  }, [loadNotifications])
 
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggleOpen}
+        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} non lues` : ''}`}
         className="relative p-2 text-gray-600 hover:text-gray-900 transition min-w-[44px] min-h-[44px] flex items-center justify-center"
       >
         <svg
@@ -133,7 +179,7 @@ export default function NotificationBell() {
         </svg>
         {unreadCount > 0 && (
           <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[20px]">
-            {unreadCount}
+            {formatBadgeCount(unreadCount)}
           </span>
         )}
       </button>
@@ -145,53 +191,85 @@ export default function NotificationBell() {
             onClick={() => setIsOpen(false)}
           />
           <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-20 max-h-[80vh] sm:max-h-[500px] overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="font-bold text-gray-900">Notifications</h3>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="sm:hidden p-2 text-gray-500 hover:text-gray-700"
-              >
-                ✕
-              </button>
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center gap-2">
+              <h3 className="font-bold text-gray-900 shrink-0">Notifications</h3>
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void markAllAsRead()}
+                    disabled={markingAll}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {markingAll ? '…' : 'Tout marquer lu'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="sm:hidden p-2 text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="p-8 text-center">
-                  <p className="text-sm text-gray-500">Aucune notification</p>
+                  <p className="text-sm text-gray-500">Aucune notification non lue</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Le cockpit « Mes actions » reste votre source principale.
+                  </p>
                 </div>
               ) : (
                 notifications.map((notif) => (
                   <div
                     key={notif.id}
+                    role="button"
+                    tabIndex={0}
                     className="p-4 border-b border-gray-100 hover:bg-gray-50 active:bg-gray-100 cursor-pointer transition"
                     onClick={() => handleNotificationClick(notif)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleNotificationClick(notif)
+                      }
+                    }}
                   >
                     <div className="flex items-start gap-3">
                       <div
-                        className={`w-2 h-2 rounded-full mt-2 shrink-0 ${
-                          notif.type === 'urgent'
-                            ? 'bg-red-500'
-                            : notif.type === 'success'
-                            ? 'bg-green-500'
-                            : 'bg-blue-500'
-                        }`}
+                        className={`w-2 h-2 rounded-full mt-2 shrink-0 ${typeDotClass(notif.type)}`}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 mb-1">
                           {notif.title}
                         </p>
-                        <p className="text-xs text-gray-600 mb-2">
-                          {notif.message}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(notif.created_at).toLocaleString('fr-FR')}
-                        </p>
+                        <p className="text-xs text-gray-600 mb-2">{notif.message}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-gray-400">
+                            {new Date(notif.created_at).toLocaleString('fr-FR')}
+                          </p>
+                          {notif.patient_id && (
+                            <span className="text-xs text-blue-600 font-medium shrink-0">
+                              Voir le dossier →
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
                 ))
               )}
             </div>
+            {unreadCount > notifications.length && (
+              <div className="p-3 border-t border-gray-100 bg-gray-50 text-center">
+                <p className="text-xs text-gray-500">
+                  {unreadCount - notifications.length} autre
+                  {unreadCount - notifications.length > 1 ? 's' : ''} non lue
+                  {unreadCount - notifications.length > 1 ? 's' : ''} — utilisez « Tout marquer lu »
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}

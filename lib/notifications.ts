@@ -16,6 +16,9 @@ const QUESTIONNAIRES_PORTAL_URL =
   process.env.QUESTIONNAIRES_PORTAL_URL || 'https://questionnaire.franchir.eu'
 const log = new Logger('notifications')
 
+/** Les messages internes alimentent déjà le cockpit « Mes actions » — pas de notif in-app. */
+export const SKIP_INAPP_MESSAGE_NOTIFICATIONS = true
+
 export type ProfileRow = {
   id: string
   role: string
@@ -95,17 +98,19 @@ export async function sendNewMessageNotifications(
 
   const link = patientLink(patient.id)
 
-  const { error: insertError } = await supabase.from('notifications').insert(
-    targetProfiles.map((p) => ({
-      user_id: p.id,
-      patient_id: patient.id,
-      type: 'message',
-      title: 'Nouveau message',
-      message: `${actor.full_name} a écrit un message`,
-    }))
-  )
+  if (!SKIP_INAPP_MESSAGE_NOTIFICATIONS) {
+    const { error: insertError } = await supabase.from('notifications').insert(
+      targetProfiles.map((p) => ({
+        user_id: p.id,
+        patient_id: patient.id,
+        type: 'message',
+        title: 'Nouveau message',
+        message: `${actor.full_name} a écrit un message`,
+      })),
+    )
+    if (insertError) log.error('Failed to insert message notifications', insertError)
+  }
 
-  if (insertError) log.error('Failed to insert message notifications', insertError)
   if (!canSendEmails()) return
 
   const emailPromises = targetProfiles

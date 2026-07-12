@@ -69,3 +69,11 @@ Le tableau de suivi propose une **vue cockpit** pour prioriser votre travail :
 *   **Infobulles** : survolez les libellés tronqués (statut, action en attente) pour lire le texte complet.
 *   **Onglet Devis** : après une action commerciale (budget, dates proposées, confirmation devis/date), la fiche patient se rafraîchit automatiquement — vérifiez l'onglet Devis pour les montants et dates à jour.
 *   **Cloche notifications** : alertes secondaires ; le cockpit « Mes actions » reste la source principale pour savoir quoi traiter.
+
+### Cloche notifications (historique secondaire)
+
+*   **Badge rouge** : nombre réel de notifications non lues (pas plafonné à 10).
+*   **Cliquer une notification** : la marque comme lue et ouvre le dossier patient si disponible.
+*   **« Tout marquer lu »** : efface toutes les notifications non lues d'un coup.
+*   **Messages internes** : n'apparaissent plus dans la cloche (déjà visibles via « Mes actions ») ; les changements de statut et actions commerciales restent notifiés.
+*   **Anciennes alertes** : les notifications de plus de 30 jours sont automatiquement marquées lues à l'ouverture.
