@@ -5,7 +5,11 @@ import { revalidatePath } from 'next/cache'
 import { type ActionId, canPerformWorkflowAction, globalStatusFromWorkflowStatus } from '@/lib/workflow-v2'
 import { Logger } from '@/lib/logger'
 import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
-import { sendStatusChangeNotifications, sendSurgeonAssignmentEmail } from '@/lib/notifications'
+import {
+  sendCommercialActionNotifications,
+  sendStatusChangeNotifications,
+  sendSurgeonAssignmentEmail,
+} from '@/lib/notifications'
 import { logPatientAction } from '@/lib/patient-messages/log-action'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -25,6 +29,42 @@ function parseQuoteAmount(raw: unknown): number | null {
   if (!match) return null
   const value = parseFloat(match[0].replace(',', '.'))
   return Number.isFinite(value) ? value : null
+}
+
+/** Normalise un nom pour rapprochement fuzzy sur full_name. */
+function normalizeSurgeonName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim()
+}
+
+/** Legacy API : data.surgeons (noms) → UUID annuaire si surgeonIds absent. */
+async function resolveSurgeonIdsFromNames(
+  writeClient: SupabaseClient,
+  names: unknown[],
+): Promise<string[]> {
+  const { data: activeSurgeons } = await writeClient
+    .from('surgeons')
+    .select('id, full_name')
+    .eq('is_active', true)
+
+  if (!activeSurgeons?.length) return []
+
+  const ids: string[] = []
+  for (const raw of names) {
+    const needle = normalizeSurgeonName(String(raw))
+    if (!needle) continue
+    const match = activeSurgeons.find((surgeon) => {
+      const haystack = normalizeSurgeonName(surgeon.full_name)
+      return haystack === needle || haystack.includes(needle) || needle.includes(haystack)
+    })
+    if (match && !ids.includes(match.id)) {
+      ids.push(match.id)
+    }
+  }
+  return ids
 }
 
 function parseFirstProposedDate(raw: unknown): string | null {
@@ -115,11 +155,15 @@ export async function POST(
       break
 
     case 'approve_medical': {
+      // API contract : préférer data.surgeonIds (UUID[]). Legacy : data.surgeons (full_name[]).
       newStatusCode = 'validated_medical'
       messageTitle = 'Validé médicalement'
       messageBody = data?.message || 'Le dossier a été validé médicalement.'
 
-      const recommendedIds: string[] = Array.isArray(data?.surgeonIds) ? data.surgeonIds : []
+      let recommendedIds: string[] = Array.isArray(data?.surgeonIds) ? data.surgeonIds : []
+      if (recommendedIds.length === 0 && Array.isArray(data?.surgeons)) {
+        recommendedIds = await resolveSurgeonIdsFromNames(writeClient, data.surgeons)
+      }
       if (recommendedIds.length === 0) {
         return NextResponse.json(
           { error: 'Au moins un chirurgien recommandé est requis' },
@@ -359,6 +403,17 @@ export async function POST(
         { id: user.id },
         { id: patientId, patient_name: patient.patient_name },
         newStatusCode
+      )
+    } else if (
+      actionId === 'add_budget' ||
+      actionId === 'confirm_quote' ||
+      actionId === 'propose_dates'
+    ) {
+      await sendCommercialActionNotifications(
+        supabase,
+        { id: user.id },
+        { id: patientId, patient_name: patient.patient_name },
+        actionId as 'add_budget' | 'confirm_quote' | 'propose_dates',
       )
     }
 

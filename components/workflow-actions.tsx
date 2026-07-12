@@ -40,6 +40,7 @@ export function WorkflowActions({
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState<Action | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const { primaryAction, secondaryActions, futureSteps } = getAvailableActions({
     globalStatus,
@@ -84,6 +85,8 @@ export function WorkflowActions({
       await onAction(action.id, formData)
       setShowModal(null)
       setFormData({})
+      setSuccessMessage(`Action « ${action.label} » enregistrée.`)
+      window.setTimeout(() => setSuccessMessage(null), 4000)
     } catch (error) {
       console.error('Action failed:', error)
     } finally {
@@ -281,6 +284,14 @@ export function WorkflowActions({
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      {successMessage && (
+        <div
+          role="status"
+          className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-900"
+        >
+          {successMessage}
+        </div>
+      )}
       {showGuidance && (
         <GuidanceBanner
           globalStatus={globalStatus}

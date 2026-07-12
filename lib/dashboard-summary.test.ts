@@ -11,6 +11,7 @@ import {
   isWaitingPatient,
   mineActionShortLabel,
   pendingActionLabel,
+  PIPELINE_GLOBAL_STATUSES,
 } from './dashboard-summary'
 
 const patient = (id: string, code: string) => ({
@@ -146,6 +147,27 @@ describe('dashboard-summary', () => {
     expect(banner?.subtitle).toContain('3 dossiers vous attendent')
     expect(banner?.subtitle).toContain('Soumettez ce dossier à la validation médicale')
     expect(mineActionShortLabel('draft', 'marcel')).toBe('à soumettre')
+  })
+
+  it('aligne les compteurs chips pipeline avec getPipelinePatientIds', () => {
+    const patients = [
+      patient('1', 'prospect_created'),
+      patient('2', 'medical_review'),
+      patient('3', 'need_info'),
+      patient('4', 'validated_medical'),
+      patient('5', 'surgery_scheduled'),
+      patient('6', 'rejected_medical'),
+      patient('7', 'case_closed'),
+    ]
+
+    const summary = computeDashboardSummary(patients, 'marcel')
+
+    for (const globalStatus of PIPELINE_GLOBAL_STATUSES) {
+      const ids = getPipelinePatientIds(patients, globalStatus)
+      expect(ids.length).toBe(summary.byGlobalStatus[globalStatus])
+    }
+
+    expect(getFocusPatientIds(patients, 'marcel', 'mine')?.length).toBe(summary.mine)
   })
 
   it('libellés courts action en attente pour le tableau', () => {

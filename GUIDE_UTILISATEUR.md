@@ -56,3 +56,16 @@ Vous supervisez l'ensemble de l'activité.
 2. Sur `/login`, saisissez votre **email réel** (colonne ci-dessus) et votre mot de passe.
 3. Si vous ne connaissez pas le mot de passe : **Supabase Dashboard** → projet tracker → **Authentication** → **Users** → sélectionner l'utilisateur → **Send password recovery** ou **Reset password**.
 4. Tous les comptes staff existants ont l'email déjà confirmé ; aucune validation par lien n'est requise avant la connexion.
+
+---
+
+## 📊 Cockpit tableau de bord
+
+Le tableau de suivi propose une **vue cockpit** pour prioriser votre travail :
+
+*   **Mes actions** : filtre les dossiers où **votre rôle** doit agir maintenant (soumission médicale, revue Gilles, complément, confirmation devis/date…). Le chiffre sur la puce correspond au nombre de dossiers concernés.
+*   **Puces pipeline** : filtrent par étape globale (Brouillon, Revue médicale, Commercial, Programmé, etc.). Le compteur de chaque puce correspond au nombre de dossiers à cette étape.
+*   **Bandeau priorité** : résume le total de dossiers actifs et ventile vos actions en attente (ex. « 3 à soumettre · 2 devis à confirmer »).
+*   **Infobulles** : survolez les libellés tronqués (statut, action en attente) pour lire le texte complet.
+*   **Onglet Devis** : après une action commerciale (budget, dates proposées, confirmation devis/date), la fiche patient se rafraîchit automatiquement — vérifiez l'onglet Devis pour les montants et dates à jour.
+*   **Cloche notifications** : alertes secondaires ; le cockpit « Mes actions » reste la source principale pour savoir quoi traiter.
