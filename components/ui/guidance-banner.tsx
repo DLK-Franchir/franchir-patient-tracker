@@ -18,6 +18,7 @@ const STATUS_STYLES: Record<GlobalStatus, string> = {
   rejected: 'bg-red-100 border-red-400 text-red-950',
   commercial_in_progress: 'bg-emerald-100 border-emerald-400 text-emerald-950',
   scheduled: 'bg-green-100 border-green-400 text-green-950',
+  closed: 'bg-slate-100 border-slate-300 text-slate-700',
 }
 
 export function GuidanceBanner({
