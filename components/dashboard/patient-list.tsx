@@ -24,9 +24,6 @@ import DashboardSummaryHeader from '@/components/dashboard/dashboard-summary'
 import PatientRowAction from '@/components/dashboard/patient-row-action'
 import {
   StatusBadge,
-  questionnaireStatusLabel,
-  questionnaireStatusShortLabel,
-  questionnaireStatusVariant,
 } from '@/components/ui/status-badge'
 type SortColumn = 'created_at' | 'patient_name' | 'current_status_id'
 type SortDirection = 'asc' | 'desc'
@@ -293,9 +290,6 @@ export default function PatientList({
               const isClosed = isClosedGlobalStatus(globalStatus)
               const statusFullLabel = patient.workflow_statuses?.label || 'Sans statut'
               const statusShortLabel = GLOBAL_STATUS_LABELS[globalStatus] ?? statusFullLabel
-              const questionnaireFullLabel = questionnaireStatusLabel(patient.questionnaire_status)
-              const questionnaireShortLabel = questionnaireStatusShortLabel(patient.questionnaire_status)
-              const creatorName = patient.profiles?.full_name || '—'
               const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
               const stepLabel = getCurrentStepLabel(globalStatus, userRole)
               const rowBg = index % 2 !== 0 ? BRAND.creamDark : 'white'
@@ -324,24 +318,8 @@ export default function PatientList({
                           {patient.patient_name}
                         </p>
                         <p className="mt-1 text-[13px]" style={{ color: BRAND.slate }}>
-                          {creatorName} · {formatDateShort(patient.created_at)}
+                          {formatDateShort(patient.created_at)}
                         </p>
-                        {patient.questionnaire_status && (
-                          <div className="mt-2">
-                            <StatusBadge
-                              label={questionnaireShortLabel}
-                              title={questionnaireFullLabel}
-                              variant={
-                                isClosed
-                                  ? 'neutral'
-                                  : questionnaireStatusVariant(patient.questionnaire_status)
-                              }
-                              color={badgeGrey}
-                              size="sm"
-                              nowrap
-                            />
-                          </div>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -434,8 +412,6 @@ export default function PatientList({
           const isClosed = isClosedGlobalStatus(globalStatus)
           const statusFullLabel = patient.workflow_statuses?.label || 'Sans statut'
           const statusShortLabel = GLOBAL_STATUS_LABELS[globalStatus] ?? statusFullLabel
-          const questionnaireFullLabel = questionnaireStatusLabel(patient.questionnaire_status)
-          const questionnaireShortLabel = questionnaireStatusShortLabel(patient.questionnaire_status)
           const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
           const stepLabel = getCurrentStepLabel(globalStatus, userRole)
 
@@ -454,24 +430,8 @@ export default function PatientList({
                       {patient.patient_name}
                     </h3>
                     <p className="mt-1 text-[13px]" style={{ color: BRAND.slate }}>
-                      {patient.profiles?.full_name || '—'} · {formatDateShort(patient.created_at)}
+                      {formatDateShort(patient.created_at)}
                     </p>
-                    {patient.questionnaire_status && (
-                      <div className="mt-2">
-                        <StatusBadge
-                          label={questionnaireShortLabel}
-                          title={questionnaireFullLabel}
-                          variant={
-                            isClosed
-                              ? 'neutral'
-                              : questionnaireStatusVariant(patient.questionnaire_status)
-                          }
-                          color={badgeGrey}
-                          size="sm"
-                          nowrap
-                        />
-                      </div>
-                    )}
                   </div>
                 </div>
                 <StatusBadge

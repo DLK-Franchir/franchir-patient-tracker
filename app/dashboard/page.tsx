@@ -256,20 +256,6 @@ export default async function DashboardPage({
       <AppHeader userRole={userRole} userName={profile?.full_name} showActions={true} />
       <div className="min-h-screen bg-franchir-cream p-4 sm:p-6 lg:p-8">
         <div className="mx-auto max-w-[1400px]">
-          <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-extrabold text-gray-900 sm:text-3xl">
-                Tableau de Suivi FRANCHIR
-              </h1>
-              <p className="mt-1 text-xs text-gray-600 sm:text-sm">
-                Connecté : {profile?.full_name} - <span className="font-semibold">{userRole}</span>
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                {total} patient{total > 1 ? 's' : ''} trouvé{total > 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-
           <PatientList
             initialPatients={patients}
             total={total}
