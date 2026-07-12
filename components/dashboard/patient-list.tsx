@@ -25,8 +25,7 @@ type Patient = {
   created_at: string
   questionnaire_status: string | null
   proposed_date?: string | null
-  confirmed_surgery_date?: string | null
-  confirmed_surgeon_name?: string | null
+  assigned_surgeon_name?: string | null
   workflow_statuses: { id: string; code: string; label: string; color: string } | null
   profiles: { full_name: string } | null
 }
@@ -339,12 +338,12 @@ export default function PatientList({
                     )}
                   </td>
                   <td className="hidden px-3 py-4 xl:table-cell xl:px-4">
-                    {patient.confirmed_surgeon_name ? (
+                    {patient.assigned_surgeon_name ? (
                       <span
                         className="inline-flex max-w-full items-center truncate rounded-full border border-purple-300 bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-900"
-                        title={patient.confirmed_surgeon_name}
+                        title={patient.assigned_surgeon_name}
                       >
-                        {patient.confirmed_surgeon_name}
+                        {patient.assigned_surgeon_name}
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
@@ -408,9 +407,9 @@ export default function PatientList({
                     </span>
                   )}
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
-                    {patient.confirmed_surgeon_name ? (
+                    {patient.assigned_surgeon_name ? (
                       <span className="inline-flex max-w-full items-center truncate rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 font-semibold text-purple-900">
-                        {patient.confirmed_surgeon_name}
+                        {patient.assigned_surgeon_name}
                       </span>
                     ) : (
                       <span className="text-gray-400">Chirurgien : —</span>

@@ -35,8 +35,7 @@ type PatientQueryRow = {
   created_at: string
   questionnaire_status: string | null
   proposed_date: string | null
-  confirmed_surgery_date: string | null
-  confirmed_surgeon_name: string | null
+  assigned_surgeon: { full_name: string } | { full_name: string }[] | null
   workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
   profiles: { full_name: string } | { full_name: string }[] | null
 }
@@ -104,7 +103,7 @@ async function getPatients({
   const fullQuery = supabase
     .from('patients')
     .select(
-      'id, patient_name, created_at, questionnaire_status, proposed_date, confirmed_surgery_date, confirmed_surgeon_name, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
+      'id, patient_name, created_at, questionnaire_status, proposed_date, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
       { count: 'exact' },
     )
 
@@ -140,8 +139,7 @@ async function getPatients({
     created_at: patient.created_at,
     questionnaire_status: patient.questionnaire_status ?? null,
     proposed_date: patient.proposed_date,
-    confirmed_surgery_date: patient.confirmed_surgery_date ?? null,
-    confirmed_surgeon_name: patient.confirmed_surgeon_name ?? null,
+    assigned_surgeon_name: firstRelation(patient.assigned_surgeon)?.full_name ?? null,
     workflow_statuses: firstRelation(patient.workflow_statuses),
     profiles: firstRelation(patient.profiles),
   }))
