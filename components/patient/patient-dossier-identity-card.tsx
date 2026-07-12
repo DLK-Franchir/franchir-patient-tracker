@@ -1,6 +1,7 @@
 'use client'
 
-import { CheckCircle, Clock, Mail, Phone } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { CheckCircle, Clock, Stethoscope } from 'lucide-react'
 import { BRAND } from '@/lib/brand-tokens'
 import {
   type QuestionnaireFormType,
@@ -10,9 +11,6 @@ import {
 } from '@/lib/integrations/questionnaire-form-types'
 
 interface PatientDossierIdentityCardProps {
-  patientName: string
-  patientEmail?: string | null
-  patientPhone?: string | null
   questionnaireLanguage: 'fr' | 'en'
   formTypes: QuestionnaireFormType[]
   /** When synthesis preview is loaded, matches questionnaire answers (source of truth). */
@@ -50,6 +48,25 @@ function languageDisplayLabel(language: 'fr' | 'en'): string {
   return language === 'en' ? 'English' : 'Français'
 }
 
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <p
+      className="mb-1.5 text-[11px] font-bold uppercase tracking-wider"
+      style={{ color: BRAND.slateLight }}
+    >
+      {children}
+    </p>
+  )
+}
+
+function FieldValue({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-base font-bold leading-snug" style={{ color: BRAND.dark }}>
+      {children}
+    </p>
+  )
+}
+
 function CommercialDataField({
   label,
   value,
@@ -60,22 +77,15 @@ function CommercialDataField({
   confirmed?: boolean
 }) {
   return (
-    <div className="pb-3 border-b last:border-0 last:pb-0" style={{ borderColor: BRAND.cream }}>
-      <p
-        className="text-xs font-bold uppercase tracking-wide mb-1.5"
-        style={{ color: BRAND.slateLight }}
-      >
-        {label}
-      </p>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-base font-semibold" style={{ color: BRAND.dark }}>
-          {value}
-        </span>
+    <div className="border-b pb-3 last:border-0 last:pb-0" style={{ borderColor: BRAND.cream }}>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex flex-wrap items-center gap-2">
+        <FieldValue>{value}</FieldValue>
         {confirmed !== undefined &&
           (confirmed ? (
-            <CheckCircle size={14} className="text-green-600 shrink-0" aria-label="Confirmé" />
+            <CheckCircle size={14} className="shrink-0 text-green-600" aria-label="Confirmé" />
           ) : (
-            <Clock size={14} className="text-amber-600 shrink-0" aria-label="En attente" />
+            <Clock size={14} className="shrink-0 text-amber-600" aria-label="En attente" />
           ))}
       </div>
     </div>
@@ -83,9 +93,6 @@ function CommercialDataField({
 }
 
 export function PatientDossierIdentityCard({
-  patientName,
-  patientEmail,
-  patientPhone,
   questionnaireLanguage,
   formTypes,
   parcoursLabel,
@@ -105,78 +112,62 @@ export function PatientDossierIdentityCard({
     Boolean(parcoursLabel?.trim()) && displayParcours !== trackerParcours
 
   return (
-    <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-      <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">Identité du dossier</h2>
+    <section
+      className="overflow-hidden rounded-2xl shadow-sm"
+      style={{ background: 'white', border: `1px solid ${BRAND.creamMid}` }}
+    >
+      <div
+        className="flex items-center gap-2 px-5 py-4"
+        style={{ background: BRAND.navy, borderBottom: `1px solid ${BRAND.navyDark}` }}
+      >
+        <Stethoscope size={16} className="text-white/90" aria-hidden />
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-white">
+          Informations du dossier
+        </h2>
+      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Patient</p>
-          <p className="text-base font-semibold text-gray-900">{patientName}</p>
-        </div>
-
-        {patientEmail ? (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Email</p>
-            <p className="flex items-center gap-2 text-sm text-gray-800">
-              <Mail className="size-4 shrink-0 text-gray-400" aria-hidden="true" />
-              {patientEmail}
-            </p>
-          </div>
-        ) : null}
-
-        {patientPhone ? (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Téléphone</p>
-            <p className="flex items-center gap-2 text-sm text-gray-800">
-              <Phone className="size-4 shrink-0 text-gray-400" aria-hidden="true" />
-              {patientPhone}
-            </p>
-          </div>
-        ) : null}
-
+      <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-            Langue du questionnaire
-          </p>
-          <p className="text-sm font-medium text-gray-900">{languageLabel}</p>
-        </div>
-
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-            Type de questionnaire
-          </p>
-          <FormTypeBadges types={formTypes} />
-          <p className="mt-1.5 text-xs text-gray-500">{displayParcours}</p>
+          <FieldLabel>Parcours / pathologie</FieldLabel>
+          <FieldValue>{displayParcours}</FieldValue>
+          <div className="mt-2">
+            <FormTypeBadges types={formTypes} />
+          </div>
           {parcoursMismatch ? (
-            <p className="mt-1 text-xs text-amber-700">
+            <p className="mt-2 text-xs text-amber-700">
               Parcours questionnaire ({displayParcours}) — type émis au dossier : {trackerParcours}
             </p>
           ) : null}
         </div>
+
+        <div>
+          <FieldLabel>Langue du questionnaire</FieldLabel>
+          <FieldValue>{languageLabel}</FieldValue>
+        </div>
       </div>
 
       {showClinicalSummary ? (
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-            Résumé pathologie / clinique
-          </p>
-          <div className="rounded-lg bg-gray-50 p-3 sm:p-4 text-sm text-gray-700 whitespace-pre-wrap">
-            {clinicalSummary?.trim() ? clinicalSummary : (
-              <span className="italic text-gray-400">Aucun résumé clinique fourni.</span>
+        <div className="border-t px-5 py-5 sm:px-6" style={{ borderColor: BRAND.creamMid }}>
+          <FieldLabel>Résumé pathologie / clinique</FieldLabel>
+          <div
+            className="mt-2 rounded-xl p-4 text-[15px] leading-relaxed whitespace-pre-wrap"
+            style={{ background: BRAND.creamDark, color: BRAND.ink }}
+          >
+            {clinicalSummary?.trim() ? (
+              clinicalSummary
+            ) : (
+              <span className="italic" style={{ color: BRAND.slateLight }}>
+                Aucun résumé clinique fourni.
+              </span>
             )}
           </div>
         </div>
       ) : null}
 
       {showCommercialData ? (
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <p
-            className="text-xs font-bold uppercase tracking-wide mb-4"
-            style={{ color: BRAND.slateLight }}
-          >
-            Données commerciales
-          </p>
-          <div className="grid gap-4 sm:grid-cols-3">
+        <div className="border-t px-5 py-5 sm:px-6" style={{ borderColor: BRAND.creamMid }}>
+          <FieldLabel>Données commerciales</FieldLabel>
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
             <CommercialDataField
               label="Chirurgien"
               value={assignedSurgeonName ?? 'Non assigné'}

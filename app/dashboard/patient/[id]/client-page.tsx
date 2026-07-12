@@ -6,7 +6,7 @@ import { WorkflowActionHistory, usePatientActionLog } from '@/components/workflo
 import MessageThread, { type Message } from '@/components/patient/message-thread'
 import PatientSummaryCard from '@/components/patient-summary-card'
 import { PatientDossierIdentityCard } from '@/components/patient/patient-dossier-identity-card'
-import { PatientPipelineHeader } from '@/components/patient/patient-pipeline-header'
+import { PatientPageHeader } from '@/components/patient/patient-page-header'
 import { PatientWorkContextBanner } from '@/components/patient/patient-work-context-banner'
 import { PatientActionPanel } from '@/components/patient/patient-action-panel'
 import DocumentsSection from '@/components/patient/documents-section'
@@ -348,10 +348,15 @@ export default function PatientDetailClient({
   return (
     <div className="anamneze-dashboard min-h-[calc(100dvh-4rem)]">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-        <PatientPipelineHeader
+        <PatientPageHeader
+          patientName={patient.patient_name}
+          patientEmail={patient.patient_email}
+          patientPhone={patient.patient_phone}
+          createdAt={patient.created_at}
           globalStatus={globalStatus}
-          dateAccepted={patient.date_accepted}
           statusLabel={patient.current_status.label}
+          statusColor={patient.current_status.color}
+          dateAccepted={patient.date_accepted}
           progressDetail={patient.clinical_summary}
         />
 
@@ -407,9 +412,6 @@ export default function PatientDetailClient({
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-5">
           <div className="space-y-5">
             <PatientDossierIdentityCard
-              patientName={patient.patient_name}
-              patientEmail={patient.patient_email}
-              patientPhone={patient.patient_phone}
               questionnaireLanguage={questionnaireLanguage}
               formTypes={questionnaireFormTypes}
               parcoursLabel={synthesisPreview?.spineRegionLabel}

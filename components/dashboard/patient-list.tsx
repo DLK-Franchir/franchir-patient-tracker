@@ -28,8 +28,6 @@ import {
   questionnaireStatusShortLabel,
   questionnaireStatusVariant,
 } from '@/components/ui/status-badge'
-import { HoverTooltip } from '@/components/ui/hover-tooltip'
-
 type SortColumn = 'created_at' | 'patient_name' | 'current_status_id'
 type SortDirection = 'asc' | 'desc'
 
@@ -79,13 +77,14 @@ function formatDateShort(dateStr: string | null | undefined): string {
   })
 }
 
-function PatientAvatar({ name }: { name: string }) {
+function PatientAvatar({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
   const parts = name.trim().split(' ')
   const initials = `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase()
+  const dim = size === 'lg' ? 'h-11 w-11 text-[14px]' : 'h-10 w-10 text-[13px]'
 
   return (
     <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
+      className={`flex shrink-0 items-center justify-center rounded-full font-bold ${dim}`}
       style={{ background: `${BRAND.navy}14`, color: BRAND.navy }}
     >
       {initials}
@@ -93,21 +92,6 @@ function PatientAvatar({ name }: { name: string }) {
   )
 }
 
-function TruncatedCell({
-  text,
-  className = '',
-}: {
-  text: string
-  className?: string
-}) {
-  return (
-    <HoverTooltip content={text}>
-      <span className={`block min-w-0 truncate ${className}`} title={text}>
-        {text}
-      </span>
-    </HoverTooltip>
-  )
-}
 
 export default function PatientList({
   initialPatients,
@@ -271,17 +255,20 @@ export default function PatientList({
       </div>
 
       <div
-        className="hidden overflow-hidden rounded-2xl shadow-sm lg:block"
+        className="hidden overflow-x-auto rounded-2xl shadow-sm lg:block"
         style={{ background: 'white', border: `1px solid ${BRAND.creamMid}` }}
       >
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[1080px] border-collapse">
           <thead>
             <tr style={{ background: BRAND.navy, borderBottom: `2px solid ${BRAND.navyDark}` }}>
               {tableHeaders.map((header) => (
                 <th
                   key={header}
-                  className="px-4 py-4 text-left text-[11px] font-bold tracking-wider uppercase lg:px-5"
-                  style={{ color: 'rgba(255,255,255,0.65)' }}
+                  className="px-5 py-4 text-left text-[11px] font-bold tracking-wider uppercase"
+                  style={{
+                    color: 'rgba(255,255,255,0.65)',
+                    minWidth: header === 'Patient' ? '220px' : undefined,
+                  }}
                 >
                   {header === 'Patient' || header === 'Statut' ? (
                     <button
@@ -326,19 +313,21 @@ export default function PatientList({
                   }}
                   onClick={() => router.push(`/dashboard/patient/${patient.id}`)}
                 >
-                  <td className="px-4 py-4 lg:px-5">
-                    <div className="flex items-center gap-3">
+                  <td className="px-5 py-5">
+                    <div className="flex items-center gap-3.5">
                       <PatientAvatar name={patient.patient_name} />
-                      <div className="min-w-0">
-                        <TruncatedCell
-                          text={patient.patient_name}
-                          className="text-[14px] font-semibold"
-                        />
-                        <p className="mt-0.5 text-[12px]" style={{ color: BRAND.slate }}>
+                      <div className="min-w-[160px]">
+                        <p
+                          className="text-[15px] font-bold leading-snug break-words"
+                          style={{ color: BRAND.dark }}
+                        >
+                          {patient.patient_name}
+                        </p>
+                        <p className="mt-1 text-[13px]" style={{ color: BRAND.slate }}>
                           {creatorName} · {formatDateShort(patient.created_at)}
                         </p>
                         {patient.questionnaire_status && (
-                          <div className="mt-1.5">
+                          <div className="mt-2">
                             <StatusBadge
                               label={questionnaireShortLabel}
                               title={questionnaireFullLabel}
@@ -356,7 +345,7 @@ export default function PatientList({
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-5">
                     <StatusBadge
                       label={statusShortLabel}
                       title={statusFullLabel}
@@ -365,23 +354,23 @@ export default function PatientList({
                       nowrap
                     />
                   </td>
-                  <td className="max-w-[220px] px-4 py-4">
-                    <span className="line-clamp-2 text-[13px] leading-snug" style={{ color: BRAND.ink }}>
+                  <td className="max-w-[240px] px-4 py-5">
+                    <span className="line-clamp-2 text-[14px] leading-snug" style={{ color: BRAND.ink }}>
                       {stepLabel}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-5">
                     <span
-                      className="text-[13px] font-medium"
+                      className="text-[14px] font-medium"
                       style={{ color: patient.assigned_surgeon_name ? BRAND.navy : BRAND.slateLight }}
                     >
                       {patient.assigned_surgeon_name ?? '—'}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-5">
                     {patient.quote_amount != null ? (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[14px] font-bold" style={{ color: BRAND.dark }}>
+                        <span className="text-[15px] font-bold" style={{ color: BRAND.dark }}>
                           {formatQuoteAmount(patient.quote_amount)}
                         </span>
                         {patient.quote_accepted ? (
@@ -394,10 +383,10 @@ export default function PatientList({
                       <span style={{ color: BRAND.slateLight }}>—</span>
                     )}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-5">
                     {patient.proposed_date ? (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[13px] font-medium" style={{ color: BRAND.navy }}>
+                        <span className="text-[14px] font-medium" style={{ color: BRAND.navy }}>
                           {formatDateShort(patient.proposed_date)}
                         </span>
                         {patient.date_accepted ? (
@@ -410,7 +399,7 @@ export default function PatientList({
                       <span style={{ color: BRAND.slateLight }}>—</span>
                     )}
                   </td>
-                  <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}>
+                  <td className="px-4 py-5" onClick={(event) => event.stopPropagation()}>
                     <PatientRowAction
                       patientId={patient.id}
                       globalStatus={globalStatus}
@@ -459,12 +448,12 @@ export default function PatientList({
             >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <PatientAvatar name={patient.patient_name} />
+                  <PatientAvatar name={patient.patient_name} size="lg" />
                   <div className="min-w-0">
-                    <h3 className="truncate font-semibold" style={{ color: BRAND.dark }}>
+                    <h3 className="text-[17px] font-bold leading-snug break-words" style={{ color: BRAND.dark }}>
                       {patient.patient_name}
                     </h3>
-                    <p className="mt-0.5 text-[12px]" style={{ color: BRAND.slate }}>
+                    <p className="mt-1 text-[13px]" style={{ color: BRAND.slate }}>
                       {patient.profiles?.full_name || '—'} · {formatDateShort(patient.created_at)}
                     </p>
                     {patient.questionnaire_status && (
