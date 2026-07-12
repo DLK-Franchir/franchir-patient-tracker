@@ -6,6 +6,14 @@ import NotificationBell from '@/components/notifications/notification-bell'
 import AppHeader from '@/components/app-header'
 import PatientList from '@/components/dashboard/patient-list'
 import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integrations/issue-questionnaire-link'
+import {
+  computeDashboardSummary,
+  getDashboardPriorityBanner,
+  getFocusPatientIds,
+  normalizeDashboardFocus,
+  type DashboardFocus,
+  type SummaryPatient,
+} from '@/lib/dashboard-summary'
 
 const ITEMS_PER_PAGE = 20
 const SORT_COLUMNS = ['created_at', 'patient_name', 'current_status_id'] as const
@@ -18,6 +26,7 @@ type DashboardSearchParams = {
   page?: string
   q?: string
   status?: string | string[]
+  focus?: string
   sort?: string
   dir?: string
 }
@@ -77,6 +86,23 @@ async function getWorkflowStatuses(): Promise<WorkflowStatusOption[]> {
   return (data || []) as WorkflowStatusOption[]
 }
 
+type SummaryQueryRow = {
+  id: string
+  workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
+}
+
+async function getAllPatientsForSummary(): Promise<SummaryPatient[]> {
+  const supabase = await createServerClient()
+  const { data } = await supabase
+    .from('patients')
+    .select('id, workflow_statuses!current_status_id (id, code, label)')
+
+  return ((data || []) as SummaryQueryRow[]).map((patient) => ({
+    id: patient.id,
+    workflow_statuses: firstRelation(patient.workflow_statuses),
+  }))
+}
+
 async function getPatients({
   page,
   query,
@@ -84,6 +110,7 @@ async function getPatients({
   sort,
   direction,
   statusOptions,
+  focusPatientIds,
 }: {
   page: number
   query: string
@@ -91,6 +118,7 @@ async function getPatients({
   sort: SortColumn
   direction: SortDirection
   statusOptions: WorkflowStatusOption[]
+  focusPatientIds?: string[] | null
 }) {
   const supabase = await createServerClient()
   const selectedStatusIds = statusOptions
@@ -121,6 +149,13 @@ async function getPatients({
   if (selectedStatusIds.length > 0) {
     fullQuery.in('current_status_id', selectedStatusIds)
     baseQuery.in('current_status_id', selectedStatusIds)
+  }
+  if (focusPatientIds !== null && focusPatientIds !== undefined) {
+    if (focusPatientIds.length === 0) {
+      return { patients: [], total: 0 }
+    }
+    fullQuery.in('id', focusPatientIds)
+    baseQuery.in('id', focusPatientIds)
   }
 
   const fullResult = await fullQuery
@@ -188,7 +223,13 @@ export default async function DashboardPage({
   }
 
   const userRole = profile?.role as Role
+  const dashboardRole = userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'
+  const focus: DashboardFocus = normalizeDashboardFocus(params.focus)
   const statusOptions = await getWorkflowStatuses()
+  const summaryPatients = await getAllPatientsForSummary()
+  const dashboardSummary = computeDashboardSummary(summaryPatients, dashboardRole)
+  const focusPatientIds = getFocusPatientIds(summaryPatients, dashboardRole, focus)
+  const priorityBanner = getDashboardPriorityBanner(summaryPatients, dashboardRole, dashboardSummary)
   const { patients, total } = await getPatients({
     page: currentPage,
     query: searchQuery,
@@ -196,6 +237,7 @@ export default async function DashboardPage({
     sort,
     direction,
     statusOptions,
+    focusPatientIds,
   })
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE))
 
@@ -232,7 +274,10 @@ export default async function DashboardPage({
             statusOptions={statusOptions}
             sort={sort}
             direction={direction}
-            userRole={userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'}
+            userRole={dashboardRole}
+            dashboardSummary={dashboardSummary}
+            focus={focus}
+            priorityBanner={priorityBanner}
           />
         </div>
       </div>

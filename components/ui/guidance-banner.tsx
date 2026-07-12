@@ -11,7 +11,7 @@ type GuidanceBannerProps = {
   className?: string
 }
 
-const STATUS_STYLES: Record<GlobalStatus, string> = {
+export const STATUS_STYLES: Record<GlobalStatus, string> = {
   draft: 'bg-slate-100 border-slate-300 text-slate-900',
   medical_review: 'bg-blue-100 border-blue-400 text-blue-950',
   medical_more_info: 'bg-amber-100 border-amber-400 text-amber-950',

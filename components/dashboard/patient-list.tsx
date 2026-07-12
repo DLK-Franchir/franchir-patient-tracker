@@ -1,17 +1,24 @@
 'use client'
 
-import { FormEvent, useMemo, useState, useTransition } from 'react'
+import { FormEvent, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CLOSED_DOSSIER_GREY,
   globalStatusFromWorkflowStatus,
-  getWorkflowHandoff,
   isClosedGlobalStatus,
-  isWaitingOnOther,
-  type GlobalStatus,
   type UserRole,
 } from '@/lib/workflow-v2'
+import {
+  focusFilterLabel,
+  pendingActionLabel,
+  selectedGlobalStatusFromCodes,
+  GLOBAL_STATUS_LABELS,
+  type DashboardFocus,
+  type DashboardPriorityBanner,
+  type DashboardSummary,
+} from '@/lib/dashboard-summary'
+import DashboardSummaryHeader from '@/components/dashboard/dashboard-summary'
 import {
   StatusBadge,
   questionnaireStatusLabel,
@@ -51,13 +58,9 @@ type PatientListProps = {
   sort: SortColumn
   direction: SortDirection
   userRole?: UserRole
-}
-
-function pendingActionLabel(globalStatus: GlobalStatus, role: UserRole): string | null {
-  const handoff = getWorkflowHandoff(globalStatus, role)
-  if (isWaitingOnOther(handoff, role)) return null
-  if (handoff.pendingActor === role) return handoff.guidance
-  return null
+  dashboardSummary: DashboardSummary
+  focus: DashboardFocus
+  priorityBanner: DashboardPriorityBanner | null
 }
 
 function formatDateShort(dateStr: string | null | undefined): string {
@@ -104,12 +107,20 @@ export default function PatientList({
   sort,
   direction,
   userRole = 'admin',
+  dashboardSummary,
+  focus,
+  priorityBanner,
 }: PatientListProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [query, setQuery] = useState(searchQuery)
   const [statusCodes, setStatusCodes] = useState<string[]>(selectedStatuses)
   const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    setQuery(searchQuery)
+    setStatusCodes(selectedStatuses)
+  }, [searchQuery, selectedStatuses])
 
   const pageStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1
   const pageEnd = Math.min(currentPage * itemsPerPage, total)
@@ -124,6 +135,7 @@ export default function PatientList({
     page?: number
     q?: string | null
     status?: string[] | null
+    focus?: DashboardFocus | null
     sort?: SortColumn
     dir?: SortDirection
   }) => {
@@ -137,6 +149,10 @@ export default function PatientList({
     if (updates.status !== undefined) {
       params.delete('status')
       updates.status?.forEach((status) => params.append('status', status))
+    }
+    if (updates.focus !== undefined) {
+      if (updates.focus && updates.focus !== 'all') params.set('focus', updates.focus)
+      else params.delete('focus')
     }
     if (updates.sort) params.set('sort', updates.sort)
     if (updates.dir) params.set('dir', updates.dir)
@@ -159,6 +175,22 @@ export default function PatientList({
     })
   }
 
+  const clearActiveFilters = () => {
+    setQuery('')
+    setStatusCodes([])
+    startTransition(() => {
+      router.push(buildUrl({ page: 1, q: null, status: null, focus: null }))
+    })
+  }
+
+  const selectedPipelineStatus = selectedGlobalStatusFromCodes(selectedStatuses)
+  const focusLabel = focusFilterLabel(focus)
+  const pipelineLabel = selectedPipelineStatus ? GLOBAL_STATUS_LABELS[selectedPipelineStatus] : null
+  const activeFilterParts = [focusLabel, pipelineLabel, searchQuery ? `« ${searchQuery} »` : null].filter(
+    Boolean,
+  ) as string[]
+  const hasActiveFilters = activeFilterParts.length > 0
+
   const toggleStatus = (code: string) => {
     setStatusCodes((current) =>
       current.includes(code) ? current.filter((value) => value !== code) : [...current, code],
@@ -179,6 +211,33 @@ export default function PatientList({
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <DashboardSummaryHeader
+        summary={dashboardSummary}
+        focus={focus}
+        selectedStatuses={selectedStatuses}
+        userRole={userRole}
+        priorityBanner={priorityBanner}
+      />
+
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+          <p>
+            <span className="font-bold">
+              {total} dossier{total > 1 ? 's' : ''}
+            </span>
+            {' — '}
+            {activeFilterParts.join(' · ')}
+          </p>
+          <button
+            type="button"
+            onClick={clearActiveFilters}
+            className="min-h-[44px] rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-sm font-semibold text-[#2563EB] transition hover:bg-blue-100"
+          >
+            Effacer
+          </button>
+        </div>
+      )}
+
       <form
         onSubmit={applyFilters}
         className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
