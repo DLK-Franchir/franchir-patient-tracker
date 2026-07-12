@@ -22,7 +22,7 @@ export async function PATCH(
       .eq('id', user.id)
       .single()
 
-    if (!canEditCommercialData(profile)) {
+    if (!profile || !canEditCommercialData(profile)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
