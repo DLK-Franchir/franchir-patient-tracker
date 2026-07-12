@@ -78,6 +78,7 @@ export async function syncPatientToQuestionnaires(patientId: string): Promise<bo
         patientPhone: patient.patient_phone ?? null,
         assignedSurgeonEmail: surgeonEmail,
         assignedSurgeonName: surgeonName,
+        overrideSurgeonAssignment: surgeonEmail !== null,
         clinicalSummary: patient.clinical_summary ?? null,
         sharepointLink: patient.sharepoint_link ?? null,
         formTypes: Array.isArray(patient.form_types) ? patient.form_types : undefined,

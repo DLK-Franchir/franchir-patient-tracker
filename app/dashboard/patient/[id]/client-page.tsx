@@ -1,17 +1,21 @@
 'use client'
 
 import { useState, lazy, Suspense, useEffect } from 'react'
-import { WorkflowActions, type SurgeonOption } from '@/components/workflow-actions'
+import { Mail, Phone } from 'lucide-react'
 import { WorkflowActionHistory, usePatientActionLog } from '@/components/workflow-action-history'
 import MessageThread, { type Message } from '@/components/patient/message-thread'
-import WorkflowTimeline from '@/components/workflow-timeline'
 import PatientSummaryCard from '@/components/patient-summary-card'
 import { PatientDossierIdentityCard } from '@/components/patient/patient-dossier-identity-card'
+import { PatientPageHeader } from '@/components/patient/patient-page-header'
+import { PatientWorkContextBanner } from '@/components/patient/patient-work-context-banner'
+import { PatientActionPanel } from '@/components/patient/patient-action-panel'
 import DocumentsSection from '@/components/patient/documents-section'
 import QuestionnairePatientCard from '@/components/patient/questionnaire-patient-card'
 import AnamnezeSection from '@/components/patient/synthesis/anamneze-section'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
+import { getWorkContext } from '@/lib/patient-work-context'
 import { getPatientDetailViewConfig } from '@/lib/patient-detail-view-config'
+import type { SurgeonOption } from '@/components/workflow-actions'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 import type { QuestionnaireSynthesisPreview } from '@/lib/integrations/questionnaire-synthesis-preview.types'
 import {
@@ -22,7 +26,6 @@ import {
 import { useRouter } from 'next/navigation'
 
 const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
-const CommercialData = lazy(() => import('@/components/patient/commercial-data'))
 
 function LoadingSpinner() {
   return (
@@ -86,7 +89,6 @@ export default function PatientDetailClient({
 }) {
   const router = useRouter()
   const [patient, setPatient] = useState(initialPatient)
-  const [activeTab, setActiveTab] = useState<'medical' | 'commercial'>('medical')
   const [questionnaireLanguage, setQuestionnaireLanguage] = useState<'fr' | 'en'>(
     initialPatient.questionnaire_language === 'en' ? 'en' : 'fr',
   )
@@ -181,20 +183,43 @@ export default function PatientDetailClient({
   const globalStatus: GlobalStatus = globalStatusFromWorkflowStatus(patient.current_status)
   const questionnaireFormTypes = coercePatientFormTypes(patient.form_types)
 
-  const medicalMessages = initialMessages.filter(m =>
-    m.topic === 'medical' || m.topic === 'system' || !m.topic
+  const medicalMessages = initialMessages.filter(
+    (m) => m.topic === 'medical' || m.topic === 'system' || !m.topic,
   )
 
-  const commercialMessages = initialMessages.filter(m =>
-    m.topic === 'commercial'
-  )
+  const commercialMessages = initialMessages.filter((m) => m.topic === 'commercial')
 
-  const showCommercialTab = viewConfig.showCommercialTab
-  const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
+  const showCommercialData =
+    viewConfig.showCommercialTab &&
+    (globalStatus === 'commercial_in_progress' ||
+      globalStatus === 'scheduled' ||
+      patient.quote_amount != null ||
+      patient.proposed_date != null ||
+      patient.assigned_surgeon != null)
+
+  const isClosedDossier = globalStatus === 'closed'
+
+  const isReadOnly =
+    (globalStatus === 'rejected' || isClosedDossier) && userRole !== 'admin'
+  const canMutateDossierContent = !isReadOnly
+  const canManageQuestionnaireEffective = canManageQuestionnaire && canMutateDossierContent
+  const canManageDocumentsEffective = viewConfig.canManageDocuments && canMutateDossierContent
   const latestCompletedSession = questionnaireStatus?.sessions?.find((s) => s.status === 'completed')
   const actionLogMessages = usePatientActionLog(patient.id, initialMessages)
 
-  const handleAction = async (actionId: string, data?: any) => {
+  const workContext = getWorkContext({
+    globalStatus,
+    role: userRole,
+    patientName: patient.patient_name,
+    quoteAmount: patient.quote_amount,
+    proposedDate: patient.proposed_date,
+    quoteAccepted: patient.quote_accepted,
+    dateAccepted: patient.date_accepted,
+    assignedSurgeonName: patient.assigned_surgeon?.full_name,
+    progressDetail: patient.clinical_summary,
+  })
+
+  const handleAction = async (actionId: string, data?: Record<string, unknown>) => {
     try {
       const response = await fetch(`/api/patients/${patient.id}/change-status`, {
         method: 'POST',
@@ -209,7 +234,7 @@ export default function PatientDetailClient({
       const result = await response.json()
 
       if (result.patient && Object.keys(result.patient).length > 0) {
-        setPatient(currentPatient => ({
+        setPatient((currentPatient) => ({
           ...currentPatient,
           ...result.patient,
         }))
@@ -218,26 +243,9 @@ export default function PatientDetailClient({
       router.refresh()
     } catch (error) {
       console.error('Action failed:', error)
-      alert('Une erreur est survenue lors de l\'exécution de l\'action')
+      alert("Une erreur est survenue lors de l'exécution de l'action")
     }
   }
-
-  const actionsSidebar = (
-    <>
-      <WorkflowActions
-        globalStatus={globalStatus}
-        userRole={userRole}
-        quoteAccepted={patient.quote_accepted || false}
-        dateAccepted={patient.date_accepted || false}
-        surgeons={surgeons}
-        onAction={handleAction}
-      />
-      <WorkflowActionHistory
-        messages={actionLogMessages}
-        assignedSurgeonName={patient.assigned_surgeon?.full_name}
-      />
-    </>
-  )
 
   const handleUpdateSummary = async (summary: string, link: string) => {
     const response = await fetch(`/api/patients/${patient.id}/update-summary`, {
@@ -260,28 +268,109 @@ export default function PatientDetailClient({
     })
   }
 
+  const rightColumn = (
+    <div className="space-y-5">
+      <PatientActionPanel
+        globalStatus={globalStatus}
+        userRole={userRole}
+        patientId={patient.id}
+        actionTitle={workContext?.actionTitle ?? 'Dossier en cours de traitement'}
+        quoteAmount={patient.quote_amount}
+        proposedDate={patient.proposed_date}
+        quoteAccepted={patient.quote_accepted}
+        dateAccepted={patient.date_accepted}
+        assignedSurgeonId={patient.assigned_surgeon_id}
+        surgeons={surgeons}
+        onAction={handleAction}
+        onCommercialSaved={() => router.refresh()}
+      />
+
+      <QuestionnairePatientCard
+        patientId={patient.id}
+        patientEmail={patient.patient_email}
+        questionnaireStatus={patient.questionnaire_status}
+        questionnaireCompletedAt={patient.questionnaire_completed_at}
+        questionnaireSummary={patient.questionnaire_summary}
+        bridgeStatus={questionnaireStatus}
+        canManage={canManageQuestionnaireEffective}
+        initialLanguage={questionnaireLanguage}
+        initialFormTypes={questionnaireFormTypes}
+        onSendLink={sendQuestionnaireLink}
+        onRevokeLink={revokeQuestionnaireLink}
+        showPdfDownload={viewConfig.showQuestionnairePdf}
+      />
+
+      {(patient.patient_email || patient.patient_phone) && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 bg-[#1E2B70] text-white text-xs font-extrabold uppercase tracking-widest">
+            Contact patient
+          </div>
+          <div className="p-4 grid grid-cols-2 gap-2.5">
+            {patient.patient_email && (
+              <a
+                href={`mailto:${patient.patient_email}`}
+                className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors bg-[#F4EFDF] text-[#1E2B70] border border-[#E8E0D4] hover:bg-[#E8E0D4]"
+              >
+                <Mail size={14} />
+                Email
+              </a>
+            )}
+            {patient.patient_phone && (
+              <a
+                href={`tel:${patient.patient_phone}`}
+                className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors bg-[#F4EFDF] text-[#1E2B70] border border-[#E8E0D4] hover:bg-[#E8E0D4]"
+              >
+                <Phone size={14} />
+                Appel
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      <WorkflowActionHistory
+        messages={actionLogMessages}
+        assignedSurgeonName={patient.assigned_surgeon?.full_name}
+      />
+
+      <div className="bg-[#EBF0FA] border border-[#1E2B70]/20 rounded-xl p-4 text-sm text-[#1E2B70]">
+        <p>
+          <span className="font-semibold">Créé par :</span> {patient.creator.full_name}
+        </p>
+        <p className="mt-1">
+          <span className="font-semibold">Date :</span>{' '}
+          {new Date(patient.created_at).toLocaleDateString('fr-FR')}
+        </p>
+      </div>
+    </div>
+  )
+
   return (
     <div className="anamneze-dashboard min-h-[calc(100dvh-4rem)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        <WorkflowTimeline currentStatus={globalStatus} />
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <PatientPageHeader
+          patientName={patient.patient_name}
+          patientEmail={patient.patient_email}
+          patientPhone={patient.patient_phone}
+          createdAt={patient.created_at}
+          globalStatus={globalStatus}
+          statusLabel={patient.current_status.label}
+          statusColor={patient.current_status.color}
+          dateAccepted={patient.date_accepted}
+          progressDetail={patient.clinical_summary}
+        />
 
-        {isReadOnly && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
-            <p className="text-xs sm:text-sm text-yellow-800">
-              ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.
-            </p>
-          </div>
-        )}
+        {workContext && <PatientWorkContextBanner context={workContext} />}
 
         {createQuestionnaireWarning && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6" role="alert">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 mb-4" role="alert">
             <p className="text-xs sm:text-sm text-amber-900">{createQuestionnaireWarning}</p>
           </div>
         )}
 
         {questionnaireLinkNotice && (
           <div
-            className={`rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 border ${
+            className={`rounded-lg p-3 sm:p-4 mb-4 border ${
               questionnaireLinkNotice.tone === 'success'
                 ? 'bg-emerald-50 border-emerald-200'
                 : questionnaireLinkNotice.tone === 'warning'
@@ -305,7 +394,7 @@ export default function PatientDetailClient({
         )}
 
         {viewConfig.showAnamnezeDashboard && (
-          <div className="mb-4 sm:mb-6">
+          <div className="mb-5">
             <AnamnezeSection
               patientId={patient.id}
               patientName={patient.patient_name}
@@ -317,187 +406,78 @@ export default function PatientDetailClient({
           </div>
         )}
 
-        <div className="lg:hidden mb-4 space-y-4">
-        <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-4">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Actions disponibles</h2>
-          {actionsSidebar}
-        </div>
+        {/* Mobile: action panel first */}
+        <div className="xl:hidden mb-5">{rightColumn}</div>
 
-        <QuestionnairePatientCard
-          patientId={patient.id}
-          patientEmail={patient.patient_email}
-          questionnaireStatus={patient.questionnaire_status}
-          questionnaireCompletedAt={patient.questionnaire_completed_at}
-          questionnaireSummary={patient.questionnaire_summary}
-          bridgeStatus={questionnaireStatus}
-          canManage={canManageQuestionnaire}
-          initialLanguage={questionnaireLanguage}
-          initialFormTypes={questionnaireFormTypes}
-          onSendLink={sendQuestionnaireLink}
-          onRevokeLink={revokeQuestionnaireLink}
-          showPdfDownload={viewConfig.showQuestionnairePdf}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-          <PatientDossierIdentityCard
-            patientName={patient.patient_name}
-            patientEmail={patient.patient_email}
-            patientPhone={patient.patient_phone}
-            questionnaireLanguage={questionnaireLanguage}
-            formTypes={questionnaireFormTypes}
-            parcoursLabel={synthesisPreview?.spineRegionLabel}
-            clinicalSummary={patient.clinical_summary}
-            showClinicalSummary={viewConfig.showClinicalSummary && !viewConfig.showSharePoint}
-          />
-
-          {viewConfig.showSharePoint && (
-            <PatientSummaryCard
-              patientName={patient.patient_name}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-5">
+          <div className="space-y-5">
+            <PatientDossierIdentityCard
+              questionnaireLanguage={questionnaireLanguage}
+              formTypes={questionnaireFormTypes}
+              parcoursLabel={synthesisPreview?.spineRegionLabel}
               clinicalSummary={patient.clinical_summary}
-              sharepointLink={patient.sharepoint_link}
-              globalStatus={globalStatus}
-              userRole={userRole}
-              showSharePoint={viewConfig.showSharePoint}
-              onUpdate={handleUpdateSummary}
+              showClinicalSummary={viewConfig.showClinicalSummary && !viewConfig.showSharePoint}
+              showCommercialData={showCommercialData}
+              quoteAmount={patient.quote_amount}
+              proposedDate={patient.proposed_date}
+              quoteAccepted={patient.quote_accepted}
+              dateAccepted={patient.date_accepted}
+              assignedSurgeonName={patient.assigned_surgeon?.full_name}
             />
-          )}
 
-          <DocumentsSection patientId={patient.id} canManage={viewConfig.canManageDocuments} />
+            {viewConfig.showSharePoint && (
+              <PatientSummaryCard
+                patientName={patient.patient_name}
+                clinicalSummary={patient.clinical_summary}
+                sharepointLink={patient.sharepoint_link}
+                globalStatus={globalStatus}
+                userRole={userRole}
+                showSharePoint={viewConfig.showSharePoint}
+                onUpdate={handleUpdateSummary}
+              />
+            )}
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="border-b border-gray-200">
-              <nav className="flex -mb-px">
-                <button
-                  onClick={() => setActiveTab('medical')}
-                  className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-sm font-medium border-b-2 transition ${
-                    activeTab === 'medical'
-                      ? 'border-[#2563EB] text-[#2563EB]'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Santé
-                </button>
-                {showCommercialTab && (
-                  <button
-                    onClick={() => setActiveTab('commercial')}
-                    className={`flex-1 sm:flex-none px-4 sm:px-6 py-3 text-sm font-medium border-b-2 transition ${
-                      activeTab === 'commercial'
-                        ? 'border-[#2563EB] text-[#2563EB]'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    Devis & Planning
-                  </button>
+            <DocumentsSection patientId={patient.id} canManage={canManageDocumentsEffective} />
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 bg-[#1E2B70] border-b border-[#171F52]">
+                <h2 className="text-xs font-extrabold uppercase tracking-widest text-white">
+                  Notes & messages
+                </h2>
+              </div>
+              <div className="p-4 sm:p-6 space-y-4">
+                <MessageThread patientId={patient.id} initialMessages={medicalMessages} />
+                {!isReadOnly && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Ajouter un message</h3>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <MessageComposer patientId={patient.id} topic="medical" />
+                    </Suspense>
+                  </div>
                 )}
-              </nav>
-            </div>
 
-            <div className="p-4 sm:p-6">
-              {activeTab === 'medical' && (
-                <div className="space-y-4">
-                  <MessageThread
-                    patientId={patient.id}
-                    initialMessages={medicalMessages}
-                  />
-                  {!isReadOnly && (
-                    <div className="pt-4 border-t border-gray-200">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Ajouter un message</h3>
-                      <Suspense fallback={<LoadingSpinner />}>
-                        <MessageComposer patientId={patient.id} topic="medical" />
-                      </Suspense>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'commercial' && showCommercialTab && (
-                <div className="space-y-4 sm:space-y-6">
-                  <Suspense fallback={<LoadingSpinner />}>
-                    <CommercialData
-                      patientId={patient.id}
-                      initialQuoteAmount={patient.quote_amount}
-                      initialProposedDate={patient.proposed_date}
-                      canEdit={userRole === 'marcel' || userRole === 'franchir' || userRole === 'admin'}
-                    />
-                  </Suspense>
-
-                  <div className="border-t border-gray-200 pt-4 sm:pt-6">
+                {commercialMessages.length > 0 && (
+                  <div className="pt-4 border-t border-gray-200">
                     <h3 className="text-sm font-medium text-gray-900 mb-4">Messages commerciaux</h3>
-                    {commercialMessages.length > 0 ? (
-                      <>
-                        <MessageThread
-                          patientId={patient.id}
-                          initialMessages={commercialMessages}
-                        />
-                        {!isReadOnly && (
-                          <div className="pt-4 border-t border-gray-200">
-                            <Suspense fallback={<LoadingSpinner />}>
-                              <MessageComposer patientId={patient.id} topic="commercial" />
-                            </Suspense>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-center py-6 sm:py-8">
-                        <p className="text-sm text-gray-500 mb-4">
-                          Aucun message commercial pour le moment
-                        </p>
-                        {!isReadOnly && (
-                          <div className="max-w-md mx-auto">
-                            <Suspense fallback={<LoadingSpinner />}>
-                              <MessageComposer patientId={patient.id} topic="commercial" />
-                            </Suspense>
-                          </div>
-                        )}
+                    <MessageThread patientId={patient.id} initialMessages={commercialMessages} />
+                    {!isReadOnly && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <MessageComposer patientId={patient.id} topic="commercial" />
+                        </Suspense>
                       </div>
                     )}
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="hidden lg:block lg:col-span-1">
-          <div className="sticky top-20 space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-5">Actions disponibles</h2>
-              {actionsSidebar}
-            </div>
-
-            <QuestionnairePatientCard
-              patientId={patient.id}
-              patientEmail={patient.patient_email}
-              questionnaireStatus={patient.questionnaire_status}
-              questionnaireCompletedAt={patient.questionnaire_completed_at}
-              questionnaireSummary={patient.questionnaire_summary}
-              bridgeStatus={questionnaireStatus}
-              canManage={canManageQuestionnaire}
-              initialLanguage={questionnaireLanguage}
-              initialFormTypes={questionnaireFormTypes}
-              onSendLink={sendQuestionnaireLink}
-              onRevokeLink={revokeQuestionnaireLink}
-              showPdfDownload={viewConfig.showQuestionnairePdf}
-            />
-
-            <div className="bg-blue-100 border-2 border-blue-300 rounded-xl p-4">
-              <h3 className="text-base font-bold text-blue-950 mb-2">Informations</h3>
-              <div className="space-y-2 text-sm text-blue-900">
-                <p>
-                  <span className="font-semibold">Créé par:</span> {patient.creator.full_name}
-                </p>
-                <p>
-                  <span className="font-semibold">Date:</span>{' '}
-                  {new Date(patient.created_at).toLocaleDateString('fr-FR')}
-                </p>
+                )}
               </div>
             </div>
           </div>
+
+          <div className="hidden xl:block">
+            <div className="sticky top-20">{rightColumn}</div>
+          </div>
         </div>
       </div>
-    </div>
     </div>
   )
 }

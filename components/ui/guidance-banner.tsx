@@ -5,24 +5,28 @@ import type { GlobalStatus } from '@/lib/workflow-v2'
 type GuidanceBannerProps = {
   globalStatus: GlobalStatus
   guidance: string
+  /** Titre principal (défaut : « Prochaine étape »). */
+  headline?: string
   waitingOnOther?: boolean
   pendingActorLabel?: string
   waitingDetail?: string
   className?: string
 }
 
-const STATUS_STYLES: Record<GlobalStatus, string> = {
+export const STATUS_STYLES: Record<GlobalStatus, string> = {
   draft: 'bg-slate-100 border-slate-300 text-slate-900',
   medical_review: 'bg-blue-100 border-blue-400 text-blue-950',
   medical_more_info: 'bg-amber-100 border-amber-400 text-amber-950',
   rejected: 'bg-red-100 border-red-400 text-red-950',
   commercial_in_progress: 'bg-emerald-100 border-emerald-400 text-emerald-950',
   scheduled: 'bg-green-100 border-green-400 text-green-950',
+  closed: 'bg-slate-100 border-slate-300 text-slate-700',
 }
 
 export function GuidanceBanner({
   globalStatus,
   guidance,
+  headline = 'Prochaine étape',
   waitingOnOther = false,
   pendingActorLabel,
   waitingDetail,
@@ -42,7 +46,7 @@ export function GuidanceBanner({
         ) : (
           <Info className="w-5 h-5 shrink-0" aria-hidden />
         )}
-        Prochaine étape
+        {headline}
       </div>
       <p className="text-base sm:text-lg font-medium leading-relaxed">{guidance}</p>
       {waitingOnOther && waitingDetail && (

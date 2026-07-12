@@ -118,16 +118,23 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <AppHeader userRole={userRole} userName={staffProfile.full_name ?? undefined} showActions={true} />
-      <PatientDetailClient
-        initialPatient={patient}
-        initialMessages={allMessages || []}
+      <AppHeader
         userRole={userRole}
-        surgeons={surgeons || []}
-        questionnaireStatus={questionnaireStatus}
-        synthesisPreview={synthesisPreview}
-        synthesisPreviewError={synthesisPreviewError}
+        userName={staffProfile.full_name ?? undefined}
+        patientName={patient.patient_name}
+        showActions={true}
       />
+      <div className="min-h-screen bg-franchir-cream [&_.anamneze-dashboard]:bg-transparent">
+        <PatientDetailClient
+          initialPatient={patient}
+          initialMessages={allMessages || []}
+          userRole={userRole}
+          surgeons={surgeons || []}
+          questionnaireStatus={questionnaireStatus}
+          synthesisPreview={synthesisPreview}
+          synthesisPreviewError={synthesisPreviewError}
+        />
+      </div>
     </>
   )
 }

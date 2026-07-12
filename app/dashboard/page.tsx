@@ -2,10 +2,23 @@ import { createServerClient } from '@/lib/supabase/server'
 import { isStaffProfile } from '@/lib/access-control'
 import { type Role } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
-import NotificationBell from '@/components/notifications/notification-bell'
 import AppHeader from '@/components/app-header'
 import PatientList from '@/components/dashboard/patient-list'
 import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integrations/issue-questionnaire-link'
+import {
+  computeDashboardSummary,
+  getFocusPatientIds,
+  getPipelinePatientIds,
+  getTabPatientIds,
+  getToConfirmPatientIds,
+  getActifsPatientIds,
+  normalizeDashboardFocus,
+  normalizeDashboardKpi,
+  normalizeDashboardTab,
+  selectedGlobalStatusFromCodes,
+  type DashboardFocus,
+  type SummaryPatientExtended,
+} from '@/lib/dashboard-summary'
 
 const ITEMS_PER_PAGE = 20
 const SORT_COLUMNS = ['created_at', 'patient_name', 'current_status_id'] as const
@@ -18,6 +31,9 @@ type DashboardSearchParams = {
   page?: string
   q?: string
   status?: string | string[]
+  focus?: string
+  tab?: string
+  kpi?: string
   sort?: string
   dir?: string
 }
@@ -35,8 +51,10 @@ type PatientQueryRow = {
   created_at: string
   questionnaire_status: string | null
   proposed_date: string | null
-  confirmed_surgery_date: string | null
-  confirmed_surgeon_name: string | null
+  quote_amount: number | null
+  quote_accepted: boolean | null
+  date_accepted: boolean | null
+  assigned_surgeon: { full_name: string } | { full_name: string }[] | null
   workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
   profiles: { full_name: string } | { full_name: string }[] | null
 }
@@ -68,35 +86,43 @@ function normalizeDirection(direction: string | undefined): SortDirection {
     : 'desc'
 }
 
-async function getWorkflowStatuses(): Promise<WorkflowStatusOption[]> {
+type SummaryQueryRow = {
+  id: string
+  quote_accepted: boolean | null
+  date_accepted: boolean | null
+  workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
+}
+
+async function getAllPatientsForSummary(): Promise<SummaryPatientExtended[]> {
   const supabase = await createServerClient()
   const { data } = await supabase
-    .from('workflow_statuses')
-    .select('id, code, label, color')
-    .order('order_position', { ascending: true })
+    .from('patients')
+    .select(
+      'id, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label)',
+    )
 
-  return (data || []) as WorkflowStatusOption[]
+  return ((data || []) as SummaryQueryRow[]).map((patient) => ({
+    id: patient.id,
+    quote_accepted: patient.quote_accepted ?? false,
+    date_accepted: patient.date_accepted ?? false,
+    workflow_statuses: firstRelation(patient.workflow_statuses),
+  }))
 }
 
 async function getPatients({
   page,
   query,
-  statuses,
   sort,
   direction,
-  statusOptions,
+  filterPatientIds,
 }: {
   page: number
   query: string
-  statuses: string[]
   sort: SortColumn
   direction: SortDirection
-  statusOptions: WorkflowStatusOption[]
+  filterPatientIds?: string[] | null
 }) {
   const supabase = await createServerClient()
-  const selectedStatusIds = statusOptions
-    .filter((status) => statuses.includes(status.code))
-    .map((status) => status.id)
 
   const from = (page - 1) * ITEMS_PER_PAGE
   const to = from + ITEMS_PER_PAGE - 1
@@ -104,14 +130,14 @@ async function getPatients({
   const fullQuery = supabase
     .from('patients')
     .select(
-      'id, patient_name, created_at, questionnaire_status, proposed_date, confirmed_surgery_date, confirmed_surgeon_name, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
+      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
       { count: 'exact' },
     )
 
   const baseQuery = supabase
     .from('patients')
     .select(
-      'id, patient_name, created_at, questionnaire_status, proposed_date, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
+      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
       { count: 'exact' },
     )
 
@@ -119,9 +145,12 @@ async function getPatients({
     fullQuery.ilike('patient_name', `%${query}%`)
     baseQuery.ilike('patient_name', `%${query}%`)
   }
-  if (selectedStatusIds.length > 0) {
-    fullQuery.in('current_status_id', selectedStatusIds)
-    baseQuery.in('current_status_id', selectedStatusIds)
+  if (filterPatientIds !== null && filterPatientIds !== undefined) {
+    if (filterPatientIds.length === 0) {
+      return { patients: [], total: 0 }
+    }
+    fullQuery.in('id', filterPatientIds)
+    baseQuery.in('id', filterPatientIds)
   }
 
   const fullResult = await fullQuery
@@ -140,8 +169,10 @@ async function getPatients({
     created_at: patient.created_at,
     questionnaire_status: patient.questionnaire_status ?? null,
     proposed_date: patient.proposed_date,
-    confirmed_surgery_date: patient.confirmed_surgery_date ?? null,
-    confirmed_surgeon_name: patient.confirmed_surgeon_name ?? null,
+    quote_amount: patient.quote_amount ?? null,
+    quote_accepted: patient.quote_accepted ?? false,
+    date_accepted: patient.date_accepted ?? false,
+    assigned_surgeon_name: firstRelation(patient.assigned_surgeon)?.full_name ?? null,
     workflow_statuses: firstRelation(patient.workflow_statuses),
     profiles: firstRelation(patient.profiles),
   }))
@@ -190,39 +221,41 @@ export default async function DashboardPage({
   }
 
   const userRole = profile?.role as Role
-  const statusOptions = await getWorkflowStatuses()
+  const dashboardRole = userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'
+  const focus: DashboardFocus = normalizeDashboardFocus(params.focus)
+  const activeTab = normalizeDashboardTab(params.tab)
+  const activeKpi = normalizeDashboardKpi(params.kpi)
+  const summaryPatients = await getAllPatientsForSummary()
+  const dashboardSummary = computeDashboardSummary(summaryPatients, dashboardRole, summaryPatients)
+  const pipelineGlobalStatus = selectedGlobalStatusFromCodes(selectedStatuses)
+
+  let filterPatientIds: string[] | null = null
+  if (focus !== 'all') {
+    filterPatientIds = getFocusPatientIds(summaryPatients, dashboardRole, focus)
+  } else if (activeKpi === 'toConfirm') {
+    filterPatientIds = getToConfirmPatientIds(summaryPatients)
+  } else if (activeKpi === 'actifs') {
+    filterPatientIds = getActifsPatientIds(summaryPatients)
+  } else if (activeTab) {
+    filterPatientIds = getTabPatientIds(summaryPatients, activeTab)
+  } else if (pipelineGlobalStatus) {
+    filterPatientIds = getPipelinePatientIds(summaryPatients, pipelineGlobalStatus)
+  }
+
   const { patients, total } = await getPatients({
     page: currentPage,
     query: searchQuery,
-    statuses: selectedStatuses,
     sort,
     direction,
-    statusOptions,
+    filterPatientIds,
   })
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE))
 
   return (
     <>
       <AppHeader userRole={userRole} userName={profile?.full_name} showActions={true} />
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-extrabold text-gray-900 sm:text-3xl">
-                Tableau de Suivi FRANCHIR
-              </h1>
-              <p className="mt-1 text-xs text-gray-600 sm:text-sm">
-                Connecté : {profile?.full_name} - <span className="font-semibold">{userRole}</span>
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                {total} patient{total > 1 ? 's' : ''} trouvé{total > 1 ? 's' : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <NotificationBell />
-            </div>
-          </div>
-
+      <div className="min-h-screen bg-franchir-cream p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto max-w-[1400px]">
           <PatientList
             initialPatients={patients}
             total={total}
@@ -231,10 +264,14 @@ export default async function DashboardPage({
             itemsPerPage={ITEMS_PER_PAGE}
             searchQuery={searchQuery}
             selectedStatuses={selectedStatuses}
-            statusOptions={statusOptions}
+            activeTab={activeTab}
+            activeKpi={activeKpi}
             sort={sort}
             direction={direction}
-            userRole={userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'}
+            userRole={dashboardRole}
+            dashboardSummary={dashboardSummary}
+            focus={focus}
+            totalPatients={summaryPatients.length}
           />
         </div>
       </div>

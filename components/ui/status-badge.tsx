@@ -1,4 +1,7 @@
+'use client'
+
 import { cn } from '@/lib/utils'
+import { HoverTooltip } from '@/components/ui/hover-tooltip'
 
 type StatusBadgeVariant = 'default' | 'success' | 'warning' | 'info' | 'danger' | 'neutral'
 
@@ -18,6 +21,10 @@ type StatusBadgeProps = {
   color?: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  /** Libellé complet au survol (défaut : label). */
+  title?: string
+  /** Empêche les retours à la ligne au milieu des mots. */
+  nowrap?: boolean
 }
 
 const SIZE_CLASSES = {
@@ -32,33 +39,46 @@ export function StatusBadge({
   color,
   size = 'md',
   className,
+  title,
+  nowrap = false,
 }: StatusBadgeProps) {
-  if (color) {
-    return (
-      <span
-        className={cn(
-          'inline-flex items-center rounded-full font-bold text-white border-2 border-white/20 shadow-sm',
-          SIZE_CLASSES[size],
-          className,
-        )}
-        style={{ backgroundColor: color }}
-      >
-        {label}
-      </span>
-    )
-  }
+  const tooltip = title ?? label
+  const showTooltip = tooltip !== label
 
-  return (
+  const badge = color ? (
     <span
       className={cn(
-        'inline-flex items-center rounded-full font-bold border-2',
+        'inline-flex max-w-full min-w-0 items-center rounded-full border-2 border-white/20 font-bold text-white shadow-sm',
+        nowrap && 'whitespace-nowrap',
+        SIZE_CLASSES[size],
+        className,
+      )}
+      style={{ backgroundColor: color }}
+    >
+      <span className={cn('min-w-0', nowrap ? undefined : 'truncate')} title={tooltip}>
+        {label}
+      </span>
+    </span>
+  ) : (
+    <span
+      className={cn(
+        'inline-flex max-w-full min-w-0 items-center rounded-full border-2 font-bold',
+        nowrap && 'whitespace-nowrap',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className,
       )}
     >
-      {label}
+      <span className={cn('min-w-0', nowrap ? undefined : 'truncate')} title={tooltip}>
+        {label}
+      </span>
     </span>
+  )
+
+  return (
+    <HoverTooltip content={tooltip} disabled={!showTooltip}>
+      {badge}
+    </HoverTooltip>
   )
 }
 
@@ -74,4 +94,11 @@ export function questionnaireStatusLabel(status: string | null | undefined): str
   if (status === 'completed') return 'Complété'
   if (status === 'sent') return 'Lien envoyé — en attente'
   return 'En attente d\'envoi'
+}
+
+/** Libellé court pour colonnes tableau (évite les coupures maladroites). */
+export function questionnaireStatusShortLabel(status: string | null | undefined): string {
+  if (status === 'completed') return 'Complété'
+  if (status === 'sent') return 'Lien envoyé'
+  return 'À envoyer'
 }

@@ -19,7 +19,8 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { canManagePatientDocuments } from '@/lib/access-control'
+import { canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import {
   PATIENT_DOCUMENTS_BUCKET,
   MAX_DOCUMENTS_PER_REQUEST,
@@ -73,9 +74,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .eq('id', user.id)
     .single()
 
-  if (!canManagePatientDocuments(profile)) {
+  if (!profile || !canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const archivedDeny = await denyIfArchivedPatientWrite(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (archivedDeny) return archivedDeny
 
   const body = await req.json().catch(() => null)
   const parsed = signUploadRequestSchema.safeParse(body)

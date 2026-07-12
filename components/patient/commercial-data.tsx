@@ -6,6 +6,8 @@ interface CommercialDataProps {
   patientId: string
   initialQuoteAmount?: number | null
   initialProposedDate?: string | null
+  quoteAccepted?: boolean
+  dateAccepted?: boolean
   canEdit: boolean
 }
 
@@ -13,6 +15,8 @@ export default function CommercialData({
   patientId,
   initialQuoteAmount,
   initialProposedDate,
+  quoteAccepted = false,
+  dateAccepted = false,
   canEdit,
 }: CommercialDataProps) {
   const [isEditingQuote, setIsEditingQuote] = useState(false)
@@ -77,6 +81,27 @@ export default function CommercialData({
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-wrap gap-2">
+        <span
+          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${
+            quoteAccepted
+              ? 'border-green-400 bg-green-100 text-green-900'
+              : 'border-amber-300 bg-amber-50 text-amber-900'
+          }`}
+        >
+          Devis {quoteAccepted ? 'confirmé' : 'en attente de confirmation'}
+        </span>
+        <span
+          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${
+            dateAccepted
+              ? 'border-green-400 bg-green-100 text-green-900'
+              : 'border-amber-300 bg-amber-50 text-amber-900'
+          }`}
+        >
+          Date {dateAccepted ? 'confirmée' : 'en attente de confirmation'}
+        </span>
+      </div>
+
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-gray-900">Budget indicatif</label>

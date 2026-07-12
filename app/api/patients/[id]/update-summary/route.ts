@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server'
-import { canEditPatientSummary } from '@/lib/access-control'
+import { canEditPatientSummary, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import { NextResponse } from 'next/server'
 
 export async function PATCH(
@@ -25,9 +26,16 @@ export async function PATCH(
     .eq('id', user.id)
     .single()
 
-  if (!canEditPatientSummary(profile)) {
+  if (!profile || !canEditPatientSummary(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const archivedDeny = await denyIfArchivedPatientWrite(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (archivedDeny) return archivedDeny
 
   const { error } = await supabase
     .from('patients')

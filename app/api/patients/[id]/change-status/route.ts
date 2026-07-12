@@ -5,7 +5,11 @@ import { revalidatePath } from 'next/cache'
 import { type ActionId, canPerformWorkflowAction, globalStatusFromWorkflowStatus } from '@/lib/workflow-v2'
 import { Logger } from '@/lib/logger'
 import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
-import { sendStatusChangeNotifications, sendSurgeonAssignmentEmail } from '@/lib/notifications'
+import {
+  sendCommercialActionNotifications,
+  sendStatusChangeNotifications,
+  sendSurgeonAssignmentEmail,
+} from '@/lib/notifications'
 import { logPatientAction } from '@/lib/patient-messages/log-action'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -16,6 +20,63 @@ function getWriteClient(role: StaffRole, sessionClient: SupabaseClient): Supabas
     return createServiceRoleClient()
   }
   return sessionClient
+}
+
+function parseQuoteAmount(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  const text = String(raw).replace(/\s/g, '')
+  const match = text.match(/[\d]+(?:[.,]\d+)?/)
+  if (!match) return null
+  const value = parseFloat(match[0].replace(',', '.'))
+  return Number.isFinite(value) ? value : null
+}
+
+/** Normalise un nom pour rapprochement fuzzy sur full_name. */
+function normalizeSurgeonName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim()
+}
+
+/** Legacy API : data.surgeons (noms) → UUID annuaire si surgeonIds absent. */
+async function resolveSurgeonIdsFromNames(
+  writeClient: SupabaseClient,
+  names: unknown[],
+): Promise<string[]> {
+  const { data: activeSurgeons } = await writeClient
+    .from('surgeons')
+    .select('id, full_name')
+    .eq('is_active', true)
+
+  if (!activeSurgeons?.length) return []
+
+  const ids: string[] = []
+  for (const raw of names) {
+    const needle = normalizeSurgeonName(String(raw))
+    if (!needle) continue
+    const match = activeSurgeons.find((surgeon) => {
+      const haystack = normalizeSurgeonName(surgeon.full_name)
+      return haystack === needle || haystack.includes(needle) || needle.includes(haystack)
+    })
+    if (match && !ids.includes(match.id)) {
+      ids.push(match.id)
+    }
+  }
+  return ids
+}
+
+function parseFirstProposedDate(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  const parts = raw.split(/[,;\n]+/).map((part) => part.trim()).filter(Boolean)
+  for (const part of parts) {
+    const parsed = new Date(part)
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString()
+    }
+  }
+  return null
 }
 
 export async function POST(
@@ -75,6 +136,8 @@ export async function POST(
     current_status?: { id: string; code: string; label: string; color: string }
     quote_accepted?: boolean
     date_accepted?: boolean
+    quote_amount?: number | null
+    proposed_date?: string | null
     assigned_surgeon?: { id: string; full_name: string; email?: string | null } | null
   } = {}
 
@@ -92,11 +155,15 @@ export async function POST(
       break
 
     case 'approve_medical': {
+      // API contract : préférer data.surgeonIds (UUID[]). Legacy : data.surgeons (full_name[]).
       newStatusCode = 'validated_medical'
       messageTitle = 'Validé médicalement'
       messageBody = data?.message || 'Le dossier a été validé médicalement.'
 
-      const recommendedIds: string[] = Array.isArray(data?.surgeonIds) ? data.surgeonIds : []
+      let recommendedIds: string[] = Array.isArray(data?.surgeonIds) ? data.surgeonIds : []
+      if (recommendedIds.length === 0 && Array.isArray(data?.surgeons)) {
+        recommendedIds = await resolveSurgeonIdsFromNames(writeClient, data.surgeons)
+      }
       if (recommendedIds.length === 0) {
         return NextResponse.json(
           { error: 'Au moins un chirurgien recommandé est requis' },
@@ -235,15 +302,49 @@ export async function POST(
       messageBody = data?.message || 'Le dossier a été réouvert par un administrateur.'
       break
 
-    case 'add_budget':
-      messageTitle = 'Budget indicatif ajouté'
-      messageBody = `Budget indicatif: ${data?.budget || 'Non spécifié'}`
+    case 'close_case':
+      newStatusCode = 'case_closed'
+      messageTitle = 'Dossier fermé'
+      messageBody =
+        data?.message ||
+        'Le dossier a été fermé. L\'historique est conservé ; aucune action workflow en attente.'
       break
 
-    case 'propose_dates':
+    case 'add_budget': {
+      messageTitle = 'Budget indicatif ajouté'
+      messageBody = `Budget indicatif: ${data?.budget || 'Non spécifié'}`
+      const quoteAmount = parseQuoteAmount(data?.budget)
+      if (quoteAmount !== null) {
+        const { error: budgetError } = await writeClient
+          .from('patients')
+          .update({ quote_amount: quoteAmount })
+          .eq('id', patientId)
+        if (budgetError) {
+          log.error('Erreur enregistrement budget', budgetError)
+          return NextResponse.json({ error: budgetError.message }, { status: 500 })
+        }
+        updatedPatient.quote_amount = quoteAmount
+      }
+      break
+    }
+
+    case 'propose_dates': {
       messageTitle = 'Dates proposées'
       messageBody = `Dates proposées:\n${data?.dates || 'Non spécifié'}`
+      const proposedDate = parseFirstProposedDate(data?.dates)
+      if (proposedDate) {
+        const { error: dateError } = await writeClient
+          .from('patients')
+          .update({ proposed_date: proposedDate })
+          .eq('id', patientId)
+        if (dateError) {
+          log.error('Erreur enregistrement date proposée', dateError)
+          return NextResponse.json({ error: dateError.message }, { status: 500 })
+        }
+        updatedPatient.proposed_date = proposedDate
+      }
       break
+    }
 
     default:
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -302,6 +403,17 @@ export async function POST(
         { id: user.id },
         { id: patientId, patient_name: patient.patient_name },
         newStatusCode
+      )
+    } else if (
+      actionId === 'add_budget' ||
+      actionId === 'confirm_quote' ||
+      actionId === 'propose_dates'
+    ) {
+      await sendCommercialActionNotifications(
+        supabase,
+        { id: user.id },
+        { id: patientId, patient_name: patient.patient_name },
+        actionId as 'add_budget' | 'confirm_quote' | 'propose_dates',
       )
     }
 

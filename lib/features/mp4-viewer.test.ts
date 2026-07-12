@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, afterEach } from 'vitest'
 import { inferRenderType } from '@/lib/documents/patient-documents'
 
 describe('inferRenderType (MP4 staging)', () => {

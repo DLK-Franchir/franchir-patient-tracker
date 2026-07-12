@@ -12,7 +12,8 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { canManagePatientDocuments } from '@/lib/access-control'
+import { canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import {
   PATIENT_DOCUMENTS_BUCKET,
   isObjectKeyOwnedByPatient,
@@ -46,9 +47,16 @@ export async function DELETE(
     .eq('id', user.id)
     .single()
 
-  if (!canManagePatientDocuments(profile)) {
+  if (!profile || !canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const archivedDeny = await denyIfArchivedPatientWrite(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (archivedDeny) return archivedDeny
 
   const service = createServiceRoleClient()
 

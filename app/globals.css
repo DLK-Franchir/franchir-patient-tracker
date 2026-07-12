@@ -27,6 +27,18 @@
   --info-soft: #eff6ff;
   --info-border: #bfdbfe;
   --brand: #2563eb;
+
+  /* FRANCHIR V3 brand shell */
+  --franchir-navy: #1e2b70;
+  --franchir-navy-dark: #171f52;
+  --franchir-coral: #e8534a;
+  --franchir-coral-dark: #d03d34;
+  --franchir-cream: #f2ede4;
+  --franchir-cream-dark: #f4efdf;
+  --franchir-cream-mid: #e8e0d4;
+  --franchir-slate: #6b7caa;
+  --franchir-ink: #2e3450;
+
   --dash-bg: #f5f5f7;
   --dash-teal: #38b2ac;
   --dash-coral: #e53e3e;
@@ -61,6 +73,15 @@
   --color-info-soft: var(--info-soft);
   --color-info-border: var(--info-border);
   --color-brand: var(--brand);
+  --color-franchir-navy: var(--franchir-navy);
+  --color-franchir-navy-dark: var(--franchir-navy-dark);
+  --color-franchir-coral: var(--franchir-coral);
+  --color-franchir-coral-dark: var(--franchir-coral-dark);
+  --color-franchir-cream: var(--franchir-cream);
+  --color-franchir-cream-dark: var(--franchir-cream-dark);
+  --color-franchir-cream-mid: var(--franchir-cream-mid);
+  --color-franchir-slate: var(--franchir-slate);
+  --color-franchir-ink: var(--franchir-ink);
   --color-dash-bg: var(--dash-bg);
   --color-dash-teal: var(--dash-teal);
   --color-dash-coral: var(--dash-coral);

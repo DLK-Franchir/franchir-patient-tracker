@@ -1,3 +1,9 @@
+/** Code stable en base (`workflow_statuses.code`). */
+export const CASE_CLOSED_STATUS_CODE = 'case_closed'
+
+/** Présentation liste dashboard pour dossiers archivés. */
+export const CLOSED_DOSSIER_GREY = '#9CA3AF'
+
 export type GlobalStatus = 
   | 'draft'
   | 'medical_review'
@@ -5,6 +11,11 @@ export type GlobalStatus =
   | 'rejected'
   | 'commercial_in_progress'
   | 'scheduled'
+  | 'closed'
+
+export function isClosedGlobalStatus(status: GlobalStatus): boolean {
+  return status === 'closed'
+}
 
 export type UserRole = 'marcel' | 'franchir' | 'gilles' | 'admin'
 
@@ -20,6 +31,7 @@ export type ActionId =
   | 'confirm_quote'
   | 'confirm_date'
   | 'reopen_case'
+  | 'close_case'
   | 'add_budget'
   | 'propose_dates'
 
@@ -34,6 +46,10 @@ export function canPerformWorkflowAction(
   actionId: ActionId,
   globalStatus?: GlobalStatus,
 ): boolean {
+  if (globalStatus === 'closed' && actionId !== 'reopen_case') {
+    return false
+  }
+
   switch (actionId) {
     case 'approve_medical':
     case 'request_more_info':
@@ -54,6 +70,11 @@ export function canPerformWorkflowAction(
       return role === 'marcel' || role === 'franchir' || role === 'admin'
     case 'reopen_case':
       return role === 'admin'
+    case 'close_case':
+      if (globalStatus === 'rejected' || globalStatus === 'closed') {
+        return false
+      }
+      return role === 'marcel' || role === 'franchir' || role === 'admin'
     default:
       return false
   }
@@ -79,7 +100,7 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     const code = status.code.toLowerCase()
 
     // Mapping strict par code
-    if (code === 'draft' || code === 'prospect' || code === 'created') {
+    if (code === 'draft' || code === 'prospect' || code === 'created' || code === 'prospect_created') {
       return 'draft'
     }
     if (code === 'medical_review' || code === 'pending_medical' || code === 'awaiting_medical') {
@@ -90,6 +111,9 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     }
     if (code === 'rejected_medical' || code === 'rejected' || code === 'refused') {
       return 'rejected'
+    }
+    if (code === 'case_closed' || code === 'closed' || code === 'archived') {
+      return 'closed'
     }
     if (code === 'surgery_scheduled' || code === 'scheduled' || code === 'confirmed') {
       return 'scheduled'
@@ -170,6 +194,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
 }
 
 export function getWorkflowHandoff(globalStatus: GlobalStatus, role: UserRole): WorkflowHandoff {
+  if (globalStatus === 'closed') {
+    return {
+      pendingActor: null,
+      pendingActorLabel: '',
+      guidance: 'Dossier fermé — historique conservé, aucune action en cours.',
+    }
+  }
+
   if (globalStatus === 'rejected') {
     const guidance =
       role === 'admin'
@@ -328,6 +360,25 @@ export function getAvailableActions({
   }
 
   if (globalStatus === 'rejected') {
+    if (role === 'admin') {
+      result.primaryAction = {
+        id: 'reopen_case',
+        label: 'Réouvrir le dossier',
+        variant: 'primary',
+        targetGlobalStatus: 'draft',
+        requiresInput: [
+          {
+            type: 'message',
+            label: 'Raison de la réouverture',
+            required: true,
+          },
+        ],
+      }
+    }
+    return result
+  }
+
+  if (globalStatus === 'closed') {
     if (role === 'admin') {
       result.primaryAction = {
         id: 'reopen_case',
@@ -524,6 +575,23 @@ export function getAvailableActions({
           type: 'surgeon_select',
           label: 'Chirurgien assigné',
           required: true,
+        },
+      ],
+    })
+  }
+
+  if (role === 'marcel' || role === 'franchir' || role === 'admin') {
+    result.secondaryActions.push({
+      id: 'close_case',
+      label: 'Fermer le dossier',
+      description: 'Archiver le dossier : conserve l\'historique, aucune action en attente',
+      variant: 'danger',
+      targetGlobalStatus: 'closed',
+      requiresInput: [
+        {
+          type: 'message',
+          label: 'Motif de clôture (optionnel)',
+          required: false,
         },
       ],
     })

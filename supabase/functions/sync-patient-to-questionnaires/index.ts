@@ -86,6 +86,9 @@ Deno.serve(async (req) => {
       patientPhone: record.patient_phone ?? null,
       assignedSurgeonEmail: surgeonEmail,
       assignedSurgeonName: surgeonName,
+      // Réassignation tracker (ex. Rakover → Soufiane) : le tracker est source
+      // de vérité ; sans ce drapeau le pont répond 409 et le clinicien ne voit pas le dossier.
+      overrideSurgeonAssignment: surgeonEmail !== null,
       clinicalSummary: record.clinical_summary ?? null,
       sharepointLink: record.sharepoint_link ?? null,
       formTypes: Array.isArray(record.form_types) ? record.form_types : undefined,

@@ -62,6 +62,25 @@ export default function WorkflowTimeline({ currentStatus }: WorkflowTimelineProp
 
   const currentIndex = statusOrder.indexOf(currentStatus)
   const isRejected = currentStatus === 'rejected'
+  const isClosed = currentStatus === 'closed'
+
+  if (isClosed) {
+    return (
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-200 text-slate-700 border-2 border-slate-400 flex items-center justify-center font-bold text-base sm:text-lg shrink-0">
+            ⊘
+          </div>
+          <div>
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900">Dossier fermé</h3>
+            <p className="text-xs sm:text-sm text-slate-600">
+              Ce dossier est archivé. L&apos;historique reste accessible ; aucune action workflow en cours.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (isRejected) {
     return (

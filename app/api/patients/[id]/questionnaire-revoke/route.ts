@@ -6,7 +6,8 @@
 
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { canManagePatientDocuments } from '@/lib/access-control'
+import { canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
+import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import { revokeQuestionnaireLink } from '@/lib/integrations/questionnaire-portal'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -31,9 +32,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .eq('id', user.id)
     .single()
 
-  if (!canManagePatientDocuments(profile)) {
+  if (!profile || !canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const archivedDeny = await denyIfArchivedPatientWrite(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (archivedDeny) return archivedDeny
 
   if (!process.env.TRACKER_SYNC_SERVICE_TOKEN) {
     return NextResponse.json({ error: 'Pont questionnaires non configuré' }, { status: 503 })

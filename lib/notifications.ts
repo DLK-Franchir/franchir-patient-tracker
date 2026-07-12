@@ -16,6 +16,9 @@ const QUESTIONNAIRES_PORTAL_URL =
   process.env.QUESTIONNAIRES_PORTAL_URL || 'https://questionnaire.franchir.eu'
 const log = new Logger('notifications')
 
+/** Les messages internes alimentent déjà le cockpit « Mes actions » — pas de notif in-app. */
+export const SKIP_INAPP_MESSAGE_NOTIFICATIONS = true
+
 export type ProfileRow = {
   id: string
   role: string
@@ -95,17 +98,19 @@ export async function sendNewMessageNotifications(
 
   const link = patientLink(patient.id)
 
-  const { error: insertError } = await supabase.from('notifications').insert(
-    targetProfiles.map((p) => ({
-      user_id: p.id,
-      patient_id: patient.id,
-      type: 'message',
-      title: 'Nouveau message',
-      message: `${actor.full_name} a écrit un message`,
-    }))
-  )
+  if (!SKIP_INAPP_MESSAGE_NOTIFICATIONS) {
+    const { error: insertError } = await supabase.from('notifications').insert(
+      targetProfiles.map((p) => ({
+        user_id: p.id,
+        patient_id: patient.id,
+        type: 'message',
+        title: 'Nouveau message',
+        message: `${actor.full_name} a écrit un message`,
+      })),
+    )
+    if (insertError) log.error('Failed to insert message notifications', insertError)
+  }
 
-  if (insertError) log.error('Failed to insert message notifications', insertError)
   if (!canSendEmails()) return
 
   const emailPromises = targetProfiles
@@ -194,6 +199,82 @@ export const STATUS_NOTIFICATION_RULES: Record<string, { roles: string[]; messag
     roles: ['marcel', 'franchir', 'admin'],
     message: (name) => `Le dossier de ${name} a été réouvert.`,
   },
+}
+
+export type CommercialActionId = 'add_budget' | 'confirm_quote' | 'propose_dates'
+
+export const COMMERCIAL_ACTION_NOTIFICATION_RULES: Record<
+  CommercialActionId,
+  { roles: string[]; message: (name: string) => string }
+> = {
+  add_budget: {
+    roles: ['franchir', 'admin'],
+    message: (name) => `Un budget indicatif a été saisi pour ${name}.`,
+  },
+  confirm_quote: {
+    roles: ['gilles', 'franchir', 'admin'],
+    message: (name) => `Le devis de ${name} a été confirmé par Marcel.`,
+  },
+  propose_dates: {
+    roles: ['franchir', 'admin'],
+    message: (name) => `Des dates de chirurgie ont été proposées pour ${name}.`,
+  },
+}
+
+export async function sendCommercialActionNotifications(
+  supabase: SupabaseClient,
+  actor: { id: string },
+  patient: { id: string; patient_name: string },
+  actionId: CommercialActionId,
+): Promise<void> {
+  const rule = COMMERCIAL_ACTION_NOTIFICATION_RULES[actionId]
+  if (!rule) return
+
+  const statusMessage = rule.message(patient.patient_name)
+  const link = patientLink(patient.id)
+
+  const { data: profiles, error } = await supabase
+    .from('profiles')
+    .select('id, role, full_name, email')
+    .in('role', rule.roles)
+
+  if (error) {
+    log.error('Failed to fetch users for commercial notification', error)
+    return
+  }
+
+  const targetUsers = staffRecipients(profiles as ProfileRow[] | null, actor.id)
+  if (targetUsers.length === 0) return
+
+  const { error: insertError } = await supabase.from('notifications').insert(
+    targetUsers.map((u) => ({
+      user_id: u.id,
+      patient_id: patient.id,
+      title: 'Action commerciale',
+      message: statusMessage,
+      type: 'info',
+    })),
+  )
+
+  if (insertError) log.error('Failed to insert commercial notifications', insertError)
+  if (!canSendEmails()) return
+
+  const emailPromises = targetUsers
+    .map((u) => ({ ...u, realEmail: getEmailForProfile(u) }))
+    .filter((u) => u.realEmail)
+    .map((u) =>
+      resend.emails.send({
+        from: EMAIL_FROM,
+        to: u.realEmail!,
+        subject: `Action commerciale — ${patient.patient_name}`,
+        html: statusChangeEmailHtml(u.full_name, statusMessage, link),
+      }),
+    )
+
+  const results = await Promise.allSettled(emailPromises)
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') log.error(`Commercial email failed for user ${i}`, r.reason)
+  })
 }
 
 export async function sendStatusChangeNotifications(
