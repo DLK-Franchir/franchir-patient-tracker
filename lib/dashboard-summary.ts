@@ -16,12 +16,19 @@ export type SummaryPatient = {
   workflow_statuses: WorkflowStatus | null
 }
 
+export type MineBreakdownEntry = {
+  globalStatus: GlobalStatus
+  count: number
+}
+
 export type DashboardSummary = {
   mine: number
   waiting: number
   byGlobalStatus: Record<GlobalStatus, number>
   totalActive: number
   closed: number
+  /** Dossiers « mine » regroupés par GlobalStatus (tri décroissant). */
+  mineBreakdown: MineBreakdownEntry[]
 }
 
 /** Codes DB (`workflow_statuses.code`) par GlobalStatus — aligné sur globalStatusFromWorkflowStatus. */
@@ -108,11 +115,47 @@ export function selectedGlobalStatusFromCodes(codes: string[]): GlobalStatus | n
   return null
 }
 
+const MINE_BREAKDOWN_ORDER: GlobalStatus[] = [
+  'draft',
+  'medical_review',
+  'medical_more_info',
+  'commercial_in_progress',
+  'rejected',
+]
+
+/** Libellé court pour la ventilation « mine » dans le bandeau priorité. */
+export function mineActionShortLabel(globalStatus: GlobalStatus, role: UserRole): string {
+  switch (globalStatus) {
+    case 'draft':
+      return 'à soumettre'
+    case 'medical_review':
+      return 'en revue médicale'
+    case 'medical_more_info':
+      return 'complément'
+    case 'commercial_in_progress':
+      return role === 'franchir' ? 'devis à gérer' : 'devis à confirmer'
+    case 'rejected':
+      return 'refusé à traiter'
+    default:
+      return GLOBAL_STATUS_LABELS[globalStatus].toLowerCase()
+  }
+}
+
+export function formatMineBreakdown(
+  breakdown: MineBreakdownEntry[],
+  role: UserRole,
+): string {
+  return breakdown
+    .map(({ globalStatus, count }) => `${count} ${mineActionShortLabel(globalStatus, role)}`)
+    .join(' · ')
+}
+
 export function computeDashboardSummary(
   patients: SummaryPatient[],
   role: UserRole,
 ): DashboardSummary {
   const byGlobalStatus = EMPTY_BY_STATUS()
+  const mineByStatus = EMPTY_BY_STATUS()
   let mine = 0
   let waiting = 0
   let closed = 0
@@ -128,10 +171,16 @@ export function computeDashboardSummary(
 
     if (isMinePatient(patient, role)) {
       mine += 1
+      mineByStatus[globalStatus] += 1
     } else if (isWaitingPatient(patient, role)) {
       waiting += 1
     }
   }
+
+  const mineBreakdown = MINE_BREAKDOWN_ORDER
+    .map((globalStatus) => ({ globalStatus, count: mineByStatus[globalStatus] }))
+    .filter((entry) => entry.count > 0)
+    .sort((a, b) => b.count - a.count)
 
   return {
     mine,
@@ -139,6 +188,7 @@ export function computeDashboardSummary(
     byGlobalStatus,
     totalActive: patients.length - closed,
     closed,
+    mineBreakdown,
   }
 }
 
@@ -163,58 +213,94 @@ export function getPipelinePatientIds(
     .map((patient) => patient.id)
 }
 
-export type DashboardPriorityBanner = {
+export type PriorityBannerVariant = 'action' | 'neutral'
+
+export type PriorityBannerContent = {
+  title: string
+  subtitle: string
+  variant: PriorityBannerVariant
   globalStatus: GlobalStatus
-  guidance: string
-  waitingOnOther: boolean
+  waitingOnOther?: boolean
   pendingActorLabel?: string
   waitingDetail?: string
 }
 
+/** @deprecated Utiliser PriorityBannerContent + getPriorityBannerContent. */
+export type DashboardPriorityBanner = PriorityBannerContent & {
+  guidance: string
+}
+
+function formatActiveDossiersLabel(totalActive: number): string {
+  return totalActive === 1 ? '1 dossier actif' : `${totalActive} dossiers actifs`
+}
+
+function formatMineAwaitLabel(mine: number): string {
+  return mine === 1 ? '1 dossier vous attend' : `${mine} dossiers vous attendent`
+}
+
+function formatWaitingProgressLabel(waiting: number): string {
+  return waiting === 1
+    ? '1 dossier en cours chez un autre intervenant'
+    : `${waiting} dossiers en cours chez d'autres intervenants`
+}
+
+/**
+ * Bandeau cockpit : total actif + actions « mine » ventilées.
+ * Ne mélange jamais totalActive / guidance pipeline quand mine === 0.
+ */
+export function getPriorityBannerContent(
+  summary: DashboardSummary,
+  role: UserRole,
+): PriorityBannerContent | null {
+  if (summary.totalActive === 0) {
+    return null
+  }
+
+  const title = formatActiveDossiersLabel(summary.totalActive)
+
+  if (summary.mine > 0) {
+    const dominant = summary.mineBreakdown[0]
+    if (!dominant) return null
+
+    const handoff = getWorkflowHandoff(dominant.globalStatus, role)
+    const mineLabel = formatMineAwaitLabel(summary.mine)
+    const actionDetail =
+      summary.mineBreakdown.length === 1
+        ? handoff.guidance
+        : formatMineBreakdown(summary.mineBreakdown, role)
+
+    return {
+      title,
+      subtitle: `${mineLabel} — ${actionDetail}`,
+      variant: 'action',
+      globalStatus: dominant.globalStatus,
+      waitingOnOther: false,
+    }
+  }
+
+  let subtitle = 'Aucune action requise de votre part'
+  if (summary.waiting > 0) {
+    subtitle = `${subtitle} · ${formatWaitingProgressLabel(summary.waiting)}`
+  }
+
+  return {
+    title,
+    subtitle,
+    variant: 'neutral',
+    globalStatus: 'scheduled',
+    waitingOnOther: false,
+  }
+}
+
+/** @deprecated Préférer getPriorityBannerContent — conserve la forme legacy guidance. */
 export function getDashboardPriorityBanner(
-  patients: SummaryPatient[],
+  _patients: SummaryPatient[],
   role: UserRole,
   summary: DashboardSummary,
 ): DashboardPriorityBanner | null {
-  if (summary.mine > 0) {
-    const minePatient = patients.find((patient) => isMinePatient(patient, role))
-    if (!minePatient) return null
-    const globalStatus = globalStatusFromWorkflowStatus(minePatient.workflow_statuses)
-    const handoff = getWorkflowHandoff(globalStatus, role)
-    const countLabel =
-      summary.mine === 1 ? '1 dossier nécessite' : `${summary.mine} dossiers nécessitent`
-    return {
-      globalStatus,
-      guidance: `${countLabel} votre action — ${handoff.guidance}`,
-      waitingOnOther: false,
-    }
-  }
-
-  if (summary.waiting > 0) {
-    const waitingPatient = patients.find((patient) => isWaitingPatient(patient, role))
-    if (!waitingPatient) return null
-    const globalStatus = globalStatusFromWorkflowStatus(waitingPatient.workflow_statuses)
-    const handoff = getWorkflowHandoff(globalStatus, role)
-    const countLabel =
-      summary.waiting === 1 ? '1 dossier est' : `${summary.waiting} dossiers sont`
-    return {
-      globalStatus,
-      guidance: `${countLabel} en attente d'un autre intervenant.`,
-      waitingOnOther: true,
-      pendingActorLabel: handoff.pendingActorLabel,
-      waitingDetail: handoff.waitingDetail,
-    }
-  }
-
-  if (summary.totalActive > 0) {
-    return {
-      globalStatus: 'scheduled',
-      guidance: 'Aucune action urgente — suivez l\'évolution des dossiers actifs.',
-      waitingOnOther: false,
-    }
-  }
-
-  return null
+  const content = getPriorityBannerContent(summary, role)
+  if (!content) return null
+  return { ...content, guidance: `${content.title} — ${content.subtitle}` }
 }
 
 export function normalizeDashboardFocus(value: string | undefined): DashboardFocus {

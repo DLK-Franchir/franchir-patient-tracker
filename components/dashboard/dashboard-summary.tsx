@@ -9,18 +9,21 @@ import {
   GLOBAL_STATUS_LABELS,
   PIPELINE_GLOBAL_STATUSES,
   type DashboardFocus,
-  type DashboardPriorityBanner,
+  type PriorityBannerContent,
   type DashboardSummary,
   selectedGlobalStatusFromCodes,
 } from '@/lib/dashboard-summary'
 import type { GlobalStatus, UserRole } from '@/lib/workflow-v2'
+
+const MES_ACTIONS_TOOLTIP =
+  'Dossiers actifs où votre rôle doit agir maintenant (soumission, revue, complément, devis…). Les étapes sans action de votre part (programmé, en attente d\'un autre) ne sont pas comptées ici.'
 
 type DashboardSummaryHeaderProps = {
   summary: DashboardSummary
   focus: DashboardFocus
   selectedStatuses: string[]
   userRole: UserRole
-  priorityBanner: DashboardPriorityBanner | null
+  priorityBanner: PriorityBannerContent | null
 }
 
 function ChipButton({
@@ -29,12 +32,14 @@ function ChipButton({
   children,
   count,
   variant = 'default',
+  title,
 }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
   count?: number
   variant?: 'default' | 'action'
+  title?: string
 }) {
   const base =
     'inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]'
@@ -49,7 +54,7 @@ function ChipButton({
   }
 
   return (
-    <button type="button" onClick={onClick} className={cn(base, styles[variant])}>
+    <button type="button" onClick={onClick} title={title} className={cn(base, styles[variant])}>
       {children}
       {count !== undefined && count > 0 && (
         <span
@@ -130,7 +135,8 @@ export default function DashboardSummaryHeader({
       {priorityBanner && (
         <GuidanceBanner
           globalStatus={priorityBanner.globalStatus}
-          guidance={priorityBanner.guidance}
+          headline={priorityBanner.title}
+          guidance={priorityBanner.subtitle}
           waitingOnOther={priorityBanner.waitingOnOther}
           pendingActorLabel={priorityBanner.pendingActorLabel}
           waitingDetail={priorityBanner.waitingDetail}
@@ -145,6 +151,7 @@ export default function DashboardSummaryHeader({
             onClick={toggleMineFocus}
             count={summary.mine}
             variant="action"
+            title={MES_ACTIONS_TOOLTIP}
           >
             Mes actions
           </ChipButton>

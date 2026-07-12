@@ -15,7 +15,7 @@ import {
   selectedGlobalStatusFromCodes,
   GLOBAL_STATUS_LABELS,
   type DashboardFocus,
-  type DashboardPriorityBanner,
+  type PriorityBannerContent,
   type DashboardSummary,
 } from '@/lib/dashboard-summary'
 import DashboardSummaryHeader from '@/components/dashboard/dashboard-summary'
@@ -34,6 +34,7 @@ type Patient = {
   created_at: string
   questionnaire_status: string | null
   proposed_date?: string | null
+  quote_amount?: number | null
   assigned_surgeon_name?: string | null
   workflow_statuses: { id: string; code: string; label: string; color: string } | null
   profiles: { full_name: string } | null
@@ -52,7 +53,12 @@ type PatientListProps = {
   userRole?: UserRole
   dashboardSummary: DashboardSummary
   focus: DashboardFocus
-  priorityBanner: DashboardPriorityBanner | null
+  priorityBanner: PriorityBannerContent | null
+}
+
+function formatQuoteAmount(amount: number | null | undefined): string {
+  if (amount == null || Number.isNaN(amount)) return '—'
+  return `${amount.toLocaleString('fr-FR')} €`
 }
 
 function formatDateShort(dateStr: string | null | undefined): string {
@@ -299,6 +305,9 @@ export default function PatientList({
               <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[12%] xl:px-4">
                 Chirurgien
               </th>
+              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[10%] xl:px-4">
+                Budget
+              </th>
               <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[11%] xl:px-4">
                 Date prévue
               </th>
@@ -366,6 +375,9 @@ export default function PatientList({
                     )}
                   </td>
                   <td className="hidden px-3 py-4 text-sm text-gray-700 xl:table-cell xl:px-4">
+                    {formatQuoteAmount(patient.quote_amount)}
+                  </td>
+                  <td className="hidden px-3 py-4 text-sm text-gray-700 xl:table-cell xl:px-4">
                     {patient.proposed_date ? (
                       <span className={isClosed ? 'font-semibold text-slate-500' : 'font-semibold text-blue-700'}>
                         {formatDateShort(patient.proposed_date)}
@@ -387,8 +399,19 @@ export default function PatientList({
             })}
             {initialPatients.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-500 italic">
-                  Aucun dossier patient ne correspond aux critères.
+                <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <p className="font-medium text-gray-700">
+                    {hasCockpitFilter
+                      ? 'Aucun dossier ne correspond à ce filtre cockpit.'
+                      : searchQuery
+                        ? 'Aucun patient ne correspond à votre recherche.'
+                        : 'Aucun dossier patient pour le moment.'}
+                  </p>
+                  <p className="mt-2 text-sm italic">
+                    {hasCockpitFilter
+                      ? 'Essayez un autre chip pipeline ou retirez le filtre « Mes actions ».'
+                      : 'Créez un nouveau dossier ou modifiez vos critères de recherche.'}
+                  </p>
                 </td>
               </tr>
             )}
@@ -447,6 +470,11 @@ export default function PatientList({
                         Date : {formatDateShort(patient.proposed_date)}
                       </span>
                     ) : null}
+                    {patient.quote_amount != null ? (
+                      <span className="font-semibold text-emerald-800">
+                        Budget : {formatQuoteAmount(patient.quote_amount)}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <StatusBadge
@@ -465,8 +493,19 @@ export default function PatientList({
           )
         })}
         {initialPatients.length === 0 && (
-          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 italic shadow-sm">
-            Aucun dossier patient ne correspond aux critères.
+          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 shadow-sm">
+            <p className="font-medium text-gray-700">
+              {hasCockpitFilter
+                ? 'Aucun dossier ne correspond à ce filtre cockpit.'
+                : searchQuery
+                  ? 'Aucun patient ne correspond à votre recherche.'
+                  : 'Aucun dossier patient pour le moment.'}
+            </p>
+            <p className="mt-2 text-sm italic">
+              {hasCockpitFilter
+                ? 'Essayez un autre chip pipeline ou retirez le filtre « Mes actions ».'
+                : 'Créez un nouveau dossier ou modifiez vos critères de recherche.'}
+            </p>
           </div>
         )}
       </div>

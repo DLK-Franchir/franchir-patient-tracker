@@ -191,6 +191,14 @@ export default function PatientDetailClient({
 
   const showCommercialTab = viewConfig.showCommercialTab
   const isClosedDossier = globalStatus === 'closed'
+
+  useEffect(() => {
+    if (!showCommercialTab) return
+    if (globalStatus !== 'commercial_in_progress') return
+    if (userRole !== 'marcel' && userRole !== 'franchir' && userRole !== 'admin') return
+    setActiveTab('commercial')
+  }, [globalStatus, showCommercialTab, userRole, patient.current_status.code])
+
   const isReadOnly =
     (globalStatus === 'rejected' || isClosedDossier) && userRole !== 'admin'
   const canMutateDossierContent = !isReadOnly
@@ -438,6 +446,8 @@ export default function PatientDetailClient({
                       patientId={patient.id}
                       initialQuoteAmount={patient.quote_amount}
                       initialProposedDate={patient.proposed_date}
+                      quoteAccepted={patient.quote_accepted}
+                      dateAccepted={patient.date_accepted}
                       canEdit={canEditCommercialEffective}
                     />
                   </Suspense>

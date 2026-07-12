@@ -9,7 +9,7 @@ Tu es l'ingenieur **filtres cockpit dashboard** du repo franchir-patient-tracker
 
 | Couche | Fichier | Role |
 |--------|---------|------|
-| Agregation + IDs | `lib/dashboard-summary.ts` | `computeDashboardSummary`, `getFocusPatientIds`, `getPipelinePatientIds`, `GLOBAL_STATUS_DB_CODES` |
+| Agregation + IDs | `lib/dashboard-summary.ts` | `computeDashboardSummary`, `getFocusPatientIds`, `getPipelinePatientIds`, `getPriorityBannerContent`, `GLOBAL_STATUS_DB_CODES` |
 | Page serveur | `app/dashboard/page.tsx` | Filtre liste via IDs (pas seulement codes DB) — compteur chip = total liste |
 | Header chips | `components/dashboard/dashboard-summary.tsx` | Mes actions + pipeline GlobalStatus uniquement |
 | Liste | `components/dashboard/patient-list.tsx` | Recherche nom seule ; hint filtre actif compact ; pas de checkboxes statut |
@@ -19,8 +19,9 @@ Tu es l'ingenieur **filtres cockpit dashboard** du repo franchir-patient-tracker
 1. **Pas de filtres dupliques** — les chips cockpit sont le seul filtre statut ; le formulaire ne garde que la recherche par nom.
 2. **Compteur = liste** — `summary.byGlobalStatus[X]` doit correspondre au `total` renvoye par `getPatients` quand le chip X est actif. Utiliser `getPipelinePatientIds` (meme logique que `globalStatusFromWorkflowStatus`) cote serveur.
 3. **Exclusivite mutuelle** — `focus=mine` OU codes `status` pipeline OU aucun (tous). Jamais les deux en intersection.
-4. **Pas de chip « En attente »** — `waiting` reste interne pour `getDashboardPriorityBanner` ; `focus=waiting` URL deprecie → traite comme `all`.
-5. **Reutiliser workflow-v2** — ne jamais dupliquer mapping statut : `globalStatusFromWorkflowStatus`, `getWorkflowHandoff`, `isWaitingOnOther`.
+4. **Pas de chip « En attente »** — `waiting` reste interne pour le bandeau neutre ; `focus=waiting` URL deprecie → traite comme `all`.
+5. **Bandeau priorite** — voir `.cursor/agents/franchir-dashboard-banner.md` : `mine` ≠ pipeline ≠ `totalActive` ; jamais conflater les compteurs.
+6. **Reutiliser workflow-v2** — ne jamais dupliquer mapping statut : `globalStatusFromWorkflowStatus`, `getWorkflowHandoff`, `isWaitingOnOther`.
 
 ## Mapping codes DB
 
@@ -39,7 +40,7 @@ Tu es l'ingenieur **filtres cockpit dashboard** du repo franchir-patient-tracker
 - Chips : `rounded-full`, scroll horizontal mobile, `min-h-[44px]`
 - Labels francais : `GLOBAL_STATUS_LABELS`, « Mes actions »
 - Filtre actif : une ligne texte + lien « Effacer le filtre » (pas de banniere bleue lourde)
-- `GuidanceBanner` : priorite actions / attente interne (sans chip attente)
+- `GuidanceBanner` : `title` = dossiers actifs ; `subtitle` = actions mine ventilees ou message neutre (cf. franchir-dashboard-banner)
 
 ## Tests
 

@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   computeDashboardSummary,
+  formatMineBreakdown,
   getFocusPatientIds,
   getPipelinePatientIds,
+  getPriorityBannerContent,
   globalStatusToDbCodes,
   isMinePatient,
   isWaitingPatient,
+  mineActionShortLabel,
   pendingActionLabel,
 } from './dashboard-summary'
 
@@ -33,6 +36,10 @@ describe('dashboard-summary', () => {
     expect(summary.byGlobalStatus.medical_review).toBe(1)
     expect(summary.byGlobalStatus.medical_more_info).toBe(1)
     expect(summary.byGlobalStatus.closed).toBe(1)
+    expect(summary.mineBreakdown).toEqual([
+      { globalStatus: 'draft', count: 1 },
+      { globalStatus: 'medical_more_info', count: 1 },
+    ])
   })
 
   it('identifie les dossiers gilles en revue médicale comme "mine"', () => {
@@ -71,5 +78,72 @@ describe('dashboard-summary', () => {
   it('mappe les codes DB pour filtrage pipeline', () => {
     expect(globalStatusToDbCodes('draft')).toContain('draft')
     expect(globalStatusToDbCodes('closed')).toContain('case_closed')
+  })
+
+  it('ventile mineBreakdown pour admin avec plusieurs types d\'action', () => {
+    const patients = [
+      ...Array.from({ length: 8 }, (_, i) => patient(`c${i}`, 'validated_medical')),
+      ...Array.from({ length: 3 }, (_, i) => patient(`d${i}`, 'draft')),
+      ...Array.from({ length: 5 }, (_, i) => patient(`s${i}`, 'surgery_scheduled')),
+    ]
+
+    const summary = computeDashboardSummary(patients, 'admin')
+
+    expect(summary.mine).toBe(11)
+    expect(summary.totalActive).toBe(16)
+    expect(summary.mineBreakdown).toEqual([
+      { globalStatus: 'commercial_in_progress', count: 8 },
+      { globalStatus: 'draft', count: 3 },
+    ])
+    expect(formatMineBreakdown(summary.mineBreakdown, 'admin')).toBe(
+      '8 devis à confirmer · 3 à soumettre',
+    )
+  })
+
+  it('bandeau : total actif + ventilation mine (pas guidance unique sur tout le total)', () => {
+    const patients = [
+      ...Array.from({ length: 8 }, (_, i) => patient(`c${i}`, 'commercial')),
+      ...Array.from({ length: 3 }, (_, i) => patient(`d${i}`, 'draft')),
+      ...Array.from({ length: 5 }, (_, i) => patient(`s${i}`, 'surgery_scheduled')),
+    ]
+
+    const summary = computeDashboardSummary(patients, 'admin')
+    const banner = getPriorityBannerContent(summary, 'admin')
+
+    expect(banner).not.toBeNull()
+    expect(banner?.title).toBe('16 dossiers actifs')
+    expect(banner?.subtitle).toContain('11 dossiers vous attendent')
+    expect(banner?.subtitle).toContain('8 devis à confirmer')
+    expect(banner?.subtitle).toContain('3 à soumettre')
+    expect(banner?.subtitle).not.toContain('Confirmez le devis et la date proposée pour finaliser le dossier.')
+    expect(banner?.variant).toBe('action')
+    expect(banner?.globalStatus).toBe('commercial_in_progress')
+  })
+
+  it('bandeau neutre quand mine === 0 (même avec dossiers commerciaux en attente)', () => {
+    const patients = Array.from({ length: 14 }, (_, i) => patient(`c${i}`, 'validated_medical'))
+
+    const summary = computeDashboardSummary(patients, 'gilles')
+
+    expect(summary.mine).toBe(0)
+    expect(summary.waiting).toBe(14)
+
+    const banner = getPriorityBannerContent(summary, 'gilles')
+
+    expect(banner?.title).toBe('14 dossiers actifs')
+    expect(banner?.subtitle).toContain('Aucune action requise de votre part')
+    expect(banner?.subtitle).toContain('14 dossiers en cours chez d\'autres intervenants')
+    expect(banner?.variant).toBe('neutral')
+    expect(banner?.subtitle).not.toContain('Confirmez le devis')
+  })
+
+  it('bandeau : guidance unique quand un seul type d\'action mine', () => {
+    const patients = Array.from({ length: 3 }, (_, i) => patient(`d${i}`, 'draft'))
+    const summary = computeDashboardSummary(patients, 'marcel')
+    const banner = getPriorityBannerContent(summary, 'marcel')
+
+    expect(banner?.subtitle).toContain('3 dossiers vous attendent')
+    expect(banner?.subtitle).toContain('Soumettez ce dossier à la validation médicale')
+    expect(mineActionShortLabel('draft', 'marcel')).toBe('à soumettre')
   })
 })

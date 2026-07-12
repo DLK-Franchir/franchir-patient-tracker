@@ -69,8 +69,19 @@ export default function NotificationBell() {
       )
       .subscribe()
 
+    // Realtime peut échouer silencieusement — repli polling au focus (60s).
+    // Décision produit : le cockpit « Mes actions » reste la source primaire des actions ;
+    // la cloche reste un canal secondaire (historique / alertes ponctuelles).
+    const pollOnFocus = () => {
+      void loadNotifications()
+    }
+    const pollInterval = window.setInterval(pollOnFocus, 60_000)
+    window.addEventListener('focus', pollOnFocus)
+
     return () => {
       supabase.removeChannel(channel)
+      window.clearInterval(pollInterval)
+      window.removeEventListener('focus', pollOnFocus)
     }
   }, [userId, supabase, loadNotifications])
 
