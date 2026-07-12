@@ -11,6 +11,7 @@ import {
   formatMineBreakdown,
   getDashboardKpis,
   getDashboardTabsForRole,
+  getDefaultDashboardTab,
   getTabCount,
   GLOBAL_STATUS_DB_CODES,
   selectedGlobalStatusFromCodes,
@@ -54,6 +55,7 @@ export default function DashboardSummaryHeader({
 
   const kpis = getDashboardKpis(summary, userRole)
   const dashboardTabs = getDashboardTabsForRole(userRole)
+  const defaultTab = getDefaultDashboardTab(userRole, summary)
   const selectedPipelineStatus = selectedGlobalStatusFromCodes(selectedStatuses)
   const resolvedTab =
     activeTab ??
@@ -65,7 +67,9 @@ export default function DashboardSummaryHeader({
         )?.id ?? null)
       : focus === 'mine'
         ? null
-        : 'actifs')
+        : userRole === 'gilles'
+          ? defaultTab
+          : 'actifs')
 
   const buildUrl = (updates: {
     focus?: DashboardFocus | null
@@ -112,10 +116,18 @@ export default function DashboardSummaryHeader({
     })
   }
 
+  const clearListFilters = () => {
+    if (userRole === 'gilles') {
+      navigate({ kpi: null, tab: null, focus: null, status: null })
+      return
+    }
+    navigate({ kpi: null, tab: 'actifs', focus: null, status: null })
+  }
+
   const handleKpiClick = (kpi: DashboardKpi) => {
     const isActive = activeKpi === kpi.id
     if (isActive) {
-      navigate({ kpi: null, tab: 'actifs', focus: null, status: null })
+      clearListFilters()
       return
     }
     navigate({
@@ -129,7 +141,7 @@ export default function DashboardSummaryHeader({
   const handleTabClick = (tabId: DashboardTabId) => {
     const isActive = resolvedTab === tabId && !activeKpi && focus !== 'mine'
     if (isActive) {
-      navigate({ tab: 'actifs', status: null, focus: null, kpi: null })
+      clearListFilters()
       return
     }
 

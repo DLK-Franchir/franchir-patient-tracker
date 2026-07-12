@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
 import { canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
 import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
+import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
 import { signQuestionnaireImagingUpload } from '@/lib/integrations/fetch-questionnaire-imaging'
 /** Plafond aligné sur MAX_IMAGING_FILES côté portail questionnaires. */
 const QUESTIONNAIRES_IMAGING_SIGN_MAX = 10
@@ -50,6 +51,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!profile || !canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const scopeDeny = await denyIfOutOfRoleScope(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (scopeDeny) return scopeDeny
 
   const archivedDeny = await denyIfArchivedPatientWrite(
     supabase,

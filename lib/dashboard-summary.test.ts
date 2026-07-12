@@ -7,6 +7,7 @@ import {
   normalizeDashboardKpiForRole,
   normalizeDashboardTabForRole,
   getFocusPatientIds,
+  hadRoleInvalidatedListFilter,
   getPipelinePatientIds,
   getPriorityBannerContent,
   getRoleScopedPatientIds,
@@ -195,11 +196,12 @@ describe('dashboard-summary', () => {
       patient('4', 'surgery_scheduled'),
       patient('5', 'case_closed'),
       patient('6', 'prospect_created'),
+      patient('7', 'rejected_medical'),
     ]
 
     const scoped = filterPatientsForRole(patients, 'gilles')
 
-    expect(scoped.map((p) => p.id)).toEqual(['2', '3', '4'])
+    expect(scoped.map((p) => p.id)).toEqual(['2', '3', '4', '7'])
     expect(getRoleScopedPatientIds(patients, 'marcel')).toBeNull()
     expect(getDefaultDashboardTab('gilles', computeDashboardSummary(scoped, 'gilles'))).toBe(
       'revue',
@@ -215,5 +217,9 @@ describe('dashboard-summary', () => {
     expect(normalizeDashboardTabForRole('actifs', 'gilles')).toBeNull()
     expect(normalizeDashboardKpiForRole('toConfirm', 'gilles')).toBeNull()
     expect(normalizeDashboardTabForRole('revue', 'gilles')).toBe('revue')
+    expect(hadRoleInvalidatedListFilter({ tab: 'actifs' }, 'gilles')).toBe(true)
+    expect(hadRoleInvalidatedListFilter({ kpi: 'toConfirm' }, 'gilles')).toBe(true)
+    expect(hadRoleInvalidatedListFilter({ tab: 'revue' }, 'gilles')).toBe(false)
+    expect(hadRoleInvalidatedListFilter({ tab: 'actifs' }, 'marcel')).toBe(false)
   })
 })

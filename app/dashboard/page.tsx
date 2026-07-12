@@ -15,6 +15,7 @@ import {
   getRoleScopedPatientIds,
   getTabPatientIds,
   getToConfirmPatientIds,
+  hadRoleInvalidatedListFilter,
   intersectPatientIds,
   normalizeDashboardFocus,
   normalizeDashboardKpi,
@@ -255,9 +256,6 @@ export default async function DashboardPage({
     roleScopedPatients,
   )
 
-  const hasRawListFilter = Boolean(
-    params.focus || params.tab || params.kpi || params.status || params.q,
-  )
   const activeTab = normalizeDashboardTabForRole(
     normalizeDashboardTab(params.tab),
     dashboardRole,
@@ -290,7 +288,7 @@ export default async function DashboardPage({
     filterPatientIds?.length === 0 &&
     roleScopeIds &&
     roleScopeIds.length > 0 &&
-    hasRawListFilter
+    hadRoleInvalidatedListFilter(params, dashboardRole)
   ) {
     filterPatientIds = roleScopeIds
   }

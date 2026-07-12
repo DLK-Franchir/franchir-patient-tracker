@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { type ActionId, canPerformWorkflowAction, globalStatusFromWorkflowStatus } from '@/lib/workflow-v2'
 import { Logger } from '@/lib/logger'
 import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
+import { denyRoleScopeForPatient } from '@/lib/patient-role-scope-guard'
 import {
   sendCommercialActionNotifications,
   sendStatusChangeNotifications,
@@ -121,6 +122,13 @@ export async function POST(
     const currentStatus = Array.isArray(patient.current_status)
       ? patient.current_status[0]
       : patient.current_status
+
+    const scopeDeny = denyRoleScopeForPatient(role, {
+      id: patientId,
+      workflow_statuses: currentStatus,
+    })
+    if (scopeDeny) return scopeDeny
+
     const globalStatus = globalStatusFromWorkflowStatus(currentStatus)
 
     if (!canPerformWorkflowAction(role, actionId as ActionId, globalStatus)) {

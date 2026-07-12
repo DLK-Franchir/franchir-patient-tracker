@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { canEditCommercialData, type StaffRole } from '@/lib/access-control'
 import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
+import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
 
 export async function PATCH(
   request: NextRequest,
@@ -27,6 +28,13 @@ export async function PATCH(
     }
 
     const { id: patientId } = await params
+
+    const scopeDeny = await denyIfOutOfRoleScope(
+      supabase,
+      patientId,
+      profile.role as StaffRole,
+    )
+    if (scopeDeny) return scopeDeny
 
     const archivedDeny = await denyIfArchivedPatientWrite(
       supabase,

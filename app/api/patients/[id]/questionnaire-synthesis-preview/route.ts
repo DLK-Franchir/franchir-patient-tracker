@@ -5,7 +5,8 @@
 
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { isStaffProfile } from '@/lib/access-control'
+import { assertStaffProfile } from '@/lib/access-control'
+import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
 import { fetchQuestionnaireSynthesisPreview } from '@/lib/integrations/fetch-questionnaire-synthesis-preview'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -30,9 +31,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .eq('id', user.id)
     .single()
 
-  if (!isStaffProfile(profile)) {
+  if (!assertStaffProfile(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const scopeDeny = await denyIfOutOfRoleScope(
+    supabase,
+    patientId,
+    profile.role,
+  )
+  if (scopeDeny) return scopeDeny
 
   const sessionId = new URL(req.url).searchParams.get('sessionId') ?? undefined
   if (sessionId && !UUID_RE.test(sessionId)) {

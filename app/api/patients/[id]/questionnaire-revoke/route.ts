@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
 import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
+import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
 import { revokeQuestionnaireLink } from '@/lib/integrations/questionnaire-portal'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -35,6 +36,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!profile || !canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const scopeDeny = await denyIfOutOfRoleScope(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (scopeDeny) return scopeDeny
 
   const archivedDeny = await denyIfArchivedPatientWrite(
     supabase,

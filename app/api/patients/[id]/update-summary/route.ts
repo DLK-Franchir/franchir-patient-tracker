@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { canEditPatientSummary, type StaffRole } from '@/lib/access-control'
 import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
+import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
 import { NextResponse } from 'next/server'
 
 export async function PATCH(
@@ -29,6 +30,13 @@ export async function PATCH(
   if (!profile || !canEditPatientSummary(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const scopeDeny = await denyIfOutOfRoleScope(
+    supabase,
+    patientId,
+    profile.role as StaffRole,
+  )
+  if (scopeDeny) return scopeDeny
 
   const archivedDeny = await denyIfArchivedPatientWrite(
     supabase,

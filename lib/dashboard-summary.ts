@@ -562,6 +562,19 @@ export function normalizeDashboardKpiForRole(
   return GILLES_KPI_IDS.has(kpi) ? kpi : null
 }
 
+/** Filtre URL invalidé par le rôle (ex. bookmark Marcel `tab=actifs` pour Gilles). */
+export function hadRoleInvalidatedListFilter(
+  params: { tab?: string; kpi?: string },
+  role: UserRole,
+): boolean {
+  if (role !== 'gilles') return false
+  const rawTab = normalizeDashboardTab(params.tab)
+  if (rawTab && normalizeDashboardTabForRole(rawTab, role) === null) return true
+  const rawKpi = normalizeDashboardKpi(params.kpi)
+  if (rawKpi && normalizeDashboardKpiForRole(rawKpi, role) === null) return true
+  return false
+}
+
 /** Libellé court pour la colonne « Étape courante ». */
 export function getCurrentStepLabel(globalStatus: GlobalStatus, role: UserRole): string {
   return getWorkflowHandoff(globalStatus, role).guidance
