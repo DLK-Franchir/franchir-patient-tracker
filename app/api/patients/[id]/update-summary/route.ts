@@ -26,7 +26,7 @@ export async function PATCH(
     .eq('id', user.id)
     .single()
 
-  if (!canEditPatientSummary(profile)) {
+  if (!profile || !canEditPatientSummary(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

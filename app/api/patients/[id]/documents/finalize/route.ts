@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .eq('id', user.id)
     .single()
 
-  if (!canManagePatientDocuments(profile)) {
+  if (!profile || !canManagePatientDocuments(profile)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
