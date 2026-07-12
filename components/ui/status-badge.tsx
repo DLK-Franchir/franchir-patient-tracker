@@ -1,4 +1,7 @@
+'use client'
+
 import { cn } from '@/lib/utils'
+import { HoverTooltip } from '@/components/ui/hover-tooltip'
 
 type StatusBadgeVariant = 'default' | 'success' | 'warning' | 'info' | 'danger' | 'neutral'
 
@@ -40,37 +43,42 @@ export function StatusBadge({
   nowrap = false,
 }: StatusBadgeProps) {
   const tooltip = title ?? label
+  const showTooltip = tooltip !== label
 
-  if (color) {
-    return (
-      <span
-        className={cn(
-          'inline-flex max-w-full items-center rounded-full font-bold text-white border-2 border-white/20 shadow-sm',
-          nowrap && 'whitespace-nowrap',
-          SIZE_CLASSES[size],
-          className,
-        )}
-        style={{ backgroundColor: color }}
-        title={tooltip}
-      >
-        <span className={nowrap ? undefined : 'truncate'}>{label}</span>
-      </span>
-    )
-  }
-
-  return (
+  const badge = color ? (
     <span
       className={cn(
-        'inline-flex max-w-full items-center rounded-full font-bold border-2',
+        'inline-flex max-w-full min-w-0 items-center rounded-full border-2 border-white/20 font-bold text-white shadow-sm',
+        nowrap && 'whitespace-nowrap',
+        SIZE_CLASSES[size],
+        className,
+      )}
+      style={{ backgroundColor: color }}
+    >
+      <span className={cn('min-w-0', nowrap ? undefined : 'truncate')} title={tooltip}>
+        {label}
+      </span>
+    </span>
+  ) : (
+    <span
+      className={cn(
+        'inline-flex max-w-full min-w-0 items-center rounded-full border-2 font-bold',
         nowrap && 'whitespace-nowrap',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className,
       )}
-      title={tooltip}
     >
-      <span className={nowrap ? undefined : 'truncate'}>{label}</span>
+      <span className={cn('min-w-0', nowrap ? undefined : 'truncate')} title={tooltip}>
+        {label}
+      </span>
     </span>
+  )
+
+  return (
+    <HoverTooltip content={tooltip} disabled={!showTooltip}>
+      {badge}
+    </HoverTooltip>
   )
 }
 

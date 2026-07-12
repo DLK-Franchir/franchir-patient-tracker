@@ -26,6 +26,7 @@ import {
   questionnaireStatusShortLabel,
   questionnaireStatusVariant,
 } from '@/components/ui/status-badge'
+import { HoverTooltip } from '@/components/ui/hover-tooltip'
 
 type SortColumn = 'created_at' | 'patient_name' | 'current_status_id'
 type SortDirection = 'asc' | 'desc'
@@ -89,9 +90,11 @@ function TruncatedCell({
   className?: string
 }) {
   return (
-    <span className={`block truncate ${className}`} title={text}>
-      {text}
-    </span>
+    <HoverTooltip content={text}>
+      <span className={`block min-w-0 truncate ${className}`} title={text}>
+        {text}
+      </span>
+    </HoverTooltip>
   )
 }
 
@@ -102,14 +105,24 @@ function PendingActionCell({
   shortLabel: string
   fullLabel: string
 }) {
+  const showFullHint = fullLabel !== shortLabel
+
   return (
-    <span
-      className="flex min-w-[7rem] items-start gap-1.5 text-xs font-bold leading-snug text-amber-900"
-      title={fullLabel}
-    >
-      <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
-      <span className="line-clamp-2 break-words">{shortLabel}</span>
-    </span>
+    <div className="min-w-0 max-w-full">
+      <HoverTooltip content={fullLabel} disabled={!showFullHint}>
+        <span className="flex min-w-0 items-start gap-1.5 text-xs font-bold leading-snug text-amber-900">
+          <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
+          <span className="line-clamp-2 min-w-0 break-words" title={fullLabel}>
+            {shortLabel}
+          </span>
+        </span>
+      </HoverTooltip>
+      {showFullHint && (
+        <p className="mt-0.5 hidden text-xs font-normal leading-snug text-gray-500 lg:block">
+          {fullLabel}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -350,14 +363,14 @@ export default function PatientList({
               const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
               return (
                 <tr key={patient.id} className="group transition-colors hover:bg-gray-50">
-                  <td className="px-3 py-4 lg:px-4">
+                  <td className="max-w-0 overflow-visible px-3 py-4 lg:px-4">
                     <TruncatedCell
                       text={patient.patient_name}
                       className="font-semibold text-gray-900"
                     />
                     <TruncatedCell text={creatorName} className="mt-0.5 text-xs font-normal text-gray-400" />
                   </td>
-                  <td className="px-3 py-4 lg:px-4">
+                  <td className="max-w-0 overflow-visible px-3 py-4 lg:px-4">
                     <StatusBadge
                       label={statusShortLabel}
                       title={statusFullLabel}
@@ -366,7 +379,7 @@ export default function PatientList({
                       nowrap
                     />
                   </td>
-                  <td className="px-3 py-4 lg:px-4">
+                  <td className="max-w-0 overflow-visible px-3 py-4 lg:px-4">
                     <StatusBadge
                       label={questionnaireShortLabel}
                       title={questionnaireFullLabel}
@@ -376,14 +389,14 @@ export default function PatientList({
                       nowrap
                     />
                   </td>
-                  <td className="hidden px-3 py-4 lg:table-cell lg:px-4">
+                  <td className="hidden max-w-0 overflow-visible px-3 py-4 lg:table-cell lg:px-4">
                     {pendingAction && shortPendingAction ? (
                       <PendingActionCell shortLabel={shortPendingAction} fullLabel={pendingAction} />
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="hidden px-3 py-4 xl:table-cell xl:px-4">
+                  <td className="hidden max-w-0 overflow-visible px-3 py-4 xl:table-cell xl:px-4">
                     {patient.assigned_surgeon_name ? (
                       <TruncatedCell
                         text={patient.assigned_surgeon_name}
@@ -488,16 +501,18 @@ export default function PatientList({
                   )}
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
                     {patient.assigned_surgeon_name ? (
-                      <span
-                        className={`inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 font-semibold ${
-                          isClosed
-                            ? 'border-slate-300 bg-slate-100 text-slate-600'
-                            : 'border-purple-300 bg-purple-100 text-purple-900'
-                        }`}
-                        title={patient.assigned_surgeon_name}
-                      >
-                        {patient.assigned_surgeon_name}
-                      </span>
+                      <HoverTooltip content={patient.assigned_surgeon_name}>
+                        <span
+                          className={`inline-flex max-w-full min-w-0 items-center truncate rounded-full border px-2 py-0.5 font-semibold ${
+                            isClosed
+                              ? 'border-slate-300 bg-slate-100 text-slate-600'
+                              : 'border-purple-300 bg-purple-100 text-purple-900'
+                          }`}
+                          title={patient.assigned_surgeon_name}
+                        >
+                          {patient.assigned_surgeon_name}
+                        </span>
+                      </HoverTooltip>
                     ) : (
                       <span className="text-gray-400">Chirurgien : —</span>
                     )}
