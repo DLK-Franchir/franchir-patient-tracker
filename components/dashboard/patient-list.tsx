@@ -15,6 +15,10 @@ import {
   questionnaireStatusLabel,
   questionnaireStatusVariant,
 } from '@/components/ui/status-badge'
+import {
+  CLOSED_DOSSIER_GREY,
+  isCaseClosedPatient,
+} from '@/lib/patient-dossier-state'
 
 type SortColumn = 'created_at' | 'patient_name' | 'current_status_id'
 type SortDirection = 'asc' | 'desc'
@@ -73,6 +77,8 @@ const STICKY_ACTION_CELL =
   'sticky right-0 z-10 bg-white px-3 py-4 text-right text-sm font-medium shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.12)] group-hover:bg-gray-50'
 const DOSSIER_LINK_CLASS =
   'inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#2563EB] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]'
+const DOSSIER_CLOSED_LINK_CLASS =
+  'inline-flex min-h-[44px] items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600'
 
 function TruncatedCell({
   text,
@@ -298,9 +304,11 @@ export default function PatientList({
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
             {initialPatients.map((patient) => {
+              const isClosed = isCaseClosedPatient(patient)
               const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
-              const pendingAction = pendingActionLabel(globalStatus, userRole)
+              const pendingAction = isClosed ? null : pendingActionLabel(globalStatus, userRole)
               const creatorName = patient.profiles?.full_name || '—'
+              const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
               return (
                 <tr key={patient.id} className="group transition-colors hover:bg-gray-50">
                   <td className="px-3 py-4 lg:px-4">
@@ -313,14 +321,15 @@ export default function PatientList({
                   <td className="px-3 py-4 lg:px-4">
                     <StatusBadge
                       label={patient.workflow_statuses?.label || 'Sans statut'}
-                      color={patient.workflow_statuses?.color || '#6B7280'}
+                      color={badgeGrey ?? patient.workflow_statuses?.color ?? '#6B7280'}
                       size="sm"
                     />
                   </td>
                   <td className="px-3 py-4 lg:px-4">
                     <StatusBadge
                       label={questionnaireStatusLabel(patient.questionnaire_status)}
-                      variant={questionnaireStatusVariant(patient.questionnaire_status)}
+                      variant={isClosed ? 'neutral' : questionnaireStatusVariant(patient.questionnaire_status)}
+                      color={badgeGrey}
                       size="sm"
                     />
                   </td>
@@ -340,7 +349,11 @@ export default function PatientList({
                   <td className="hidden px-3 py-4 xl:table-cell xl:px-4">
                     {patient.assigned_surgeon_name ? (
                       <span
-                        className="inline-flex max-w-full items-center truncate rounded-full border border-purple-300 bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-900"
+                        className={`inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-1 text-xs font-bold ${
+                          isClosed
+                            ? 'border-slate-300 bg-slate-100 text-slate-600'
+                            : 'border-purple-300 bg-purple-100 text-purple-900'
+                        }`}
                         title={patient.assigned_surgeon_name}
                       >
                         {patient.assigned_surgeon_name}
@@ -351,7 +364,7 @@ export default function PatientList({
                   </td>
                   <td className="hidden px-3 py-4 text-sm text-gray-700 xl:table-cell xl:px-4">
                     {patient.proposed_date ? (
-                      <span className="font-semibold text-blue-700">
+                      <span className={isClosed ? 'font-semibold text-slate-500' : 'font-semibold text-blue-700'}>
                         {formatDateShort(patient.proposed_date)}
                       </span>
                     ) : (
@@ -359,8 +372,11 @@ export default function PatientList({
                     )}
                   </td>
                   <td className={STICKY_ACTION_CELL}>
-                    <Link href={`/dashboard/patient/${patient.id}`} className={DOSSIER_LINK_CLASS}>
-                      Ouvrir dossier
+                    <Link
+                      href={`/dashboard/patient/${patient.id}`}
+                      className={isClosed ? DOSSIER_CLOSED_LINK_CLASS : DOSSIER_LINK_CLASS}
+                    >
+                      {isClosed ? 'Dossier fermé' : 'Ouvrir dossier'}
                     </Link>
                   </td>
                 </tr>
@@ -379,8 +395,10 @@ export default function PatientList({
 
       <div className="space-y-3 md:hidden">
         {initialPatients.map((patient) => {
+          const isClosed = isCaseClosedPatient(patient)
           const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
-          const pendingAction = pendingActionLabel(globalStatus, userRole)
+          const pendingAction = isClosed ? null : pendingActionLabel(globalStatus, userRole)
+          const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
           return (
             <article
               key={patient.id}
@@ -396,7 +414,8 @@ export default function PatientList({
                   <div className="mt-2 flex flex-wrap gap-2">
                     <StatusBadge
                       label={questionnaireStatusLabel(patient.questionnaire_status)}
-                      variant={questionnaireStatusVariant(patient.questionnaire_status)}
+                      variant={isClosed ? 'neutral' : questionnaireStatusVariant(patient.questionnaire_status)}
+                      color={badgeGrey}
                       size="sm"
                     />
                   </div>
@@ -423,15 +442,15 @@ export default function PatientList({
                 </div>
                 <StatusBadge
                   label={patient.workflow_statuses?.label || 'Sans statut'}
-                  color={patient.workflow_statuses?.color || '#6B7280'}
+                  color={badgeGrey ?? patient.workflow_statuses?.color ?? '#6B7280'}
                   size="sm"
                 />
               </div>
               <Link
                 href={`/dashboard/patient/${patient.id}`}
-                className={`mt-4 w-full ${DOSSIER_LINK_CLASS}`}
+                className={`mt-4 w-full ${isClosed ? DOSSIER_CLOSED_LINK_CLASS : DOSSIER_LINK_CLASS}`}
               >
-                Ouvrir dossier
+                {isClosed ? 'Dossier fermé' : 'Ouvrir dossier'}
               </Link>
             </article>
           )

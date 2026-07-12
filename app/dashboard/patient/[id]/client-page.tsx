@@ -190,7 +190,9 @@ export default function PatientDetailClient({
   )
 
   const showCommercialTab = viewConfig.showCommercialTab
-  const isReadOnly = globalStatus === 'rejected' && userRole !== 'admin'
+  const isClosedDossier = globalStatus === 'closed'
+  const isReadOnly =
+    (globalStatus === 'rejected' || isClosedDossier) && userRole !== 'admin'
   const latestCompletedSession = questionnaireStatus?.sessions?.find((s) => s.status === 'completed')
   const actionLogMessages = usePatientActionLog(patient.id, initialMessages)
 
@@ -265,7 +267,18 @@ export default function PatientDetailClient({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         <WorkflowTimeline currentStatus={globalStatus} />
 
-        {isReadOnly && (
+        {isClosedDossier && (
+          <div className="bg-slate-100 border border-slate-300 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+            <p className="text-xs sm:text-sm text-slate-700">
+              Dossier fermé — l&apos;historique est conservé et consultable. Aucune action workflow en attente.
+              {userRole === 'admin'
+                ? ' Vous pouvez réouvrir le dossier depuis les actions ci-contre.'
+                : ''}
+            </p>
+          </div>
+        )}
+
+        {isReadOnly && globalStatus === 'rejected' && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
             <p className="text-xs sm:text-sm text-yellow-800">
               ⚠️ Ce dossier est en lecture seule. Seul un administrateur peut effectuer des modifications.

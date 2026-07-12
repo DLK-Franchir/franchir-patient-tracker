@@ -235,6 +235,14 @@ export async function POST(
       messageBody = data?.message || 'Le dossier a été réouvert par un administrateur.'
       break
 
+    case 'close_case':
+      newStatusCode = 'case_closed'
+      messageTitle = 'Dossier fermé'
+      messageBody =
+        data?.message ||
+        'Le dossier a été fermé. L\'historique est conservé ; aucune action workflow en attente.'
+      break
+
     case 'add_budget':
       messageTitle = 'Budget indicatif ajouté'
       messageBody = `Budget indicatif: ${data?.budget || 'Non spécifié'}`
