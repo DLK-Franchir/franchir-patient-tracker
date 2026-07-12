@@ -18,6 +18,10 @@ type StatusBadgeProps = {
   color?: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  /** Libellé complet au survol (défaut : label). */
+  title?: string
+  /** Empêche les retours à la ligne au milieu des mots. */
+  nowrap?: boolean
 }
 
 const SIZE_CLASSES = {
@@ -32,18 +36,24 @@ export function StatusBadge({
   color,
   size = 'md',
   className,
+  title,
+  nowrap = false,
 }: StatusBadgeProps) {
+  const tooltip = title ?? label
+
   if (color) {
     return (
       <span
         className={cn(
-          'inline-flex items-center rounded-full font-bold text-white border-2 border-white/20 shadow-sm',
+          'inline-flex max-w-full items-center rounded-full font-bold text-white border-2 border-white/20 shadow-sm',
+          nowrap && 'whitespace-nowrap',
           SIZE_CLASSES[size],
           className,
         )}
         style={{ backgroundColor: color }}
+        title={tooltip}
       >
-        {label}
+        <span className={nowrap ? undefined : 'truncate'}>{label}</span>
       </span>
     )
   }
@@ -51,13 +61,15 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full font-bold border-2',
+        'inline-flex max-w-full items-center rounded-full font-bold border-2',
+        nowrap && 'whitespace-nowrap',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className,
       )}
+      title={tooltip}
     >
-      {label}
+      <span className={nowrap ? undefined : 'truncate'}>{label}</span>
     </span>
   )
 }
@@ -74,4 +86,11 @@ export function questionnaireStatusLabel(status: string | null | undefined): str
   if (status === 'completed') return 'Complété'
   if (status === 'sent') return 'Lien envoyé — en attente'
   return 'En attente d\'envoi'
+}
+
+/** Libellé court pour colonnes tableau (évite les coupures maladroites). */
+export function questionnaireStatusShortLabel(status: string | null | undefined): string {
+  if (status === 'completed') return 'Complété'
+  if (status === 'sent') return 'Lien envoyé'
+  return 'À envoyer'
 }

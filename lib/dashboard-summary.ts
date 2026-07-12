@@ -85,6 +85,26 @@ export function pendingActionLabel(globalStatus: GlobalStatus, role: UserRole): 
   return null
 }
 
+/** Libellé court pour la colonne « Action en attente » (tableau dashboard). */
+export function getShortPendingActionLabel(globalStatus: GlobalStatus, role: UserRole): string | null {
+  if (pendingActionLabel(globalStatus, role) === null) return null
+
+  switch (globalStatus) {
+    case 'draft':
+      return 'Soumettre au médical'
+    case 'medical_review':
+      return 'Revue médicale'
+    case 'medical_more_info':
+      return 'Compléter dossier'
+    case 'commercial_in_progress':
+      return role === 'franchir' ? 'Gérer devis/dates' : 'Confirmer devis/date'
+    case 'rejected':
+      return role === 'admin' ? 'Réouvrir dossier' : null
+    default:
+      return null
+  }
+}
+
 export function isMinePatient(patient: SummaryPatient, role: UserRole): boolean {
   const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
   if (isClosedGlobalStatus(globalStatus)) return false

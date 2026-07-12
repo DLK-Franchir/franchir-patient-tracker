@@ -5,6 +5,7 @@ import {
   getFocusPatientIds,
   getPipelinePatientIds,
   getPriorityBannerContent,
+  getShortPendingActionLabel,
   globalStatusToDbCodes,
   isMinePatient,
   isWaitingPatient,
@@ -145,5 +146,15 @@ describe('dashboard-summary', () => {
     expect(banner?.subtitle).toContain('3 dossiers vous attendent')
     expect(banner?.subtitle).toContain('Soumettez ce dossier à la validation médicale')
     expect(mineActionShortLabel('draft', 'marcel')).toBe('à soumettre')
+  })
+
+  it('libellés courts action en attente pour le tableau', () => {
+    expect(getShortPendingActionLabel('draft', 'marcel')).toBe('Soumettre au médical')
+    expect(getShortPendingActionLabel('medical_review', 'gilles')).toBe('Revue médicale')
+    expect(getShortPendingActionLabel('medical_more_info', 'marcel')).toBe('Compléter dossier')
+    expect(getShortPendingActionLabel('commercial_in_progress', 'marcel')).toBe('Confirmer devis/date')
+    expect(getShortPendingActionLabel('commercial_in_progress', 'franchir')).toBe('Gérer devis/dates')
+    expect(getShortPendingActionLabel('medical_review', 'marcel')).toBeNull()
+    expect(getShortPendingActionLabel('commercial_in_progress', 'gilles')).toBeNull()
   })
 })

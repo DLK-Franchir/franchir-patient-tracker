@@ -11,6 +11,7 @@ import {
 } from '@/lib/workflow-v2'
 import {
   focusFilterLabel,
+  getShortPendingActionLabel,
   pendingActionLabel,
   selectedGlobalStatusFromCodes,
   GLOBAL_STATUS_LABELS,
@@ -22,6 +23,7 @@ import DashboardSummaryHeader from '@/components/dashboard/dashboard-summary'
 import {
   StatusBadge,
   questionnaireStatusLabel,
+  questionnaireStatusShortLabel,
   questionnaireStatusVariant,
 } from '@/components/ui/status-badge'
 
@@ -89,6 +91,24 @@ function TruncatedCell({
   return (
     <span className={`block truncate ${className}`} title={text}>
       {text}
+    </span>
+  )
+}
+
+function PendingActionCell({
+  shortLabel,
+  fullLabel,
+}: {
+  shortLabel: string
+  fullLabel: string
+}) {
+  return (
+    <span
+      className="flex min-w-[7rem] items-start gap-1.5 text-xs font-bold leading-snug text-amber-900"
+      title={fullLabel}
+    >
+      <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
+      <span className="line-clamp-2 break-words">{shortLabel}</span>
     </span>
   )
 }
@@ -278,7 +298,7 @@ export default function PatientList({
         <table className="w-full table-fixed divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="w-[22%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:px-4">
+              <th className="w-[18%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:px-4">
                 <button
                   type="button"
                   onClick={() => sortBy('patient_name')}
@@ -287,7 +307,7 @@ export default function PatientList({
                   Patient {sortIndicator('patient_name')}
                 </button>
               </th>
-              <th className="w-[18%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:px-4">
+              <th className="w-[15%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:px-4">
                 <button
                   type="button"
                   onClick={() => sortBy('current_status_id')}
@@ -296,19 +316,19 @@ export default function PatientList({
                   Statut {sortIndicator('current_status_id')}
                 </button>
               </th>
-              <th className="w-[16%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:w-[14%] lg:px-4">
+              <th className="w-[13%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:px-4">
                 Questionnaire
               </th>
-              <th className="hidden w-[20%] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:table-cell lg:px-4">
+              <th className="hidden min-w-[9rem] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 lg:table-cell lg:w-[24%] lg:px-4">
                 Action en attente
               </th>
-              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[12%] xl:px-4">
+              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[14%] xl:px-4">
                 Chirurgien
               </th>
-              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[10%] xl:px-4">
+              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[9%] xl:px-4">
                 Budget
               </th>
-              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[11%] xl:px-4">
+              <th className="hidden px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 xl:table-cell xl:w-[10%] xl:px-4">
                 Date prévue
               </th>
               <th className={`w-[7.5rem] ${STICKY_ACTION_HEAD}`}>Dossier</th>
@@ -319,6 +339,13 @@ export default function PatientList({
               const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
               const isClosed = isClosedGlobalStatus(globalStatus)
               const pendingAction = isClosed ? null : pendingActionLabel(globalStatus, userRole)
+              const shortPendingAction = isClosed
+                ? null
+                : getShortPendingActionLabel(globalStatus, userRole)
+              const statusFullLabel = patient.workflow_statuses?.label || 'Sans statut'
+              const statusShortLabel = GLOBAL_STATUS_LABELS[globalStatus] ?? statusFullLabel
+              const questionnaireFullLabel = questionnaireStatusLabel(patient.questionnaire_status)
+              const questionnaireShortLabel = questionnaireStatusShortLabel(patient.questionnaire_status)
               const creatorName = patient.profiles?.full_name || '—'
               const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
               return (
@@ -332,44 +359,40 @@ export default function PatientList({
                   </td>
                   <td className="px-3 py-4 lg:px-4">
                     <StatusBadge
-                      label={patient.workflow_statuses?.label || 'Sans statut'}
+                      label={statusShortLabel}
+                      title={statusFullLabel}
                       color={badgeGrey ?? patient.workflow_statuses?.color ?? '#6B7280'}
                       size="sm"
+                      nowrap
                     />
                   </td>
                   <td className="px-3 py-4 lg:px-4">
                     <StatusBadge
-                      label={questionnaireStatusLabel(patient.questionnaire_status)}
+                      label={questionnaireShortLabel}
+                      title={questionnaireFullLabel}
                       variant={isClosed ? 'neutral' : questionnaireStatusVariant(patient.questionnaire_status)}
                       color={badgeGrey}
                       size="sm"
+                      nowrap
                     />
                   </td>
                   <td className="hidden px-3 py-4 lg:table-cell lg:px-4">
-                    {pendingAction ? (
-                      <span
-                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border-2 border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-bold leading-snug text-amber-900"
-                        title={pendingAction}
-                      >
-                        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
-                        <span className="line-clamp-2">{pendingAction}</span>
-                      </span>
+                    {pendingAction && shortPendingAction ? (
+                      <PendingActionCell shortLabel={shortPendingAction} fullLabel={pendingAction} />
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                   <td className="hidden px-3 py-4 xl:table-cell xl:px-4">
                     {patient.assigned_surgeon_name ? (
-                      <span
-                        className={`inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-1 text-xs font-bold ${
+                      <TruncatedCell
+                        text={patient.assigned_surgeon_name}
+                        className={`inline-block max-w-full rounded-full border px-2.5 py-1 text-xs font-bold ${
                           isClosed
                             ? 'border-slate-300 bg-slate-100 text-slate-600'
                             : 'border-purple-300 bg-purple-100 text-purple-900'
                         }`}
-                        title={patient.assigned_surgeon_name}
-                      >
-                        {patient.assigned_surgeon_name}
-                      </span>
+                      />
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
@@ -424,6 +447,13 @@ export default function PatientList({
           const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
           const isClosed = isClosedGlobalStatus(globalStatus)
           const pendingAction = isClosed ? null : pendingActionLabel(globalStatus, userRole)
+          const shortPendingAction = isClosed
+            ? null
+            : getShortPendingActionLabel(globalStatus, userRole)
+          const statusFullLabel = patient.workflow_statuses?.label || 'Sans statut'
+          const statusShortLabel = GLOBAL_STATUS_LABELS[globalStatus] ?? statusFullLabel
+          const questionnaireFullLabel = questionnaireStatusLabel(patient.questionnaire_status)
+          const questionnaireShortLabel = questionnaireStatusShortLabel(patient.questionnaire_status)
           const badgeGrey = isClosed ? CLOSED_DOSSIER_GREY : undefined
           return (
             <article
@@ -439,17 +469,22 @@ export default function PatientList({
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <StatusBadge
-                      label={questionnaireStatusLabel(patient.questionnaire_status)}
+                      label={questionnaireShortLabel}
+                      title={questionnaireFullLabel}
                       variant={isClosed ? 'neutral' : questionnaireStatusVariant(patient.questionnaire_status)}
                       color={badgeGrey}
                       size="sm"
+                      nowrap
                     />
                   </div>
                   {pendingAction && (
-                    <span className="mt-2 inline-flex max-w-full items-start gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-xs font-bold leading-snug text-amber-900">
-                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                      <span className="whitespace-normal">{pendingAction}</span>
-                    </span>
+                    <p
+                      className="mt-2 text-xs font-bold leading-snug text-amber-900"
+                      title={shortPendingAction && shortPendingAction !== pendingAction ? pendingAction : undefined}
+                    >
+                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      {pendingAction}
+                    </p>
                   )}
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
                     {patient.assigned_surgeon_name ? (
@@ -459,6 +494,7 @@ export default function PatientList({
                             ? 'border-slate-300 bg-slate-100 text-slate-600'
                             : 'border-purple-300 bg-purple-100 text-purple-900'
                         }`}
+                        title={patient.assigned_surgeon_name}
                       >
                         {patient.assigned_surgeon_name}
                       </span>
@@ -478,9 +514,11 @@ export default function PatientList({
                   </div>
                 </div>
                 <StatusBadge
-                  label={patient.workflow_statuses?.label || 'Sans statut'}
+                  label={statusShortLabel}
+                  title={statusFullLabel}
                   color={badgeGrey ?? patient.workflow_statuses?.color ?? '#6B7280'}
                   size="sm"
+                  nowrap
                 />
               </div>
               <Link
