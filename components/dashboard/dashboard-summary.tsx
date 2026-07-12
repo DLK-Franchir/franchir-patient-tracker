@@ -167,7 +167,7 @@ export default function DashboardSummaryHeader({
           <h2
             className="font-extrabold"
             style={{
-              fontFamily: "'Nunito', sans-serif",
+              fontFamily: 'var(--font-nunito), var(--font-geist-sans), sans-serif',
               fontSize: '22px',
               color: BRAND.navy,
             }}

@@ -130,7 +130,6 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     <>
       <AppHeader
         userRole={userRole}
-        userName={staffProfile.full_name ?? undefined}
         patientName={patient.patient_name}
         showActions={true}
       />

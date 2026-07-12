@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Nunito } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@/components/analytics/analytics";
 import { PerformanceMonitor } from "@/components/analytics/performance-monitor";
@@ -18,6 +18,13 @@ const geistMono = Geist_Mono({
   preload: true,
 });
 
+const nunito = Nunito({
+  variable: "--font-nunito",
+  subsets: ["latin"],
+  weight: ["600", "700", "800", "900"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "FRANCHIR - Suivi Patient",
   description: "Application de suivi des patients FRANCHIR",
@@ -31,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${nunito.variable} antialiased`}
       >
         {children}
         <Analytics />

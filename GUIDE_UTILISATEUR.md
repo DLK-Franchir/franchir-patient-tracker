@@ -23,11 +23,13 @@ Vous êtes le chef d'orchestre du dossier.
 ### 2. Dr Gilles Dubois (Validation Médicale)
 Vous garantissez la faisabilité médicale.
 *   **Votre rôle :** Consulter les dossiers en attente et donner votre avis expert.
+*   **Ce que vous ne voyez pas :** les brouillons Marcel, les prospects et les dossiers fermés — uniquement le périmètre médical et le suivi post-validation.
 *   **Vos actions principales :**
     *   Recevoir une notification pour une "Revue médicale".
     *   **Valider** le dossier (et recommander un chirurgien).
     *   **Refuser** le dossier (avec justification).
     *   Demander des compléments d'informations (si le dossier est incomplet).
+    *   Après validation : proposer budget et dates (phase commerciale pilotée par Marcel ensuite).
 
 ### 3. Erik Boulard (Administration)
 Vous supervisez l'ensemble de l'activité.
@@ -59,9 +61,26 @@ Vous supervisez l'ensemble de l'activité.
 
 ---
 
-## 📊 Cockpit tableau de bord
+## 📊 Cockpit tableau de bord (interface V3)
 
-Le tableau de suivi propose une **vue cockpit** pour prioriser votre travail :
+Le tableau de suivi (`https://patients.franchir.eu/dashboard`) propose une **vue cockpit** pour prioriser votre travail.
+
+### Synthèse KPI (grille en haut de page)
+
+La section **« Synthèse des dossiers »** affiche votre nom connecté (ex. *Synthèse des dossiers · Marcel Mazaltarim*) puis une **grille de cartes KPI** cliquables :
+
+| KPI | Marcel / Erik | Dr Gilles |
+| :--- | :--- | :--- |
+| Dossiers actifs | ✅ Total en cours | ❌ masqué |
+| Revue médicale | ✅ Att. Dr. Gilles | ✅ Action requise de votre part |
+| À confirmer (devis/date) | ✅ | ❌ masqué |
+| Suivi commercial | — | ✅ Chirurgien et date proposée |
+| Programmés | ✅ | ✅ |
+| À compléter | ✅ | ✅ |
+
+Cliquer une carte filtre la liste ; un second clic réinitialise le filtre.
+
+### Filtres et navigation
 
 *   **Mes actions** : filtre les dossiers où **votre rôle** doit agir maintenant (soumission médicale, revue Gilles, complément, confirmation devis/date…). Le chiffre sur la puce correspond au nombre de dossiers concernés.
 *   **Puces pipeline** : filtrent par étape globale (Brouillon, Revue médicale, Commercial, Programmé, etc.). Le compteur de chaque puce correspond au nombre de dossiers à cette étape.
@@ -69,6 +88,23 @@ Le tableau de suivi propose une **vue cockpit** pour prioriser votre travail :
 *   **Infobulles** : survolez les libellés tronqués (statut, action en attente) pour lire le texte complet.
 *   **Onglet Devis** : après une action commerciale (budget, dates proposées, confirmation devis/date), la fiche patient se rafraîchit automatiquement — vérifiez l'onglet Devis pour les montants et dates à jour.
 *   **Cloche notifications** : alertes secondaires ; le cockpit « Mes actions » reste la source principale pour savoir quoi traiter.
+
+### Vue limitée Dr Gilles (tableau de bord)
+
+Gilles ne voit **pas** les dossiers en **brouillon** (création Marcel), **prospect** ni **fermés**. Seuls apparaissent :
+
+*   Revue médicale (à valider / refuser / demander complément)
+*   À compléter (pièces manquantes demandées par Gilles)
+*   Suivi commercial (post-validation : chirurgien et date proposée)
+*   Programmés et refusés (historique médical)
+
+Les onglets pipeline « Actifs », « Tous » et le KPI « À confirmer » sont **inaccessibles** pour ce rôle.
+
+### Fiche patient — retour et fil d'Ariane
+
+*   **Fil d'Ariane** (barre navy) : `FRANCHIR > Tableau de suivi > [Nom patient]` — lien cliquable vers le dashboard.
+*   **Bandeau retour** sous le header : lien **« Retour au tableau de suivi »** (visible aussi sur mobile).
+*   **Vue Gilles (fiche épurée)** : pas d'upload documents, pas d'onglet Devis/commercial, pas de gestion questionnaire ; accès à la **synthèse questionnaire** (cartes Anamneze + PDF) et aux actions médicales (valider, refuser, demander complément, proposer budget/dates).
 
 ### Cloche notifications (historique secondaire)
 

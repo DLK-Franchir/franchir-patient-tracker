@@ -33,7 +33,7 @@ export type BrandColor = (typeof BRAND)[keyof typeof BRAND]
 
 /** Typography families used in the V3 prototype */
 export const brandTypography = {
-  display: "'Nunito', var(--font-geist-sans), system-ui, sans-serif",
+  display: 'var(--font-nunito), var(--font-geist-sans), system-ui, sans-serif',
   body: "var(--font-geist-sans), 'Inter', system-ui, sans-serif",
   mono: "var(--font-geist-mono), 'DM Mono', ui-monospace, monospace",
 } as const

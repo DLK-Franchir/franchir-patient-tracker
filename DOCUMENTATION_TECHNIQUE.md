@@ -5,6 +5,8 @@
 **Date:** Janvier 2025  
 **Statut:** Phase 2 Complétée
 
+> **Note (juillet 2026)** : ce document décrit l'architecture initiale (pré-V3). Pour l'état prod actuel (cockpit KPI V3, scoping Gilles, pont questionnaires, imagerie DICOM), privilégier [`README.md`](README.md) et [`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md). Les recommandations « V2 » ci-dessous sont en grande partie réalisées ou remplacées par la V3.
+
 ---
 
 ## 📋 TABLE DES MATIÈRES

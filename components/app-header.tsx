@@ -10,7 +10,6 @@ import NotificationBell from '@/components/notifications/notification-bell'
 
 interface AppHeaderProps {
   userRole?: string
-  userName?: string
   patientName?: string
   showActions?: boolean
 }

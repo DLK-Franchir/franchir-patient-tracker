@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import { isStaffProfile } from '@/lib/access-control'
 import { type Role } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import AppHeader from '@/components/app-header'
 import PatientList from '@/components/dashboard/patient-list'
 import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integrations/issue-questionnaire-link'
@@ -64,6 +65,20 @@ type PatientQueryRow = {
   profiles: { full_name: string } | { full_name: string }[] | null
 }
 
+type DashboardPatient = {
+  id: string
+  patient_name: string
+  created_at: string
+  questionnaire_status: string | null
+  proposed_date: string | null
+  quote_amount: number | null
+  quote_accepted: boolean
+  date_accepted: boolean
+  assigned_surgeon_name: string | null
+  workflow_statuses: WorkflowStatusOption | null
+  profiles: { full_name: string } | null
+}
+
 function firstRelation<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] || null : value
 }
@@ -91,84 +106,8 @@ function normalizeDirection(direction: string | undefined): SortDirection {
     : 'desc'
 }
 
-type SummaryQueryRow = {
-  id: string
-  quote_accepted: boolean | null
-  date_accepted: boolean | null
-  workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
-}
-
-async function getAllPatientsForSummary(): Promise<SummaryPatientExtended[]> {
-  const supabase = await createServerClient()
-  const { data } = await supabase
-    .from('patients')
-    .select(
-      'id, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label)',
-    )
-
-  return ((data || []) as SummaryQueryRow[]).map((patient) => ({
-    id: patient.id,
-    quote_accepted: patient.quote_accepted ?? false,
-    date_accepted: patient.date_accepted ?? false,
-    workflow_statuses: firstRelation(patient.workflow_statuses),
-  }))
-}
-
-async function getPatients({
-  page,
-  query,
-  sort,
-  direction,
-  filterPatientIds,
-}: {
-  page: number
-  query: string
-  sort: SortColumn
-  direction: SortDirection
-  filterPatientIds?: string[] | null
-}) {
-  const supabase = await createServerClient()
-
-  const from = (page - 1) * ITEMS_PER_PAGE
-  const to = from + ITEMS_PER_PAGE - 1
-
-  const fullQuery = supabase
-    .from('patients')
-    .select(
-      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
-      { count: 'exact' },
-    )
-
-  const baseQuery = supabase
-    .from('patients')
-    .select(
-      'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)',
-      { count: 'exact' },
-    )
-
-  if (query) {
-    fullQuery.ilike('patient_name', `%${query}%`)
-    baseQuery.ilike('patient_name', `%${query}%`)
-  }
-  if (filterPatientIds !== null && filterPatientIds !== undefined) {
-    if (filterPatientIds.length === 0) {
-      return { patients: [], total: 0 }
-    }
-    fullQuery.in('id', filterPatientIds)
-    baseQuery.in('id', filterPatientIds)
-  }
-
-  const fullResult = await fullQuery
-    .order(sort, { ascending: direction === 'asc' })
-    .range(from, to)
-
-  const { data: rawPatients, count, error: queryError } = fullResult.error
-    ? await baseQuery.order(sort, { ascending: direction === 'asc' }).range(from, to)
-    : fullResult
-
-  void queryError
-
-  const formattedPatients = ((rawPatients || []) as PatientQueryRow[]).map((patient) => ({
+function formatDashboardPatient(patient: PatientQueryRow): DashboardPatient {
+  return {
     id: patient.id,
     patient_name: patient.patient_name,
     created_at: patient.created_at,
@@ -180,18 +119,98 @@ async function getPatients({
     assigned_surgeon_name: firstRelation(patient.assigned_surgeon)?.full_name ?? null,
     workflow_statuses: firstRelation(patient.workflow_statuses),
     profiles: firstRelation(patient.profiles),
-  }))
+  }
+}
 
-  const reconciledIds = await reconcileQuestionnaireSentStatusesForPatients(formattedPatients)
-  if (reconciledIds.length > 0) {
-    for (const patient of formattedPatients) {
-      if (reconciledIds.includes(patient.id)) {
-        patient.questionnaire_status = null
-      }
+function toSummaryPatient(patient: DashboardPatient): SummaryPatientExtended {
+  return {
+    id: patient.id,
+    quote_accepted: patient.quote_accepted,
+    date_accepted: patient.date_accepted,
+    workflow_statuses: patient.workflow_statuses,
+  }
+}
+
+async function fetchAllDashboardPatients(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+): Promise<DashboardPatient[]> {
+  const fullSelect =
+    'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)'
+  const baseSelect =
+    'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)'
+
+  const fullResult = await supabase.from('patients').select(fullSelect)
+  const { data: rawPatients } = fullResult.error
+    ? await supabase.from('patients').select(baseSelect)
+    : fullResult
+
+  return ((rawPatients || []) as PatientQueryRow[]).map(formatDashboardPatient)
+}
+
+function sortDashboardPatients(
+  patients: DashboardPatient[],
+  sort: SortColumn,
+  direction: SortDirection,
+): DashboardPatient[] {
+  const multiplier = direction === 'asc' ? 1 : -1
+
+  return [...patients].sort((left, right) => {
+    let comparison = 0
+
+    if (sort === 'patient_name') {
+      comparison = left.patient_name.localeCompare(right.patient_name, 'fr')
+    } else if (sort === 'current_status_id') {
+      const leftId = left.workflow_statuses?.id ?? ''
+      const rightId = right.workflow_statuses?.id ?? ''
+      comparison = leftId.localeCompare(rightId)
+    } else {
+      comparison = left.created_at.localeCompare(right.created_at)
     }
+
+    return comparison * multiplier
+  })
+}
+
+function paginateDashboardPatients({
+  patients,
+  page,
+  query,
+  sort,
+  direction,
+  filterPatientIds,
+}: {
+  patients: DashboardPatient[]
+  page: number
+  query: string
+  sort: SortColumn
+  direction: SortDirection
+  filterPatientIds?: string[] | null
+}): { patients: DashboardPatient[]; total: number } {
+  let filtered = patients
+
+  if (filterPatientIds !== null && filterPatientIds !== undefined) {
+    if (filterPatientIds.length === 0) {
+      return { patients: [], total: 0 }
+    }
+    const allowedIds = new Set(filterPatientIds)
+    filtered = filtered.filter((patient) => allowedIds.has(patient.id))
   }
 
-  return { patients: formattedPatients, total: count || 0 }
+  if (query) {
+    const normalizedQuery = query.toLowerCase()
+    filtered = filtered.filter((patient) =>
+      patient.patient_name.toLowerCase().includes(normalizedQuery),
+    )
+  }
+
+  const sorted = sortDashboardPatients(filtered, sort, direction)
+  const total = sorted.length
+  const from = (page - 1) * ITEMS_PER_PAGE
+
+  return {
+    patients: sorted.slice(from, from + ITEMS_PER_PAGE),
+    total,
+  }
 }
 
 export default async function DashboardPage({
@@ -215,11 +234,10 @@ export default async function DashboardPage({
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name, email')
-    .eq('id', user.id)
-    .single()
+  const [{ data: profile }, allPatients] = await Promise.all([
+    supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single(),
+    fetchAllDashboardPatients(supabase),
+  ])
 
   if (!isStaffProfile(profile)) {
     redirect('/login?error=unauthorized')
@@ -228,7 +246,7 @@ export default async function DashboardPage({
   const userRole = profile?.role as Role
   const dashboardRole = userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'
   const focus: DashboardFocus = normalizeDashboardFocus(params.focus)
-  const summaryPatients = await getAllPatientsForSummary()
+  const summaryPatients = allPatients.map(toSummaryPatient)
   const roleScopedPatients = filterPatientsForRole(summaryPatients, dashboardRole)
   const roleScopeIds = getRoleScopedPatientIds(summaryPatients, dashboardRole)
   const dashboardSummary = computeDashboardSummary(
@@ -240,11 +258,11 @@ export default async function DashboardPage({
   const hasRawListFilter = Boolean(
     params.focus || params.tab || params.kpi || params.status || params.q,
   )
-  let activeTab = normalizeDashboardTabForRole(
+  const activeTab = normalizeDashboardTabForRole(
     normalizeDashboardTab(params.tab),
     dashboardRole,
   )
-  let activeKpi = normalizeDashboardKpiForRole(
+  const activeKpi = normalizeDashboardKpiForRole(
     normalizeDashboardKpi(params.kpi),
     dashboardRole,
   )
@@ -277,7 +295,8 @@ export default async function DashboardPage({
     filterPatientIds = roleScopeIds
   }
 
-  const { patients, total } = await getPatients({
+  const { patients, total } = paginateDashboardPatients({
+    patients: allPatients,
     page: currentPage,
     query: searchQuery,
     sort,
@@ -286,9 +305,13 @@ export default async function DashboardPage({
   })
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE))
 
+  if (patients.some((patient) => patient.questionnaire_status === 'sent')) {
+    after(() => reconcileQuestionnaireSentStatusesForPatients(patients))
+  }
+
   return (
     <>
-      <AppHeader userRole={userRole} userName={profile?.full_name} showActions={true} />
+      <AppHeader userRole={userRole} showActions={true} />
       <div className="min-h-screen bg-franchir-cream p-4 sm:p-6 lg:p-8">
         <div className="mx-auto max-w-[1400px]">
           <PatientList

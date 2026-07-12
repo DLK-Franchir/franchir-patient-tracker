@@ -45,6 +45,7 @@
   ],
   "exclude": [
     "node_modules",
-    "supabase/functions"
+    "supabase/functions",
+    "docs/Design responsive UI_UX_Tracker_V3"
   ]
 }

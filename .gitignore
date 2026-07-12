@@ -52,5 +52,8 @@ next-env.d.ts
 # Local patient DICOM CDs (PHI)
 IMAGES_Husain/
 
+# Figma V3 prototype export (local reference — screenshots may contain PHI)
+docs/Design responsive UI_UX_Tracker_V3/
+
 # Sauvegardes locales de la déduplication DICOM (PHI : métadonnées patient)
 .dicom-dedupe-backups/

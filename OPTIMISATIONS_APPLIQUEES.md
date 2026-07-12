@@ -84,6 +84,7 @@ Cette application a été entièrement analysée et optimisée pour la productio
 - ✅ Notifications en temps réel
 - ✅ Workflow visuel avec badges colorés
 - ✅ Interface intuitive et accessible
+- ✅ **Interface V3 (juillet 2026)** : grille KPI synthèse, tokens marque navy/coral, scoping dashboard Gilles, fil d'Ariane fiche patient — voir `GUIDE_UTILISATEUR.md` et `README.md` (section Interface V3)
 
 ## 📦 Scripts Disponibles
 
