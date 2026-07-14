@@ -115,32 +115,71 @@ Corrélation : `patients.id` = `neuro_patients.external_tracker_id` (questionnai
 
 ## Variables d'environnement
 
-Créer un fichier `.env.local` à la racine du projet :
+**Projet Supabase prod** : `zdmeidekszdrzmjuasee` — **URL app** : https://patients.franchir.eu
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-RESEND_API_KEY=your_resend_api_key
-NEXT_PUBLIC_APP_URL=https://patients.franchir.eu
+### Configuration locale
+
+```bash
+cp .env.example .env.local
+# Renseigner les secrets (Supabase Dashboard → Settings → API, Vercel → Environment Variables)
 ```
 
-### Pont questionnaires (si activé)
+**Alternative** (projet Vercel lié) :
 
-```env
-# Sortant tracker → questionnaires
-TRACKER_SYNC_SERVICE_TOKEN=          # même valeur côté questionnaires (entrant)
-QUESTIONNAIRES_API_BASE=https://questionnaire.franchir.eu/api/integrations/tracker
-QUESTIONNAIRES_IMAGING_SIGN_URL=     # optionnel — défaut {API_BASE}/imaging-sign-upload
-QUESTIONNAIRES_IMAGING_URL=          # legacy multipart (~4 Mo)
-QUESTIONNAIRES_PORTAL_URL=https://questionnaire.franchir.eu
-
-# Entrant questionnaires → tracker (callback + pont imagerie retour)
-TRACKER_RETURN_TOKEN=                # même valeur côté questionnaires (sortant)
+```bash
+vercel env pull .env.local
 ```
 
-Edge Function `sync-patient-to-questionnaires` : `QUESTIONNAIRES_BRIDGE_URL`,
-`TRACKER_SYNC_SERVICE_TOKEN`.
+> `.env.local` est ignoré par git — ne jamais committer les clés.
+
+### Variables requises (dev + prod)
+
+| Variable | Scope | Usage |
+|----------|-------|--------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Public | URL API Supabase tracker |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Auth client Supabase (navigateur) |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Secret** | API routes serveur, scripts `scripts/*.mjs` |
+| `RESEND_API_KEY` | Secret | Emails transactionnels (notifications) |
+| `NEXT_PUBLIC_APP_URL` | Public | Liens dans les emails (`https://patients.franchir.eu` en prod) |
+
+### Pont questionnaires (prod Franchir)
+
+| Variable | Sens | Usage |
+|----------|------|--------|
+| `TRACKER_SYNC_SERVICE_TOKEN` | Tracker → questionnaires | Liens questionnaire, imagerie, synthèse PDF/Anamneze |
+| `TRACKER_RETURN_TOKEN` | Questionnaires → tracker | Callback statut session + lecture `patient-documents` |
+| `QUESTIONNAIRES_API_BASE` | — | `https://questionnaire.franchir.eu/api/integrations/tracker` |
+| `QUESTIONNAIRES_PORTAL_URL` | — | `https://questionnaire.franchir.eu` |
+| `QUESTIONNAIRES_IMAGING_SIGN_URL` | Optionnel | Défaut : `{API_BASE}/imaging-sign-upload` |
+| `QUESTIONNAIRES_IMAGING_URL` | Optionnel | Legacy multipart (~4 Mo) |
+
+Edge Function Supabase `sync-patient-to-questionnaires` (dashboard) : `QUESTIONNAIRES_BRIDGE_URL` + `TRACKER_SYNC_SERVICE_TOKEN`.
+
+### Alias et clés optionnelles
+
+| Variable | Note |
+|----------|------|
+| `SUPABASE_URL` | Alias serveur de `NEXT_PUBLIC_SUPABASE_URL` |
+| `SUPABASE_ANON_KEY` | Alias serveur de `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_PUBLISHABLE_KEY` | Nouveau format clés Supabase (si activé sur le projet) |
+| `NEXT_PUBLIC_ENABLE_MP4_VIEWER` | `true` pour lecteur MP4 natif (staging) |
+| `NEXT_PUBLIC_GA_ID` | Google Analytics (optionnel) |
+
+### Variables Vercel (auto-injectées)
+
+Ne pas les dupliquer dans `.env.local` : `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_OIDC_TOKEN`, `TURBO_*`, `POSTGRES_*` (intégration Supabase marketplace).
+
+### Scripts admin (comptes staff)
+
+Nécessitent `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` dans `.env.local` :
+
+```bash
+node scripts/create-philippe-account.mjs
+node scripts/create-gilles-account.mjs
+node scripts/reset-marcel-password.mjs
+```
+
+Référence complète : [`.env.example`](.env.example) — setup Supabase : [`SUPABASE_SETUP.md`](SUPABASE_SETUP.md).
 
 ## Installation
 

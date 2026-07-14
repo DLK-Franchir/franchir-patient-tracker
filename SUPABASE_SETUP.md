@@ -21,7 +21,9 @@ Une fois le projet créé:
    - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - **service_role** key → `SUPABASE_SERVICE_ROLE_KEY`
 
-3. Mettre à jour le fichier `.env.local` avec ces valeurs
+3. Mettre à jour le fichier `.env.local` avec ces valeurs (voir [`.env.example`](../.env.example) pour la liste complète)
+
+**Projet production Franchir** : ref Supabase `zdmeidekszdrzmjuasee`, URL `https://zdmeidekszdrzmjuasee.supabase.co`.
 
 ## 3. Exécuter le schéma SQL
 
