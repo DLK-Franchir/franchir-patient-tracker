@@ -9,6 +9,7 @@ export type ProfileAccess = {
 
 export const ACTIVE_STAFF_EMAILS = [
   'marcel.mazaltarim@gmail.com',
+  'pmazaltarim@neuromtl.com',
   'duboisgilles31@gmail.com',
   'duboisgilles31@franchir.eu',
   'erik.boulard@franchir.eu',

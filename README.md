@@ -211,6 +211,7 @@ franchir-patient-tracker/
 | Rôle | Utilisateur | Email |
 |------|-------------|-------|
 | `marcel` | Marcel Mazaltarim | marcel.mazaltarim@gmail.com |
+| `marcel` | Philippe Mazaltarim | pmazaltarim@neuromtl.com |
 | `gilles` | Dr Gilles Dubois | duboisgilles31@gmail.com |
 | `admin` / `franchir` | Erik Boulard | erik.boulard@franchir.eu |
 
