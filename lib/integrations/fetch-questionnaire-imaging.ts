@@ -13,6 +13,11 @@ export type QuestionnaireImagingFile = {
   url: string
   type: 'image' | 'pdf' | 'dicom' | 'video'
   size?: number | null
+  /** Métadonnées DICOM renvoyées par le pont patient-images (SeriesInstanceUID…). */
+  seriesInstanceUid?: string | null
+  seriesDescription?: string | null
+  sopInstanceUid?: string | null
+  instanceNumber?: number | null
 }
 
 export async function fetchQuestionnairePatientImages(

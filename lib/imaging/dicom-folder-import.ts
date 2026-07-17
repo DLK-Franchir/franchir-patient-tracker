@@ -11,6 +11,10 @@ import {
 } from '@/lib/imaging/dicom-detection'
 import { fileRelativePath } from '@/lib/imaging/directory-picker'
 import { isIgnorableCompanionFile } from '@/lib/documents/patient-documents'
+import {
+  isNumericFolderPrefix,
+  seriesUidFilenamePrefix,
+} from '@/lib/imaging/dicom-series-uid-name'
 
 export type PreparedDicomFile = {
   file: File
@@ -80,7 +84,15 @@ export function resolveSeriesKey(header: DicomHeaderInfo | null, relativePath: s
   return `path:${relativePath.replace(/[\\/]/g, '/')}`
 }
 
-export function buildUniqueUploadName(relativePath: string, originalName: string): string {
+/**
+ * Nom upload unique : SE* / Series* en priorité, sinon SUID.{b64}.{stem}.dcm.
+ * Ne jamais utiliser un parent purement numérique (ex. 33230000) comme clé série.
+ */
+export function buildUniqueUploadName(
+  relativePath: string,
+  originalName: string,
+  header?: DicomHeaderInfo | null,
+): string {
   const base = sanitizeBasename(originalName)
   const withExt = ensureDicomExtension(base)
   const stem = withExt.replace(/\.(dcm|dicom)$/i, '')
@@ -88,13 +100,30 @@ export function buildUniqueUploadName(relativePath: string, originalName: string
   const folderKey = extractSeriesFolderKey(relativePath)
   if (folderKey) {
     const seriesTag = sanitizeBasename(basenameFromPath(folderKey))
-    return `${seriesTag}_${stem}.dcm`
+    if (/^SE\d+/i.test(seriesTag) || /^Series\d*/i.test(seriesTag)) {
+      return `${seriesTag}_${stem}.dcm`
+    }
+  }
+
+  if (header?.seriesInstanceUid) {
+    const prefix = seriesUidFilenamePrefix(header.seriesInstanceUid)
+    const maxStem = Math.max(8, 180 - prefix.length)
+    return `${prefix}.${stem.slice(0, maxStem)}.dcm`
+  }
+
+  if (folderKey) {
+    const seriesTag = sanitizeBasename(basenameFromPath(folderKey))
+    if (!isNumericFolderPrefix(seriesTag)) {
+      return `${seriesTag}_${stem}.dcm`
+    }
   }
 
   const parts = relativePath.split(/[\\/]/).filter(Boolean)
   if (parts.length >= 2) {
     const parent = sanitizeBasename(parts[parts.length - 2]!)
-    return `${parent}_${withExt}`
+    if (!isNumericFolderPrefix(parent)) {
+      return `${parent}_${withExt}`
+    }
   }
 
   return withExt
@@ -103,9 +132,9 @@ export function buildUniqueUploadName(relativePath: string, originalName: string
 export function prepareDicomUploadFile(
   original: File,
   relativePath: string,
-  _header: DicomHeaderInfo | null,
+  header: DicomHeaderInfo | null,
 ): File {
-  const safeName = buildUniqueUploadName(relativePath, original.name)
+  const safeName = buildUniqueUploadName(relativePath, original.name, header)
   const blob = original.slice(0, original.size, DICOM_MIME_TYPE)
   return new File([blob], safeName, {
     type: DICOM_MIME_TYPE,

@@ -84,6 +84,17 @@ describe('dicom-folder-import', () => {
     expect(ensureDicomExtension('IM000001')).toBe('IM000001.dcm')
   })
 
+  it('encode SeriesInstanceUID quand le parent est numerique', () => {
+    const name = buildUniqueUploadName('STUDY/33230000/IM000001', 'IM000001', {
+      seriesInstanceUid: '1.2.840.10008.1.2.3',
+      modality: 'MR',
+      sopInstanceUid: null,
+    })
+    expect(name.startsWith('SUID.')).toBe(true)
+    expect(name.includes('33230000')).toBe(false)
+    expect(name).toMatch(/\.IM000001\.dcm$/)
+  })
+
   it('produit des noms uniques pour 10+ IM000001 dans des SE differents', () => {
     const names = new Set<string>()
     for (let i = 2; i <= 12; i += 1) {
@@ -162,6 +173,15 @@ describe('dicom-series-group SE prefix', () => {
     ])
     expect(groups).toHaveLength(2)
     expect(groups.find((g) => g.groupId === 'series:SE000005')?.files).toHaveLength(2)
+  })
+
+  it('ignore les prefixe dossiers numeriques (questionnaire / PACS)', () => {
+    expect(dicomSeriesGroupId('1781451087388_33230000_IM000001.dcm')).toBe('patient-im')
+    expect(dicomSeriesGroupId('33230000_IM000042.dcm')).toBe('patient-im')
+  })
+
+  it('groupe par token SUID encode', () => {
+    expect(dicomSeriesGroupId('1781451087388_SUID.MS4yLjM.IM000001.dcm')).toBe('series:SUID.MS4yLjM')
   })
 
   it('groupe DICOMS_IM en patient-im et non series:DICOMS', () => {
