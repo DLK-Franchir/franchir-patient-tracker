@@ -15,6 +15,7 @@
 - Bearer M2M : `lib/security/service-bearer.ts`
 - Stuck-sent : `patients.questionnaire_sent_at`
 - **Contrat synthèse (P1)** : `packages/synthesis-contract` vendored — ne pas éditer ici ; sync depuis Q (`npm run contract:sync`)
+- **Imagerie grouping (P0)** : `packages/imaging` (`@franchir/imaging`) — **SoT = ce repo** ; après edit : `npm run imaging:sync` → questionnaires ; CI `imaging:check`
 - Docs ops / matrice / blueprint : **repo questionnaires**
 - Agent : `.cursor/agents/franchir-anamneze-bridge.md`
 - Rule Cursor : `.cursor/rules/anamneze-bridge.mdc`

@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server'
 import { listPatientDocuments } from '@/lib/documents/list-patient-documents'
+import { toQuestionnairesImagingDocument } from '@/lib/integrations/questionnaires-imaging-document'
 import { isValidBearer } from '@/lib/security/service-bearer'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
@@ -33,12 +34,9 @@ export async function GET(request: Request) {
     const documents = await listPatientDocuments(service, trackerPatientId)
 
     const response = NextResponse.json({
-      documents: documents.map((doc) => ({
-        fileName: doc.fileName,
-        url: doc.url,
-        renderType: doc.renderType,
-        sizeBytes: doc.sizeBytes,
-      })),
+      documents: documents
+        .map((doc) => toQuestionnairesImagingDocument(doc))
+        .filter((doc): doc is NonNullable<typeof doc> => doc !== null),
     })
     response.headers.set('Cache-Control', 'no-store')
     return response
