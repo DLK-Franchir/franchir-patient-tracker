@@ -250,7 +250,10 @@ export async function markQuestionnaireLinkIssued(
     .maybeSingle()
 
   if (current?.questionnaire_status !== 'completed') {
-    await service.from('patients').update({ questionnaire_status: 'sent' }).eq('id', patientId)
+    await service.from('patients').update({
+      questionnaire_status: 'sent',
+      questionnaire_sent_at: new Date().toISOString(),
+    }).eq('id', patientId)
   }
 }
 
@@ -267,7 +270,7 @@ export async function reconcileQuestionnaireSentStatus(
   const service = createServiceRoleClient()
   const { error } = await service
     .from('patients')
-    .update({ questionnaire_status: null })
+    .update({ questionnaire_status: null, questionnaire_sent_at: null })
     .eq('id', trackerPatientId)
     .eq('questionnaire_status', 'sent')
 

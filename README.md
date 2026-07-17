@@ -142,6 +142,15 @@ TRACKER_RETURN_TOKEN=                # même valeur côté questionnaires (sorta
 Edge Function `sync-patient-to-questionnaires` : `QUESTIONNAIRES_BRIDGE_URL`,
 `TRACKER_SYNC_SERVICE_TOKEN`.
 
+### Ops pont Anamneze (P0 — juil. 2026)
+
+- **Health** : `GET /api/internal/bridge/health` (Bearer `TRACKER_SYNC_SERVICE_TOKEN` ou `TRACKER_RETURN_TOKEN`) — statut `healthy|degraded|unconfigured`, compteur stuck-sent.
+- **Horloge stuck** : colonne `patients.questionnaire_sent_at` (posée à l’émission du lien) — ne pas utiliser `updated_at`.
+- **Auth M2M** : helper partagé `lib/security/service-bearer.ts` (session-status, patient-documents, bridge health).
+- **Smoke** (repo questionnaires) : `scripts/smoke/bridge-pont-smoke.mjs` — runbook côté Q : `docs/ops/BRIDGE_OPS_RUNBOOK.md`.
+- **Identité** : source de vérité tracker → neuro (`email`, `phone`, `form_types`, `questionnaire_language`) — matrice dans le repo questionnaires `docs/IDENTITY_SYNC_MATRIX.md`.
+- **Agent Cursor** : `.cursor/agents/franchir-anamneze-bridge.md` ; règle `.cursor/rules/anamneze-bridge.mdc`.
+
 ## Installation
 
 ```bash
@@ -159,6 +168,7 @@ franchir-patient-tracker/
 │   ├── api/
 │   │   ├── integrations/
 │   │   │   └── questionnaires/        # callback session-status, patient-documents
+│   │   ├── internal/bridge/health/    # healthcheck pont (P0)
 │   │   ├── notify/route.ts
 │   │   ├── patients/
 │   │   │   ├── route.ts
@@ -190,6 +200,7 @@ franchir-patient-tracker/
 │   ├── documents/                       # règles patient-documents, upload, guidance
 │   ├── imaging/                         # import CD, détection DICOM, séries
 │   ├── integrations/                    # forward-imaging, fetch questionnaires, synthèse PDF
+│   ├── security/service-bearer.ts       # Bearer M2M timing-safe
 │   ├── patient-detail-view-config.ts    # fiche épurée Gilles (P0)
 │   ├── email-config.ts
 │   ├── email-templates.ts

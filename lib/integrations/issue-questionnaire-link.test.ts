@@ -47,7 +47,12 @@ describe('markQuestionnaireLinkIssued', () => {
 
   it('met sent si email expédié', async () => {
     await markQuestionnaireLinkIssued('patient-1', true)
-    expect(updateMock).toHaveBeenCalledWith({ questionnaire_status: 'sent' })
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        questionnaire_status: 'sent',
+        questionnaire_sent_at: expect.any(String),
+      }),
+    )
     expect(eqAfterUpdate).toHaveBeenCalledWith('id', 'patient-1')
   })
 })
