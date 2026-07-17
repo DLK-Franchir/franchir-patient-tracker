@@ -9,7 +9,7 @@ describe('fetchQuestionnairePatientImages', () => {
 
   it('demande enrichMetadata=0 par defaut (evite Range GETs pont)', async () => {
     vi.stubEnv('TRACKER_SYNC_SERVICE_TOKEN', 'test-token')
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (_url: string) => ({
       ok: true,
       json: async () => ({ files: [] }),
     }))
@@ -18,14 +18,14 @@ describe('fetchQuestionnairePatientImages', () => {
     await fetchQuestionnairePatientImages('00000000-0000-4000-8000-000000000001')
 
     expect(fetchMock).toHaveBeenCalledOnce()
-    const calledUrl = String(fetchMock.mock.calls[0]?.[0] ?? '')
+    const calledUrl = fetchMock.mock.calls[0]![0]
     expect(calledUrl).toContain('enrichMetadata=0')
     expect(calledUrl).toContain('trackerPatientId=00000000-0000-4000-8000-000000000001')
   })
 
   it('autorise enrichMetadata=1 si demande', async () => {
     vi.stubEnv('TRACKER_SYNC_SERVICE_TOKEN', 'test-token')
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (_url: string) => ({
       ok: true,
       json: async () => ({ files: [] }),
     }))
@@ -35,7 +35,7 @@ describe('fetchQuestionnairePatientImages', () => {
       enrichMetadata: true,
     })
 
-    const calledUrl = String(fetchMock.mock.calls[0]?.[0] ?? '')
+    const calledUrl = fetchMock.mock.calls[0]![0]
     expect(calledUrl).toContain('enrichMetadata=1')
   })
 })
