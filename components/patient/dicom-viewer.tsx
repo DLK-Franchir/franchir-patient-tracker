@@ -110,6 +110,7 @@ export default function DicomViewer({
   useDicomStackMode({
     navMode,
     urlsKey,
+    seriesName: name,
     layerGroupId,
     containerRef,
     appRef,

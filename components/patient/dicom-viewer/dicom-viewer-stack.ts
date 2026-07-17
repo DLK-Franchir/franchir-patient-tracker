@@ -2,7 +2,6 @@ import { useEffect, type RefObject } from "react";
 import type { App } from "dwv";
 import type { DicomTool, DwvLoadEvent, NavMode } from "./dicom-viewer-types";
 import {
-  SEQUENTIAL_ORIENTATION_FALLBACK_MSG,
   STACK_LOAD_FAIL_MS,
   STACK_PROGRESS_FALLBACK_MS,
   STACK_RENDER_READY_MS,
@@ -10,6 +9,7 @@ import {
   formatDicomLoadError,
   isStackOrientationMismatch,
   isUnsupportedJpeg2000Error,
+  orientationFallbackMessage,
 } from "./dicom-viewer-types";
 import {
   addWindowLevelPresets,
@@ -25,6 +25,8 @@ import { clearLayoutTimers, scheduleLayoutRetries } from "./dicom-viewer-layout"
 type StackModeParams = {
   navMode: NavMode;
   urlsKey: string;
+  /** Libellé série (détecte localizer multi-plans pour le message d'orientation). */
+  seriesName?: string;
   layerGroupId: string;
   containerRef: RefObject<HTMLDivElement | null>;
   appRef: RefObject<App | null>;
@@ -50,6 +52,7 @@ export function useDicomStackMode(params: StackModeParams) {
   const {
     navMode,
     urlsKey,
+    seriesName,
     layerGroupId,
     containerRef,
     appRef,
@@ -214,7 +217,7 @@ export function useDicomStackMode(params: StackModeParams) {
       }
 
       if (isStackOrientationMismatch(message) && seriesUrls.length > 1) {
-        switchToSequentialFallback(SEQUENTIAL_ORIENTATION_FALLBACK_MSG);
+        switchToSequentialFallback(orientationFallbackMessage(seriesName));
         return;
       }
 
@@ -289,6 +292,7 @@ export function useDicomStackMode(params: StackModeParams) {
     };
   }, [
     urlsKey,
+    seriesName,
     layerGroupId,
     navMode,
     appRef,

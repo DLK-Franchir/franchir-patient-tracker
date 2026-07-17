@@ -72,6 +72,17 @@ export function isStackOrientationMismatch(message: string | null | undefined): 
 export const SEQUENTIAL_ORIENTATION_FALLBACK_MSG =
   "Orientations d'images incompatibles — affichage fichier par fichier.";
 
+/** Localizers / scouts sont multi-plans par nature (pas un bug de regroupement). */
+export const SEQUENTIAL_LOCALIZER_ORIENTATION_MSG =
+  "Localizer multi-plans — affichage coupe par coupe (orientations différentes attendues).";
+
+export function orientationFallbackMessage(seriesName?: string | null): string {
+  if (seriesName && /localizer|localiser|scout|survey/i.test(seriesName)) {
+    return SEQUENTIAL_LOCALIZER_ORIENTATION_MSG;
+  }
+  return SEQUENTIAL_ORIENTATION_FALLBACK_MSG;
+}
+
 /**
  * Le décodeur JPEG 2000 de dwv (portage PDF.js) rejette certaines options de
  * codage (« selective arithmetic coding bypass », marqueur COD) utilisées par

@@ -21,6 +21,7 @@ import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
 import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
+import { filterQuestionnaireImagingAgainstTracker } from '@/lib/imaging/dedupe-imaging-sources'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
@@ -220,10 +221,23 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const items = useMemo(
-    () => [...buildViewerItems(documents), ...buildQuestionnaireViewerItems(questionnaireFiles)],
-    [documents, questionnaireFiles],
-  )
+  const items = useMemo(() => {
+    // Forward patient-images = copie du tracker : masquer les doublons Q.
+    const uniqueQuestionnaireFiles = filterQuestionnaireImagingAgainstTracker(
+      documents.map((doc) => ({
+        fileName: doc.fileName,
+        renderType: doc.renderType,
+        sizeBytes: doc.sizeBytes,
+        seriesInstanceUid: doc.seriesInstanceUid,
+        sopInstanceUid: doc.sopInstanceUid,
+      })),
+      questionnaireFiles,
+    )
+    return [
+      ...buildViewerItems(documents),
+      ...buildQuestionnaireViewerItems(uniqueQuestionnaireFiles),
+    ]
+  }, [documents, questionnaireFiles])
 
   const dicomViewerSeries = useMemo(() => buildDicomViewerSeries(items), [items])
 
