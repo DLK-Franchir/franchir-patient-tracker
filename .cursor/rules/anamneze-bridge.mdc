@@ -29,6 +29,10 @@ Fork `*-unified` / Abacus / Anaconda = **hors prod**.
 
 Déléguer ops pont / callback / tokens / identité à `franchir-anamneze-bridge`. Intégration générale : `franchir-cockpit`.
 
+## Contrat synthèse (P1)
+
+`packages/synthesis-contract` est une **copie pinée**. Éditer uniquement dans questionnaires, puis `npm run contract:sync`. `npm run test:contract` en CI.
+
 ## Discipline
 
 Fix bridge = 2 PR si les deux apps changent. Pas de PHI / secrets dans logs ou PR. Après redeploy : inventaire env miroir + smoke pont.

@@ -14,7 +14,8 @@
 - Health pont : `GET /api/internal/bridge/health`
 - Bearer M2M : `lib/security/service-bearer.ts`
 - Stuck-sent : `patients.questionnaire_sent_at`
-- Docs ops / matrice / blueprint : **repo questionnaires** (`docs/ops/BRIDGE_OPS_RUNBOOK.md`, `IDENTITY_SYNC_MATRIX.md`, `BLUEPRINT_ANAMNEZE_PERENNE.md`)
+- **Contrat synthèse (P1)** : `packages/synthesis-contract` vendored — ne pas éditer ici ; sync depuis Q (`npm run contract:sync`)
+- Docs ops / matrice / blueprint : **repo questionnaires**
 - Agent : `.cursor/agents/franchir-anamneze-bridge.md`
 - Rule Cursor : `.cursor/rules/anamneze-bridge.mdc`
 
