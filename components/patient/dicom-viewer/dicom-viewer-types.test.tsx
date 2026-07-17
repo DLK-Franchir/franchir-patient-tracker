@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { formatDicomLoadError } from '@/components/patient/dicom-viewer/dicom-viewer-types'
+import {
+  formatDicomLoadError,
+  orientationFallbackMessage,
+  SEQUENTIAL_LOCALIZER_ORIENTATION_MSG,
+  SEQUENTIAL_ORIENTATION_FALLBACK_MSG,
+} from '@/components/patient/dicom-viewer/dicom-viewer-types'
 
 describe('formatDicomLoadError', () => {
   it('signale un JWT Supabase Storage expiré', () => {
@@ -12,5 +17,19 @@ describe('formatDicomLoadError', () => {
 
   it('conserve le message dwv pour les autres erreurs', () => {
     expect(formatDicomLoadError('orientation mismatch')).toBe('orientation mismatch')
+  })
+})
+
+describe('orientationFallbackMessage', () => {
+  it('explique le multi-plans pour un localizer', () => {
+    expect(orientationFallbackMessage('localizer (8 images)')).toBe(
+      SEQUENTIAL_LOCALIZER_ORIENTATION_MSG,
+    )
+  })
+
+  it('garde le message générique pour les autres séries', () => {
+    expect(orientationFallbackMessage('SAG T1 (19 images)')).toBe(
+      SEQUENTIAL_ORIENTATION_FALLBACK_MSG,
+    )
   })
 })
