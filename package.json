@@ -11,6 +11,9 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run --config vitest.config.mts",
     "test:contract": "vitest run --config vitest.config.mts packages/synthesis-contract",
+    "test:imaging": "vitest run --config vitest.config.mts packages/imaging",
+    "imaging:sync": "node scripts/sync-imaging-package.mjs",
+    "imaging:check": "node scripts/sync-imaging-package.mjs --check",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "rm -rf .next node_modules",
@@ -18,6 +21,7 @@
     "check": "npm run type-check && npm run lint && npm run format:check"
   },
   "dependencies": {
+    "@franchir/imaging": "file:./packages/imaging",
     "@franchir/synthesis-contract": "file:./packages/synthesis-contract",
     "@cornerstonejs/codec-openjpeg": "^1.3.0",
     "@hookform/resolvers": "^3.10.0",

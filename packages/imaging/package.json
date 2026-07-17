@@ -1,0 +1,10 @@
+{
+  "name": "@franchir/imaging",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared DICOM series grouping / imaging primitives — SoT = franchir-patient-tracker, vendored into questionnaires",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

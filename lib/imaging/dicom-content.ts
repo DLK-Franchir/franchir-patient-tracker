@@ -8,14 +8,17 @@ import {
   hasLikelyRawDicomStructure,
   type DicomHeaderInfo,
 } from '@/lib/imaging/dicom-detection'
+import {
+  ENCAPSULATED_PDF_BAND_MAX_BYTES,
+  isLikelyEncapsulatedPdfBand,
+} from '@franchir/imaging'
+
+export { ENCAPSULATED_PDF_BAND_MAX_BYTES, isLikelyEncapsulatedPdfBand }
 
 export type DicomContentKind = 'image' | 'encapsulated-pdf' | 'unknown'
 
 /** SOP Class UID — Encapsulated PDF Storage. */
 export const ENCAPSULATED_PDF_SOP_CLASS = '1.2.840.10008.5.1.4.1.1.104.1'
-
-/** Médiane typique des DOC encapsulés sur CD DICOMS_IM (Fatima Husain). */
-export const ENCAPSULATED_PDF_BAND_MAX_BYTES = 120_000
 
 const TAG_SOP_CLASS_UID = 0x00160008
 const TAG_MODALITY = 0x00600008
@@ -244,17 +247,6 @@ export function classifyDicomContentFromHeader(info: {
   if (info.modality && info.modality !== 'DOC') return 'image'
   if (info.sopClassUid?.includes('1.1.7') || info.sopClassUid?.includes('1.1.2')) return 'image'
   return 'unknown'
-}
-
-/** Heuristique listing (sans octets) : lot DOC encapsulé sur CD DICOMS_IM. */
-export function isLikelyEncapsulatedPdfBand(files: Array<{ size?: number | null }>): boolean {
-  const sizes = files
-    .map((file) => file.size)
-    .filter((size): size is number => typeof size === 'number' && size > 0)
-  if (sizes.length === 0) return false
-  const sorted = [...sizes].sort((a, b) => a - b)
-  const median = sorted[Math.floor(sorted.length / 2)] ?? 0
-  return median > 0 && median <= ENCAPSULATED_PDF_BAND_MAX_BYTES
 }
 
 export function parseDicomContentInfo(bytes: ArrayBuffer | Uint8Array): DicomContentInfo | null {

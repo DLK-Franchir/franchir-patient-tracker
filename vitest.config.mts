@@ -8,6 +8,9 @@ export default defineConfig({
       '@franchir/synthesis-contract': fileURLToPath(
         new URL('./packages/synthesis-contract/src/index.ts', import.meta.url),
       ),
+      '@franchir/imaging': fileURLToPath(
+        new URL('./packages/imaging/src/index.ts', import.meta.url),
+      ),
     },
   },
   test: {
