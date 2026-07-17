@@ -12,6 +12,10 @@ import {
   normalizeFormTypes,
 } from '@/lib/integrations/questionnaire-form-types'
 import {
+  needsQuestionnaireResyncConfirm,
+  questionnaireResyncConfirmMessage,
+} from '@/lib/integrations/questionnaire-resync-confirm'
+import {
   StatusBadge,
   questionnaireStatusLabel,
   questionnaireStatusVariant,
@@ -97,15 +101,26 @@ export default function QuestionnairePatientCard({
 
   const handleSendPreset = async (preset: QuestionnaireFormTypePreset) => {
     const targetTypes = formTypesForPreset(preset)
+    const formTypesChanged = !formTypesEqual(currentFormTypes, targetTypes)
+    const languageDirty = language !== initialLanguage
+    const hasInProgressSession = hasInProgressQuestionnaireSession(bridgeStatus)
 
     if (
-      !formTypesEqual(currentFormTypes, targetTypes) &&
-      hasInProgressQuestionnaireSession(bridgeStatus)
+      needsQuestionnaireResyncConfirm({
+        languageDirty,
+        formTypesChanged,
+        questionnaireStatus: statusKey,
+        hasActiveLink: Boolean(bridgeStatus?.activeLink),
+        hasInProgressSession,
+      })
     ) {
-      const fromLabel = formatFormTypesLabel(currentFormTypes)
-      const toLabel = formatFormTypesLabel(targetTypes)
       const confirmed = window.confirm(
-        `Le patient a un questionnaire ${fromLabel} en cours. Passer au parcours ${toLabel} ouvrira une nouvelle session et les réponses en cours seront perdues. Continuer ?`,
+        questionnaireResyncConfirmMessage({
+          languageDirty,
+          formTypesChanged,
+          fromPathologyLabel: formatFormTypesLabel(currentFormTypes),
+          toPathologyLabel: formatFormTypesLabel(targetTypes),
+        }),
       )
       if (!confirmed) return
     }
@@ -259,11 +274,18 @@ export default function QuestionnairePatientCard({
               onChange={setLanguage}
               disabled={loading}
             />
+            {language !== initialLanguage && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Langue modifiée — le prochain envoi resynchronisera le dossier vers le questionnaire
+                (confirmation demandée si un lien a déjà été envoyé).
+              </p>
+            )}
             <div>
               <p className="text-sm font-semibold text-gray-800 mb-2">Pathologie du questionnaire</p>
               <p className="text-xs text-gray-500 mb-3">
-                Choisissez le parcours à envoyer. Un changement de pathologie avec questionnaire en cours
-                ouvre une nouvelle session.
+                Choisissez le parcours à envoyer. Après un premier envoi, tout changement de langue ou
+                de pathologie demande une confirmation (resync explicite). Un changement de pathologie
+                avec questionnaire en cours ouvre une nouvelle session.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {PATHOLOGY_BUTTONS.map(({ preset, label, activeClass }) => {
