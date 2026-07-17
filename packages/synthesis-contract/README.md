@@ -1,17 +1,35 @@
 # @franchir/synthesis-contract
 
-Shared types and UI primitives for Anamneze synthesis between **questionnaires** and **tracker**.
+Shared types and UI primitives for Anamneze synthesis between **questionnaires**
+(owner) and **tracker** (vendored pin).
 
-Consumed via `file:` dependency:
+## Ownership
 
-- Questionnaires: `file:./packages/synthesis-contract`
-- Tracker: `file:../Franchir_Questionnaires_Patients/packages/synthesis-contract`
+| Repo | Rôle | Dependency |
+|------|------|------------|
+| `Franchir_Questionnaires_Patients` | **Source de vérité** — éditer ici | `file:./packages/synthesis-contract` |
+| `franchir-patient-tracker` | Copie pinée pour builds Vercel isolés | `file:./packages/synthesis-contract` |
+
+Après chaque changement de contrat :
+
+```bash
+# depuis questionnaires
+npm run contract:sync   # copie → ../franchir-patient-tracker
+npm run contract:check  # échoue si drift / versions divergentes
+```
+
+Semver dans `package.json` + entrée dans `CHANGELOG.md` (même PR).
+
+| Bump | Quand |
+|------|--------|
+| **patch** | helpers, classes CSS, docs, tests |
+| **minor** | champs preview / exports additifs |
+| **major** | rename/remove champs `QuestionnaireSynthesisPreview` ou props UI partagées |
 
 ## Contents
 
-- `FunctionalScoreRow`, `OrientationSummaryField` — API contract types
-- `birth-date-display` — JJ/MM/AAAA parsing (single source of truth)
-- `spine-region-label` — parcours labels (`Cervical + Lombaire`, etc.)
-- `FunctionalScoreBars`, `OrientationFieldGrid` — shared presentational components
+- `FunctionalScoreRow`, `OrientationSummaryField`, `QuestionnaireSynthesisPreview`
+- `birth-date-display`, `spine-region-label`, `severityClassForRow`
+- `FunctionalScoreBars`, `OrientationFieldGrid`
 
-Questionnaires owns score **builders** (`synthesis-functional-scores.ts`); tracker renders the preview payload only.
+Questionnaires owns score **builders** ; tracker renders the preview payload only.

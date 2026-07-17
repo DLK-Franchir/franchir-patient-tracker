@@ -1,8 +1,9 @@
 {
   "name": "@franchir/synthesis-contract",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
+  "description": "Shared Anamneze synthesis types/UI — owned by questionnaires, vendored into tracker",
   "exports": {
     ".": "./src/index.ts"
   },

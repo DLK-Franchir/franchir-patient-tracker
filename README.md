@@ -142,6 +142,13 @@ TRACKER_RETURN_TOKEN=                # même valeur côté questionnaires (sorta
 Edge Function `sync-patient-to-questionnaires` : `QUESTIONNAIRES_BRIDGE_URL`,
 `TRACKER_SYNC_SERVICE_TOKEN`.
 
+### Contrat synthèse Anamneze (P1 — juil. 2026)
+
+- Package vendored : `packages/synthesis-contract` (`@franchir/synthesis-contract@0.1.1`)
+- **Source de vérité** = repo questionnaires ; sync depuis Q : `npm run contract:sync` puis PR tracker
+- Tests locaux : `npm run test:contract`
+- Ne pas éditer le package ici sauf sync — sinon drift Anamneze preview/PDF
+
 ### Ops pont Anamneze (P0 — juil. 2026)
 
 - **Health** : `GET /api/internal/bridge/health` (Bearer `TRACKER_SYNC_SERVICE_TOKEN` ou `TRACKER_RETURN_TOKEN`) — statut `healthy|degraded|unconfigured`, compteur stuck-sent.
