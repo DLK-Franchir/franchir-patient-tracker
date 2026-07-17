@@ -25,6 +25,7 @@ describe('orientationFallbackMessage', () => {
     expect(orientationFallbackMessage('localizer (8 images)')).toBe(
       SEQUENTIAL_LOCALIZER_ORIENTATION_MSG,
     )
+    expect(SEQUENTIAL_LOCALIZER_ORIENTATION_MSG).toMatch(/AX\/SAG\/COR/)
   })
 
   it('garde le message générique pour les autres séries', () => {
