@@ -11,6 +11,9 @@ export default defineConfig({
       '@franchir/imaging': fileURLToPath(
         new URL('./packages/imaging/src/index.ts', import.meta.url),
       ),
+      '@franchir/imaging-viewer': fileURLToPath(
+        new URL('./packages/imaging-viewer/src/index.ts', import.meta.url),
+      ),
     },
   },
   test: {

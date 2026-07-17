@@ -33,3 +33,6 @@ jobs:
 
       - name: Synthesis contract unit tests
         run: npm run test:contract
+
+      - name: Imaging viewer package tests
+        run: npm run test:imaging-viewer

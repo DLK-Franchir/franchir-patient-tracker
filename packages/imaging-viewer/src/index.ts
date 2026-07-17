@@ -1,25 +1,24 @@
-import type { App } from 'dwv'
-import type { ImagingPoolEntry } from '@franchir/imaging-viewer'
-
 /**
- * Re-export SoT `@franchir/imaging-viewer`.
- * Éditer `packages/imaging-viewer`, puis `npm run imaging-viewer:sync`.
+ * @franchir/imaging-viewer — contrat + policy + helpers purs visionneuse DICOM.
+ * SoT = franchir-patient-tracker. Sync → questionnaires via `npm run imaging-viewer:sync`.
  */
 
 export type {
   DicomTool,
   DicomViewerProps,
+  DwvLayoutApp,
   DwvLoadEvent,
+  ImagingPoolEntry,
   ImagingSeries,
   ImagingViewerItem,
   NavMode,
+  PoolEntry,
   PoolEntryStatus,
   ViewerCapabilities,
   ViewerInfoKind,
   ViewerSeries,
   ViewerStatus,
-  WlPresetId,
-} from '@franchir/imaging-viewer'
+} from './contract'
 
 export {
   DEFAULT_VIEWER_CAPABILITIES,
@@ -38,8 +37,23 @@ export {
   isUnsupportedJpeg2000Error,
   nextLayerGroupId,
   orientationFallbackMessage,
+  resetLayerGroupIdCounterForTests,
   resolveViewerInfoKind,
-} from '@franchir/imaging-viewer'
+  type WlPresetId,
+} from './policy'
 
-/** Entrée pool typée avec dwv `App` (générique dans le package). */
-export type PoolEntry = ImagingPoolEntry<App>
+export {
+  POOL_BOOTSTRAP_INDEX,
+  nextPoolLoadIndex,
+  shouldPumpParallelLoads,
+} from './pool-plan'
+
+export {
+  clearLayoutTimers,
+  ensureDwvVisible,
+  refreshDwvLayout,
+  scheduleLayoutRetries,
+  setPoolContainerVisible,
+} from './layout'
+
+export { hasPixelSignal } from './pixel-signal'
