@@ -50,6 +50,7 @@ Tu es l'**ingénieur d'intégration du cockpit Franchir** (tracker patient ↔ a
 - Fix bridge = **deux PR** minimum (questionnaires prod + tracker) si les deux côtés changent
 - Après merge prod questionnaires : `npx vercel deploy --prod` depuis `Franchir_Questionnaires_Patients` si CI ne déclenche pas
 - Documenter les écarts unified ↔ prod dans `franchir-repo-hygiene`
+- Ops pont / identité P0–P2 : déléguer à `franchir-anamneze-bridge` (smoke `bridge-pont-smoke.mjs`, runbook `BRIDGE_OPS_RUNBOOK.md`, matrice `IDENTITY_SYNC_MATRIX.md`)
 
 ## Livrable type
 

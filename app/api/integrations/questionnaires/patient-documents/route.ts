@@ -7,21 +7,11 @@
  */
 
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'node:crypto'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { listPatientDocuments } from '@/lib/documents/list-patient-documents'
+import { isValidBearer } from '@/lib/security/service-bearer'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function isValidBearer(authorization: string | null, expected: string): boolean {
-  if (!authorization) return false
-  const [scheme, token] = authorization.trim().split(/\s+/, 2)
-  if (scheme?.toLowerCase() !== 'bearer' || !token) return false
-  const received = Buffer.from(token)
-  const expectedBuf = Buffer.from(expected)
-  if (received.length !== expectedBuf.length) return false
-  return timingSafeEqual(received, expectedBuf)
-}
 
 export async function GET(request: Request) {
   try {

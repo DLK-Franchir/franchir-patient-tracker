@@ -1,0 +1,34 @@
+---
+description: Anamneze / pont tracker↔questionnaires — P0 ops, identité, dual-app prod
+alwaysApply: true
+---
+
+# Anamneze Bridge — contexte tracker
+
+## Prod (ne pas confondre)
+
+| App | Domaine | Repo local | Vercel |
+|-----|---------|------------|--------|
+| Tracker Marcel | https://patients.franchir.eu | `franchir-patient-tracker` | `franchir-patient-tracker` |
+| Questionnaires | https://questionnaire.franchir.eu | `Franchir_Questionnaires_Patients` | `franchir-questionnaires-patients` |
+
+Fork `*-unified` / Abacus / Anaconda = **hors prod**.
+
+## P0 ops pont
+
+- Health : `GET /api/internal/bridge/health` — Bearer sync **ou** return token (`lib/security/service-bearer.ts`)
+- Stuck-sent : filtre sur `questionnaire_sent_at` (posé dans `markQuestionnaireLinkIssued`), pas `updated_at`
+- Callback reçu : `POST /api/integrations/questionnaires/session-status`
+- Smoke + runbook vivent surtout côté questionnaires (`BRIDGE_OPS_RUNBOOK.md`, `bridge-pont-smoke.mjs`)
+
+## Identité (source de vérité = tracker)
+
+`patient_email` / `patient_phone` / `form_types` / `questionnaire_language` → neuro via upsert + issue link. Matrice : repo Q `docs/IDENTITY_SYNC_MATRIX.md`.
+
+## Agents
+
+Déléguer ops pont / callback / tokens / identité à `franchir-anamneze-bridge`. Intégration générale : `franchir-cockpit`.
+
+## Discipline
+
+Fix bridge = 2 PR si les deux apps changent. Pas de PHI / secrets dans logs ou PR. Après redeploy : inventaire env miroir + smoke pont.
