@@ -8,7 +8,16 @@ import { NextResponse, type NextRequest } from 'next/server'
 // dwv charge ses codec workers depuis /assets/workers/* (rewrite → /dwv-workers/*).
 // Ces fichiers doivent être publics : sinon le middleware redirige vers /login et
 // les DICOM JPEG Lossless (DICOMOBJ) ne se décodent pas.
-const PUBLIC_PATHS = ['/login', '/auth', '/api/integrations', '/dwv-workers', '/assets/workers']
+// `/api/internal/bridge` = healthcheck pont M2M (Bearer sync/return token),
+// sans session navigateur — même fail-closed que `/api/integrations`.
+const PUBLIC_PATHS = [
+  '/login',
+  '/auth',
+  '/api/integrations',
+  '/api/internal/bridge',
+  '/dwv-workers',
+  '/assets/workers',
+]
 
 export async function updateSession(request: NextRequest) {
   try {
