@@ -3,6 +3,7 @@
  */
 
 import { isLikelyEncapsulatedPdfBand } from '@/lib/imaging/dicom-content'
+import { isNumericFolderPrefix } from '@/lib/imaging/dicom-series-uid-name'
 
 export type NamedImagingFile = {
   name: string
@@ -26,6 +27,9 @@ function storageTimestampPrefix(storageName: string): number {
 export function dicomSeriesGroupId(storageName: string): string {
   const stripped = stripStorageTimestampPrefix(storageName)
 
+  const suidMatch = stripped.match(/^SUID\.([A-Za-z0-9_-]+)\./i)
+  if (suidMatch) return `series:SUID.${suidMatch[1]}`
+
   const seMatch = stripped.match(/^(SE\d+)_/i)
   if (seMatch) return `series:${seMatch[1]!.toUpperCase()}`
 
@@ -39,8 +43,17 @@ export function dicomSeriesGroupId(storageName: string): string {
   if (/^DICOMS_IM\d+(\.(dcm|dicom))?$/i.test(stripped)) return 'patient-im'
 
   const stem = stripped.replace(/\.(dcm|dicom)$/i, '')
-  const prefixMatch = stem.match(/^([A-Za-z0-9]+)_/)
-  if (prefixMatch) return `series:${prefixMatch[1]}`
+  const prefixMatch = stem.match(/^([A-Za-z0-9]+)_(.+)$/)
+  if (prefixMatch) {
+    const prefix = prefixMatch[1]!
+    const rest = prefixMatch[2]!
+    // Dossiers étude PACS purement numériques (ex. 33230000) ≠ identité série.
+    if (isNumericFolderPrefix(prefix)) {
+      const restName = /\.(dcm|dicom)$/i.test(rest) ? rest : `${rest}.dcm`
+      return dicomSeriesGroupId(restName)
+    }
+    return `series:${prefix}`
+  }
 
   return `series:${stem.replace(/\d+$/, '') || stripped}`
 }

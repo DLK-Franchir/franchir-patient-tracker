@@ -157,7 +157,17 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
   }
 
   for (const series of groupDicomFilesByMetadata(
-    files.filter((f) => f.type === 'dicom').map((f) => ({ name: f.name, url: f.url, size: f.size ?? null })),
+    files
+      .filter((f) => f.type === 'dicom')
+      .map((f) => ({
+        name: f.name,
+        url: f.url,
+        size: f.size ?? null,
+        seriesInstanceUid: f.seriesInstanceUid,
+        seriesDescription: f.seriesDescription,
+        sopInstanceUid: f.sopInstanceUid,
+        instanceNumber: f.instanceNumber,
+      })),
   )) {
     const first = series.files[0]
     if (!first) continue
