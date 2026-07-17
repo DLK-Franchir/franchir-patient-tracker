@@ -21,4 +21,5 @@ tracker ↔ questionnaires, heuristique PDF encapsulé listing).
 - `dicom-series-uid-name`, bande PDF encapsulé listing
 - `filterQuestionnaireImagingAgainstTracker`
 
-Hors scope (prochaine extrait) : shell React `DicomViewer` / workers dwv.
+Companion viewer : `@franchir/imaging-viewer` (contrat + policy). Hors scope
+ici : shell React `DicomViewer` / workers dwv (roadmap P1 dans ce sibling).

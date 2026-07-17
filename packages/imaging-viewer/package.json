@@ -1,0 +1,10 @@
+{
+  "name": "@franchir/imaging-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared DICOM viewer contract, codec/UX policy, and pure engine helpers — SoT = franchir-patient-tracker, vendored into questionnaires",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
