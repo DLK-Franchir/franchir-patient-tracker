@@ -196,4 +196,24 @@ describe('issueQuestionnaireLink', () => {
     expect(result).toMatchObject({ ok: false, httpStatus: 409, code: 'completed' })
     expect(updateMock).not.toHaveBeenCalledWith({ form_types: expect.anything() })
   })
+
+  it('met a jour questionnaire_language puis sync avant emission (fr→en)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ emailSent: true }), { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await issueQuestionnaireLink({
+      patientId: 'patient-1',
+      language: 'en',
+      formTypes: ['cervical'],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(updateMock).toHaveBeenCalledWith({ questionnaire_language: 'en' })
+    expect(syncPatientToQuestionnaires).toHaveBeenCalledWith('patient-1')
+    expect(vi.mocked(syncPatientToQuestionnaires).mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[0],
+    )
+  })
 })
