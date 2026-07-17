@@ -403,7 +403,7 @@ export default function DicomViewer({
                 <button
                   type="button"
                   onClick={onPrevSeries}
-                  disabled={atFirstSeries}
+                  disabled={atFirstSeries || isBusy}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
                   data-testid="dicom-prev-series"
                 >
@@ -413,11 +413,11 @@ export default function DicomViewer({
                 <button
                   type="button"
                   onClick={onNextSeries}
-                  disabled={atLastSeries}
+                  disabled={atLastSeries || isBusy}
                   className="inline-flex items-center gap-2 rounded-xl bg-dash-teal px-4 py-2.5 text-sm font-bold text-white shadow-lg transition hover:bg-dash-teal/90 disabled:cursor-not-allowed disabled:opacity-40"
                   data-testid="dicom-next-series"
                 >
-                  Série suivante
+                  {isBusy ? 'Chargement…' : 'Série suivante'}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </button>
               </>

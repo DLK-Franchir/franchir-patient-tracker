@@ -214,6 +214,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** Feedback immédiat avant que dwv peigne la premiere coupe. */
+  const [viewerShellBusy, setViewerShellBusy] = useState(false)
   // Séries JPEG 2000 que dwv ne sait pas décoder → rendu via repli OpenJPEG (clé = id série stable).
   const [jpeg2000Fallbacks, setJpeg2000Fallbacks] = useState<Set<string>>(new Set())
   const [showUpload, setShowUpload] = useState(false)
@@ -249,35 +251,65 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     [items],
   )
 
-  const fetchDocuments = useCallback(async () => {
+  /** Documents tracker (rapide : table + batch signed URLs). */
+  const fetchTrackerDocuments = useCallback(async (): Promise<boolean> => {
     try {
-      const [docsRes, qRes] = await Promise.all([
-        fetch(`/api/patients/${patientId}/documents`, { cache: 'no-store' }),
-        fetch(`/api/patients/${patientId}/questionnaires-imaging`, { cache: 'no-store' }),
-      ])
+      const docsRes = await fetch(`/api/patients/${patientId}/documents`, { cache: 'no-store' })
       if (!docsRes.ok) {
         throw new Error('Échec du chargement des fichiers')
       }
       const data = await docsRes.json()
       setDocuments(data.documents ?? [])
+      setError(null)
+      return true
+    } catch {
+      setError('Impossible de charger les fichiers du patient.')
+      return false
+    }
+  }, [patientId])
 
+  /**
+   * Imagerie questionnaire (secondaire). Ne doit jamais bloquer l'ouverture
+   * d'une série tracker — le pont Q peut encore être lent sur gros lots.
+   */
+  const fetchQuestionnaireImaging = useCallback(async () => {
+    try {
+      const qRes = await fetch(`/api/patients/${patientId}/questionnaires-imaging`, {
+        cache: 'no-store',
+      })
       if (qRes.ok) {
         const qData = await qRes.json()
         setQuestionnaireFiles(qData.files ?? [])
       } else {
         setQuestionnaireFiles([])
       }
-      setError(null)
     } catch {
-      setError('Impossible de charger les fichiers du patient.')
-    } finally {
-      setLoading(false)
+      setQuestionnaireFiles([])
     }
   }, [patientId])
 
+  const fetchDocuments = useCallback(async () => {
+    const ok = await fetchTrackerDocuments()
+    if (ok) {
+      await fetchQuestionnaireImaging()
+    }
+    setLoading(false)
+  }, [fetchTrackerDocuments, fetchQuestionnaireImaging])
+
   useEffect(() => {
-    fetchDocuments()
-  }, [fetchDocuments])
+    let cancelled = false
+    ;(async () => {
+      const ok = await fetchTrackerDocuments()
+      if (cancelled) return
+      setLoading(false)
+      if (ok) {
+        void fetchQuestionnaireImaging()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [fetchTrackerDocuments, fetchQuestionnaireImaging])
 
   const handleUpload = useCallback(async () => {
     if (pendingFiles.length === 0) return
@@ -327,17 +359,17 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     [items],
   )
 
-  /** Régénère les URLs signées (TTL 30 min) avant ouverture ou changement de série DICOM. */
-  const openViewer = useCallback(
-    async (id: string) => {
-      await fetchDocuments()
-      setSelectedId(id)
-    },
-    [fetchDocuments],
-  )
+  /**
+   * Ouverture immédiate avec les URLs déjà en mémoire (TTL 30 min).
+   * Pas de re-fetch pont Q : c'était la cause des freezes « clic → rien ».
+   */
+  const openViewer = useCallback((id: string) => {
+    setViewerShellBusy(true)
+    setSelectedId(id)
+  }, [])
 
   const navigateDicomSeries = useCallback(
-    async (direction: 'next' | 'prev') => {
+    (direction: 'next' | 'prev') => {
       if (!selectedId) return
       const current = findDicomSeriesIndexById(items, selectedId)
       const nextIndex =
@@ -346,11 +378,21 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           : Math.max(current - 1, 0)
       const nextItem = dicomItems[nextIndex]
       if (!nextItem || nextItem.id === selectedId) return
-      await fetchDocuments()
+      setViewerShellBusy(true)
       setSelectedId(nextItem.id)
     },
-    [dicomItems, fetchDocuments, items, selectedId],
+    [dicomItems, items, selectedId],
   )
+
+  useEffect(() => {
+    if (!selectedId) {
+      setViewerShellBusy(false)
+      return
+    }
+    // Court pulse UI ; dwv prend ensuite le relais via son overlay loading.
+    const t = window.setTimeout(() => setViewerShellBusy(false), 400)
+    return () => window.clearTimeout(t)
+  }, [selectedId])
 
   const selectedItem = selectedId ? resolveItemById(selectedId) : null
   const selectedIndex = selectedId ? items.findIndex((item) => item.id === selectedId) : -1
@@ -446,7 +488,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
               <div key={itemKey} className="group relative">
                 <button
                   type="button"
-                  onClick={() => void openViewer(item.id)}
+                  onClick={() => openViewer(item.id)}
                   aria-label={`Voir ${isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name}`}
                   className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 >
@@ -558,6 +600,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             aria-label="Visionneuse DICOM"
             data-testid="dicom-fullscreen-viewer"
           >
+            {/* relative host for shell loading overlay */}
+            <div className="relative flex h-full min-h-0 w-full flex-col">
             {jpeg2000Fallbacks.has(selectedItem.id) ? (
               <DicomJpeg2000FallbackViewer
                 urls={selectedItem.urls}
@@ -566,26 +610,42 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                 onClose={() => setSelectedId(null)}
               />
             ) : (
-              <DicomViewer
-                urls={selectedItem.urls}
-                name={selectedName}
-                fullscreen
-                series={dicomViewerSeries}
-                activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(items, selectedItem.id))}
-                onNextSeries={() => void navigateDicomSeries('next')}
-                onPrevSeries={() => void navigateDicomSeries('prev')}
-                onClose={() => setSelectedId(null)}
-                onJpeg2000Unsupported={() => {
-                  const seriesId = selectedItem.id
-                  setJpeg2000Fallbacks((prev) => {
-                    if (prev.has(seriesId)) return prev
-                    const next = new Set(prev)
-                    next.add(seriesId)
-                    return next
-                  })
-                }}
-              />
+              <>
+                <DicomViewer
+                  urls={selectedItem.urls}
+                  name={selectedName}
+                  fullscreen
+                  series={dicomViewerSeries}
+                  activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(items, selectedItem.id))}
+                  onNextSeries={() => navigateDicomSeries('next')}
+                  onPrevSeries={() => navigateDicomSeries('prev')}
+                  onClose={() => setSelectedId(null)}
+                  onJpeg2000Unsupported={() => {
+                    const seriesId = selectedItem.id
+                    setJpeg2000Fallbacks((prev) => {
+                      if (prev.has(seriesId)) return prev
+                      const next = new Set(prev)
+                      next.add(seriesId)
+                      return next
+                    })
+                  }}
+                />
+                {viewerShellBusy ? (
+                  <div
+                    className="pointer-events-none absolute inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-[#0B1020]/70"
+                    data-testid="dicom-shell-loading"
+                    aria-live="polite"
+                  >
+                    <div
+                      className="size-9 animate-spin rounded-full border-2 border-amber-200/30 border-t-amber-100"
+                      aria-hidden
+                    />
+                    <p className="text-sm font-medium text-white/90">Chargement de la série…</p>
+                  </div>
+                ) : null}
+              </>
             )}
+            </div>
           </div>
         ) : (
           <div
@@ -630,7 +690,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                         disabled={selectedIndex <= 0}
                         onClick={() => {
                           const prev = items[Math.max(selectedIndex - 1, 0)]
-                          if (prev) void openViewer(prev.id)
+                          if (prev) openViewer(prev.id)
                         }}
                         className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
                       >
@@ -645,7 +705,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                         disabled={selectedIndex >= items.length - 1}
                         onClick={() => {
                           const next = items[Math.min(selectedIndex + 1, items.length - 1)]
-                          if (next) void openViewer(next.id)
+                          if (next) openViewer(next.id)
                         }}
                         className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
                       >

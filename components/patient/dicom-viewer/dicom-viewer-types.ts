@@ -74,7 +74,7 @@ export const SEQUENTIAL_ORIENTATION_FALLBACK_MSG =
 
 /** Localizers / scouts sont multi-plans par nature (pas un bug de regroupement). */
 export const SEQUENTIAL_LOCALIZER_ORIENTATION_MSG =
-  "Localizer multi-plans — affichage coupe par coupe (orientations différentes attendues).";
+  "Localizer multi-plans (même série DICOM) — coupes AX/SAG/COR attendues, affichage fichier par fichier.";
 
 export function orientationFallbackMessage(seriesName?: string | null): string {
   if (seriesName && /localizer|localiser|scout|survey/i.test(seriesName)) {

@@ -20,16 +20,31 @@ export type QuestionnaireImagingFile = {
   instanceNumber?: number | null
 }
 
+export type FetchQuestionnaireImagingOptions = {
+  /**
+   * Range-header enrich côté Q (coûteux : N GETs). Défaut false — Marcel
+   * déduplique via basename / SeriesInstanceUID déjà en base tracker ; le nom
+   * Storage `SUID.*` suffit pour les uploads récents.
+   */
+  enrichMetadata?: boolean
+}
+
 export async function fetchQuestionnairePatientImages(
   trackerPatientId: string,
+  options: FetchQuestionnaireImagingOptions = {},
 ): Promise<QuestionnaireImagingFile[] | null> {
   const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
   if (!token) return null
+  const enrichMetadata = options.enrichMetadata === true
   try {
-    const res = await fetch(
-      `${BASE}/patient-images?trackerPatientId=${encodeURIComponent(trackerPatientId)}`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
-    )
+    const qs = new URLSearchParams({
+      trackerPatientId,
+      enrichMetadata: enrichMetadata ? '1' : '0',
+    })
+    const res = await fetch(`${BASE}/patient-images?${qs.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
     if (!res.ok) return null
     const data = (await res.json()) as { files?: QuestionnaireImagingFile[] }
     return data.files ?? []
