@@ -17,7 +17,7 @@ import {
   type WindowLevel,
 } from './decode/dicom-windowing'
 import { VIEWER_BG } from './messages'
-import { emitImagingTelemetry, type ImagingTelemetryHandler } from '../telemetry'
+import { emitImagingTelemetry, nowMs, type ImagingTelemetryHandler } from '../telemetry'
 
 type FrameData = {
   frame: DecodedFrame
@@ -54,9 +54,7 @@ function DicomJpeg2000FallbackViewerInner({
   const decodeChainRef = useRef<Promise<unknown>>(Promise.resolve())
   const rgbaRef = useRef<ImageData | null>(null)
   const onImagingTelemetryRef = useRef(onImagingTelemetry)
-  const openStartedAtRef = useRef(
-    typeof performance !== 'undefined' ? performance.now() : Date.now(),
-  )
+  const openStartedAtRef = useRef(0)
   const paintedRef = useRef(false)
   const openReportedRef = useRef(false)
 
@@ -74,10 +72,13 @@ function DicomJpeg2000FallbackViewerInner({
   }, [onImagingTelemetry])
 
   useEffect(() => {
-    const elapsed = () => {
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-      return Math.max(0, now - openStartedAtRef.current)
-    }
+    openStartedAtRef.current = nowMs()
+    paintedRef.current = false
+    openReportedRef.current = false
+  }, [])
+
+  useEffect(() => {
+    const elapsed = () => Math.max(0, nowMs() - openStartedAtRef.current)
     if (status === 'ready' && !paintedRef.current) {
       paintedRef.current = true
       emitImagingTelemetry(onImagingTelemetryRef.current, {
