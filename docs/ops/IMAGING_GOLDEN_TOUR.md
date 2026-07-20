@@ -78,8 +78,8 @@ npm run imaging:golden-tour -- --ci
 
 `--ci` covers focused fixture tests + `imaging-viewer:check` and skips `imaging:check` (no questionnaires checkout).
 
-Ops triage (workers / OpenJPEG / blank canvas / deep-link): [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md).
-
+Ops triage (workers / OpenJPEG / blank canvas / deep-link): [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md).  
+Phase A stabilize checklist: [`IMAGING_STABILIZE.md`](./IMAGING_STABILIZE.md).
 ---
 
 ## Observability / ops

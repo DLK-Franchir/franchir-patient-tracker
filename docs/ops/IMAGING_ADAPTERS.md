@@ -30,8 +30,8 @@ durable (Vercel) : multi-ZIP sync. Delete clinicien = différé (SoT Marcel only
 4. **DOC PDF** — `dicom-pdf-series` cards route to encapsulated PDF viewer, not dwv image stack.
 5. **Upload-time SoT (P3b)** — new DICOM uploads always extract header meta client-side, rename with `SUID.*` when needed, and persist `series_instance_uid` / SOP / instance on finalize. Do **not** rely on list-time `enrichMetadata=1`.
 
-Ops triage / deep-link / golden-path: [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md).
-
+Ops triage / deep-link / golden-path: [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md).  
+Phase A stabilize: [`IMAGING_STABILIZE.md`](./IMAGING_STABILIZE.md).
 ## Legacy backfill (P3b)
 
 Rows uploaded before upload-time persist may have `series_instance_uid IS NULL`.

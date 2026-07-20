@@ -6,6 +6,8 @@ Related:
 
 - Adapters (signed URLs / fast-open): [`IMAGING_ADAPTERS.md`](./IMAGING_ADAPTERS.md)
 - Golden tour (fixtures): [`IMAGING_GOLDEN_TOUR.md`](./IMAGING_GOLDEN_TOUR.md)
+- Stabilize Phase A: [`IMAGING_STABILIZE.md`](./IMAGING_STABILIZE.md)
+- Telemetry (non-PHI): [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md)
 - Package product: [`packages/imaging-viewer/PRODUCT.md`](../../packages/imaging-viewer/PRODUCT.md)
 
 ---
@@ -84,18 +86,67 @@ Golden cases (manual / staging, anonymized):
 
 ---
 
+## Post-deploy smoke — Tania + Fatima
+
+Run after every imaging deploy (tracker and/or questionnaires). Use **staging** or a known anonymized study set. Never paste patient names, emails, live SeriesInstanceUIDs, or signed URLs into tickets/logs.
+
+### Prep (CI / local, no PHI)
+
+```bash
+# Tracker SoT — same command as GitHub job `imaging-golden-path`
+npm run imaging:golden-path -- --ci
+# alias:
+npm run imaging:golden-tour -- --ci
+
+npm run imaging-viewer:check
+# with Q sibling present:
+npm run imaging:check
+```
+
+Expect exit 0. Fixture names **Tania** / **Fatima** are synthetic product labels only.
+
+### Browser smoke (Marcel + clinicien)
+
+Hard-refresh each app. Confirm Network: `/dwv-workers/*` and `/openjpeg/*` → **200**.
+
+| Label | Product focus | Marcel (`patients.franchir.eu`) | Clinicien (`questionnaire.franchir.eu`) | Pass |
+|-------|---------------|--------------------------------|------------------------------------------|------|
+| **Tania** (~11 series) | Grouping / nav / loading | Patient dossier → Imagerie: series count/labels sensible; open 2–3 series; scroll/arrows OK | Same study type on Imagerie tab | List parity within grouping rules; no infinite spinner |
+| **Fatima** (~42 SUID, DX J2K) | OpenJPEG / DOC PDF / blank canvas | Open a JPEG 2000 series → pixels or explicit OpenJPEG UI; DOC/`patient-im-doc*` → PDF band not dwv stack | Same | No black “ready” canvas; workers stay 200 |
+
+Optional deep-link (P3c): open `?series=<groupId>` with a **non-prod** id only (e.g. staging `groupId`). Do not copy prod SUIDs into chat.
+
+### Telemetry glance (non-PHI)
+
+After smoke, glance product analytics for spikes in `imaging_ready_without_pixels`, `imaging_worker_asset_fail`, or high p95 `imaging_series_open_ms`. See [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md).
+
+Ticket template (safe):
+
+```text
+Deploy: <sha / Vercel deployment id>
+Golden-path --ci: pass|fail
+Workers/OpenJPEG 200: yes|no
+Tania smoke (Marcel / clinicien): pass|fail — note symptom only
+Fatima smoke (Marcel / clinicien): pass|fail — note symptom only
+Telemetry: quiet|spike:<event name>
+```
+
+---
+
 ## Golden-path
 
 ```bash
 # Tracker SoT (`imaging:golden-path` is an alias of `imaging:golden-tour`)
+# Note: npm needs `--` before script flags.
 npm run imaging:golden-path           # local (may run imaging:check if Q sibling present)
 npm run imaging:golden-path -- --ci   # CI-safe: focused fixtures + imaging-viewer:check
 npm run imaging:golden-path -- --full # full package suites
+npm run imaging:golden-tour -- --ci   # equivalent
 ```
 
 Script: [`scripts/imaging-golden-tour.mjs`](../../scripts/imaging-golden-tour.mjs). Details: [`IMAGING_GOLDEN_TOUR.md`](./IMAGING_GOLDEN_TOUR.md).
 
-CI: optional job `imaging-golden-path` in `.github/workflows/ci.yml` (`continue-on-error: false` but isolated job so quality stays green if you temporarily disable it). Prefer `--ci` only — no Q checkout required.
+CI: isolated job `imaging-golden-path` in `.github/workflows/ci.yml` runs `npm run imaging:golden-path -- --ci` (no Q checkout). Prefer `--ci` for deploy gates; use sibling `imaging:check` locally when both repos are present.
 
 ---
 
@@ -115,11 +166,12 @@ Rules:
 5. No PHI / secrets in logs or PR bodies.
 6. Cross-app fix = **two PRs**.
 
-After redeploy: hard-refresh viewer, spot-check workers 200 + one J2K series on staging if available.
+After redeploy: hard-refresh viewer, spot-check workers 200 + one J2K series on staging if available. Full smoke: **Post-deploy smoke — Tania + Fatima** above.
 
 ---
 
 ## Agent pointers
 
 - Imaging product: `.cursor/agents/franchir-imaging.md`
+- Stabilize / Phase A: `.cursor/agents/franchir-imaging-stabilize.md` + [`IMAGING_STABILIZE.md`](./IMAGING_STABILIZE.md)
 - Preload / render runtime: `.cursor/agents/dicom-viewer-debugger.md`
