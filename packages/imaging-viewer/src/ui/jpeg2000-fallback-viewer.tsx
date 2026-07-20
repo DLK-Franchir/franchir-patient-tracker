@@ -32,7 +32,12 @@ export type DicomJpeg2000FallbackViewerProps = {
   onClose?: () => void
 }
 
-export function DicomJpeg2000FallbackViewer({
+/** Remount on series change so index/cache/refs reset without setState-in-effect. */
+export function DicomJpeg2000FallbackViewer(props: DicomJpeg2000FallbackViewerProps) {
+  return <DicomJpeg2000FallbackViewerInner key={props.urls.join('\0')} {...props} />
+}
+
+function DicomJpeg2000FallbackViewerInner({
   urls,
   name,
   fullscreen = false,
@@ -52,19 +57,8 @@ export function DicomJpeg2000FallbackViewer({
   const [wl, setWl] = useState<WindowLevel | null>(null)
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
   const [decodedCount, setDecodedCount] = useState(0)
-  const [trackedUrls, setTrackedUrls] = useState(urls)
 
   const fileCount = urls.length
-
-  // Reset series state while rendering when `urls` identity changes (avoid setState-in-effect).
-  if (urls !== trackedUrls) {
-    setTrackedUrls(urls)
-    setIndex(0)
-    setDecodedCount(0)
-    cacheRef.current.clear()
-    inflightRef.current.clear()
-    decodeChainRef.current = Promise.resolve()
-  }
 
   const decodeFrame = useCallback(
     (target: number): Promise<FrameData | null> => {
