@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as pkg from './index'
 import * as engine from './engine'
+import * as ui from './ui'
 
 /** Surface publique sans dwv — safe pour chemins SSR / upload-guidance. */
 const REQUIRED_EXPORTS = [
@@ -45,12 +46,30 @@ const REQUIRED_ENGINE_EXPORTS = [
   'waitForRenderableImage',
 ] as const
 
+const REQUIRED_UI_EXPORTS = [
+  'DicomJpeg2000FallbackViewer',
+  'DicomSeriesHeader',
+  'DicomViewerToolbar',
+  'DicomViewportErrorOverlay',
+  'DicomViewportLoadingOverlay',
+  'ViewerInfoBubble',
+  'viewportLoadingMessage',
+  'viewerToolHint',
+  'viewerMobileHint',
+  'decodeJpeg2000',
+  'parseDicomForFallback',
+  'grayPixelsToRgba',
+] as const
+
 describe('@franchir/imaging-viewer exports contract', () => {
-  it('expose la surface policy sans dwv', () => {
+  it('expose la surface policy sans dwv ni chrome React', () => {
     for (const key of REQUIRED_EXPORTS) {
       expect(pkg, key).toHaveProperty(key)
     }
     for (const key of REQUIRED_ENGINE_EXPORTS) {
+      expect(pkg).not.toHaveProperty(key)
+    }
+    for (const key of REQUIRED_UI_EXPORTS) {
       expect(pkg).not.toHaveProperty(key)
     }
   })
@@ -58,6 +77,12 @@ describe('@franchir/imaging-viewer exports contract', () => {
   it('expose engine dwv sous /engine', () => {
     for (const key of REQUIRED_ENGINE_EXPORTS) {
       expect(engine, key).toHaveProperty(key)
+    }
+  })
+
+  it('expose shell React sous /ui', () => {
+    for (const key of REQUIRED_UI_EXPORTS) {
+      expect(ui, key).toHaveProperty(key)
     }
   })
 

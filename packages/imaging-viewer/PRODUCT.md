@@ -5,28 +5,24 @@
 | Phase | Version | Statut | Contenu |
 |-------|---------|--------|---------|
 | **P0** | 0.1.0 | **done** | Contrat + policy (+ helpers purs layout / pixel-signal / pool-plan) |
-| **P1** | 0.2.0 | **landed** | Engine dwv portable (`dwv-app`, `stack`, `pool`, `sequential`) + assets SoT (`assets/` + MANIFEST sha256) + sync/check vers `public/` des deux apps |
-| **P1.1** | — | next si besoin | Affiner adapters / edge cases engine ; pas de shell React |
-| **P2** | — | planned | Shell React unifié `<DicomViewer>` (+ fallback OpenJPEG UI partagé) |
-
-Chrome React (toolbar, overlays, lucide/Icon, flags mp4) reste **app-local** —
-adapters minces re-exportent le package. Ne pas réintroduire de logique engine
-dans les apps.
+| **P1** | 0.2.0 | **done** | Engine dwv portable (`dwv-app`, `stack`, `pool`, `sequential`) + assets SoT (`assets/` + MANIFEST sha256) + sync/check vers `public/` des deux apps |
+| **P2** | 0.3.0 | **landed** | Shell React `@franchir/imaging-viewer/ui` (toolbar, overlays, info banner, series nav busy) + `DicomJpeg2000FallbackViewer` partagé |
+| **P2.1** | — | next si besoin | Host dwv unique `<DicomViewer>` (lifecycle stack/pool encore app-local) ; PDF encapsulé DOC |
 
 ## Promesse
 
-Une seule politique **et** une seule orchestration dwv pour Marcel (tracker)
-et le clinicien (questionnaires) : mêmes messages, mêmes plafonds pool, même
-gate « pixels réellement décodés », même stack→sequential, mêmes workers /
-OpenJPEG — sans forks silencieux.
+Une seule politique, une seule orchestration dwv, et un chrome UX aligné pour
+Marcel (tracker) et le clinicien (questionnaires) : mêmes messages, mêmes
+plafonds pool, même gate « pixels réellement décodés », même fallback OpenJPEG.
 
 ## Source de vérité
 
 | Couche | Package / chemin | SoT |
 |--------|------------------|-----|
 | Grouping / dédup séries | `@franchir/imaging` | tracker |
-| Contrat + policy + **engine dwv** (app/stack/pool/sequential) + assets codec | `@franchir/imaging-viewer` | tracker |
-| Chrome React (toolbar, overlays, lucide/Icon, feature flags mp4) | apps | parité manuelle → **P2 shell unifié** |
+| Contrat + policy + engine dwv + assets codec | `@franchir/imaging-viewer` | tracker |
+| Chrome React + fallback OpenJPEG | `@franchir/imaging-viewer/ui` | tracker |
+| Host dwv (refs App, stack/pool hooks wiring) | apps | thin adapters |
 | Workers / OpenJPEG servis | `public/dwv-workers`, `public/openjpeg` | **installés depuis** `packages/imaging-viewer/assets` |
 
 ## Discipline sync
@@ -58,28 +54,25 @@ SoT binaire : `packages/imaging-viewer/assets/{dwv-workers,openjpeg}`.
 |--------|-----------|
 | Messages, plafonds pool, détection JPEG 2000 / orientation | `packages/imaging-viewer/src/policy.ts` |
 | Gate pixels / layout retries | `pixel-signal.ts`, `layout.ts`, `pool-plan.ts` |
-| Création App dwv, stack, pool, nav séquentielle | `@franchir/imaging-viewer/engine` (`dwv-app`, `stack`, `pool`, `sequential`) — pas le barrel `.` |
+| Création App dwv, stack, pool, nav séquentielle | `@franchir/imaging-viewer/engine` |
+| Toolbar, overlays, info bubble, fallback OpenJPEG | `@franchir/imaging-viewer/ui` |
 | Workers / OpenJPEG (binaires) | `packages/imaging-viewer/assets/` puis sync |
-| Toolbar, overlays, URLs signées, auth, routing | apps (`components/.../dicom-viewer.tsx`, documents) |
+| Wiring dwv DOM, URLs signées, auth, routing | apps (`components/.../dicom-viewer.tsx`, documents) |
 | Grouping séries | `@franchir/imaging` |
 
 Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 
-## Différé (P1.1 / P2)
+## Différé (P2.1)
 
-**P1.1 (optionnel)** — restes engine non urgents (hooks encore dépendants de
-`dwv` peer + React dans le package ; OK pour P1). Pas d’extract React shell.
-
-**P2**
-
-- Extraire un seul `<DicomViewer>` React partagé (chrome UI) — aujourd’hui
-  tracker et Q divergent (lucide vs Icon, toolbar split).
-- Déplacer le shell OpenJPEG fallback React (helpers decode déjà alignés).
-- Optionnel : sous-path export `@franchir/imaging-viewer/react`.
+- Un seul composant React `<DicomViewer>` embarquant le lifecycle dwv
+  (refs `App`, effets stack↔sequential) — encore app-local car trop couplé
+  au container DOM / Next client boundaries.
+- Viewer PDF encapsulé (modality DOC) — hors shell image.
 
 ## Évolution Marcel
 
-Éditer engine + policy ici, sync vers Q, n’ajuster le chrome app que pour
-l’UI Next. Divergence de message, plafond pool, ou binaire codec = bug produit.
+Éditer UI + engine + policy ici, sync vers Q, n’ajuster le host app que pour
+l’auth / URLs. Divergence de message, plafond pool, chrome, ou binaire codec =
+bug produit.
 
 Agent Cursor : `.cursor/agents/franchir-imaging.md`.

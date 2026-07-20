@@ -59,12 +59,12 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 | Phase | Statut | Contenu |
 |-------|--------|---------|
 | **P0** | done (0.1.0) | Contrat + policy dans `@franchir/imaging-viewer` |
-| **P1** | engine + assets (0.2.0) | Helpers dwv (`dwv-app`, stack/pool/sequential) + discipline assets checksums ; chrome React peut rester app-local |
-| **P1.1** | suite | Adapters minces, sync CI vert, éventuels restes engine |
-| **P2** | next | Shell React unifié `<DicomViewer>` |
+| **P1** | done (0.2.0) | Engine dwv + assets checksums |
+| **P2** | done (0.3.0) | Shell React `@franchir/imaging-viewer/ui` + fallback OpenJPEG ; host dwv encore app-local |
+| **P2.1** | next | Host dwv unique `<DicomViewer>` si extract lifecycle faisable |
 
-Si extract React complet trop couplé : lander le max durable (engine + assets SoT + CI),
-adapters fins dans les apps, documenter le reste en P1.1 / P2.
+Si extract React host complet trop couplé : lander chrome + fallback (P2), documenter
+le residual host en P2.1.
 
 ## Workflow quand invoqué
 
