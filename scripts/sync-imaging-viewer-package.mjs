@@ -64,6 +64,26 @@ function sha256File(filePath) {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
+/**
+ * Contenu stable pour le digest pin : ignore `generatedAt` du MANIFEST
+ * (sinon chaque sync fait dériver le sha même si les binaires sont inchangés).
+ */
+function stableFileBytes(filePath, rel) {
+  const raw = readFileSync(filePath);
+  if (rel !== "assets/MANIFEST.json") return raw;
+  try {
+    const manifest = JSON.parse(raw.toString("utf8"));
+    const files = manifest.files ?? {};
+    const keys = Object.keys(files).sort();
+    const normalized = {
+      files: Object.fromEntries(keys.map((k) => [k, files[k]])),
+    };
+    return Buffer.from(`${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+  } catch {
+    return raw;
+  }
+}
+
 function hashTree(root) {
   const files = listFiles(root);
   const h = createHash("sha256");
@@ -71,7 +91,7 @@ function hashTree(root) {
     if (rel === "PINNED_FROM") continue;
     h.update(rel);
     h.update("\0");
-    h.update(readFileSync(path.join(root, rel)));
+    h.update(stableFileBytes(path.join(root, rel), rel));
     h.update("\0");
   }
   return { files: files.filter((f) => f !== "PINNED_FROM"), digest: h.digest("hex") };
@@ -102,15 +122,24 @@ function computeAssetFiles() {
 
 function writeAssetsManifest() {
   const files = computeAssetFiles();
-  const manifest = {
-    generatedAt: new Date().toISOString(),
-    files,
-  };
-  writeFileSync(
-    path.join(ASSETS_SRC, "MANIFEST.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
-  );
+  const manifestPath = path.join(ASSETS_SRC, "MANIFEST.json");
+  let generatedAt = new Date().toISOString();
+  if (existsSync(manifestPath)) {
+    try {
+      const prev = JSON.parse(readFileSync(manifestPath, "utf8"));
+      const prevFiles = prev.files ?? {};
+      const same =
+        Object.keys(files).length === Object.keys(prevFiles).length &&
+        Object.keys(files).every((k) => prevFiles[k] === files[k]);
+      if (same && typeof prev.generatedAt === "string") {
+        generatedAt = prev.generatedAt;
+      }
+    } catch {
+      /* rewrite with fresh timestamp */
+    }
+  }
+  const manifest = { generatedAt, files };
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return manifest;
 }
 
@@ -179,7 +208,7 @@ function hashSoTProjection(destRoot, sotFiles) {
     if (!existsSync(full)) fail(`questionnaires missing file: ${rel}`);
     h.update(rel);
     h.update("\0");
-    h.update(readFileSync(full));
+    h.update(stableFileBytes(full, rel));
     h.update("\0");
   }
   return h.digest("hex");
