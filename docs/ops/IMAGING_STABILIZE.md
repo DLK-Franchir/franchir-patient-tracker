@@ -1,15 +1,38 @@
-# Imaging stabilize — Phase A checklist
+# Imaging stabilize — suite P0–P8 + hygiene
 
 Post-merge consolidation for Franchir Imaging (tracker SoT ↔ clinicien pin).
 No PHI. Prefer checks + thin adapters over new features.
 
-Related: [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md) · [`IMAGING_ADAPTERS.md`](./IMAGING_ADAPTERS.md) · [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md) · [`IMAGING_GOLDEN_TOUR.md`](./IMAGING_GOLDEN_TOUR.md)
+Related: [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md) · [`IMAGING_ADAPTERS.md`](./IMAGING_ADAPTERS.md) · [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md) · [`IMAGING_GOLDEN_TOUR.md`](./IMAGING_GOLDEN_TOUR.md) · [`../../packages/imaging-viewer/PRODUCT.md`](../../packages/imaging-viewer/PRODUCT.md)
 
 Agent: `.cursor/agents/franchir-imaging-stabilize.md`
 
 ---
 
-## Phase A (do first)
+## Suite complete checklist (P0–P8 → 0.13.0+)
+
+Use this once after the imaging suite lands (or after a large multi-PR imaging merge). Mark when verified.
+
+| # | Item | How | Pass |
+|---|------|-----|------|
+| 1 | Roadmap PRODUCT closed | `packages/imaging-viewer/PRODUCT.md` — P0–P8 **done**, residuals = ops only, MPR/DICOMDIR/annotations = future | ☐ |
+| 2 | Pin `@franchir/imaging` | Tracker: `npm run imaging:check` | ☐ |
+| 3 | Pin `@franchir/imaging-viewer` ≥ 0.13.0 | Tracker: `npm run imaging-viewer:check` (Q sibling digest match) | ☐ |
+| 4 | Golden path CI | `npm run imaging:golden-path -- --ci` | ☐ |
+| 5 | P7 async export live | Staging/prod: Fatima-scale study → `export-async` job + signed TTL (no PHI in tickets) | ☐ |
+| 6 | P8 telemetry contract | `GET /api/internal/imaging/telemetry-summary` (Bearer) + glance thresholds in [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md) | ☐ |
+| 7 | mp4Native parity | Marcel + clinicien: staging/preview/flag only (`NEXT_PUBLIC_ENABLE_MP4_VIEWER`) — prod default still off | ☐ |
+| 8 | Post-deploy smoke | Tania + Fatima — runbook section **Post-deploy smoke** (anonymized fixtures only) | ☐ |
+| 9 | Branch hygiene | Imaging feature branches whose PRs are **MERGED** deleted remotely | ☐ |
+| 10 | Agents current | `.cursor/agents/franchir-imaging*.md` reflect ~0.13.0+ suite complete | ☐ |
+
+**Suite terminée** when rows 1–10 are checked (or explicitly waived with reason in the PR).
+
+Q pointer: `Franchir_Questionnaires_Patients/docs/ops/IMAGING_STABILIZE.md` → this file.
+
+---
+
+## Ongoing hygiene (Phase A — repeat after imaging deploys)
 
 ### 1. SoT sync / pin parity
 
@@ -23,7 +46,7 @@ Rules: edit packages **only** in tracker → bump version/CHANGELOG → `imaging
 
 ### 2. Adapters stay thin
 
-App code may own: auth, listing, signed-URL TTL / soft-refresh, worker rewrite host wiring, telemetry forwarders, export API routes.
+App code may own: auth, listing, signed-URL TTL / soft-refresh, worker rewrite host wiring, telemetry forwarders, export API routes (sync + async).
 
 App code must **not** fork: dwv engine, OpenJPEG policy, grouping heuristics, viewer chrome logic that belongs in `@franchir/imaging*`.
 
@@ -40,7 +63,7 @@ Numeric thresholds + gtag/Plausible how-to: [`IMAGING_TELEMETRY.md`](./IMAGING_T
 | `imaging_worker_asset_fail` | ≥ 3 | `public/dwv-workers` / `/_next` rewrite |
 | `imaging_openjpeg_fallback` | (watch TTFP) | Expected for some DX |
 | p95 `imaging_time_to_first_paint` / `series_open_ms` | ≥ 15s / 30s | Signed URL / decode / pool |
-| `imaging_dicom_export` error rate | ≥ 20% | Chunked ZIP / (P7) async |
+| `imaging_dicom_export` error rate | ≥ 20% | Chunked ZIP / async Storage |
 
 Contract smoke (Bearer sync/return):
 `GET /api/internal/imaging/telemetry-summary`.
@@ -51,16 +74,23 @@ Use staging or known anonymized fixtures only. See runbook section **Post-deploy
 
 ### 5. Branch hygiene
 
-Delete remote imaging branches whose PRs are **MERGED** (or clearly superseded). Keep active `feat/imaging-p6*` / staging lanes. Prefer `git push origin --delete <branch>` after squash merge confirmation via `gh pr view`.
+Delete remote imaging branches whose PRs are **MERGED** (or clearly superseded). Prefer `git push origin --delete <branch>` after squash merge confirmation via `gh pr view`.
 
 ---
 
-## Deferred (not Phase A)
+## Residuals (ops — not open suite phases)
 
-- Delete clinicien (soft/hard)
-- MP4 native in prod
-- Async study ZIP job queue
+- Delete clinicien (soft/hard) — SoT Marcel only today
+- MP4 native **prod** default (`mp4Native` stays false)
+- Async ZIP Storage cleanup / cron (optional post-0.13.0 ops patch)
 - Dedicated `/host` surface
+- Broader e2e host / golden tour polish
+
+## Hors suite (future)
+
+- MPR
+- DICOMDIR / CD companions
+- Annotations / persistent measurements
 
 ---
 

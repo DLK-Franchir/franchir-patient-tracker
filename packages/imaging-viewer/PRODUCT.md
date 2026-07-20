@@ -1,26 +1,27 @@
 # Franchir Imaging Viewer — produit
 
-## Statut roadmap
+## Statut roadmap — suite P0–P8 **terminée** (0.13.0+)
 
 | Phase | Version | Statut | Contenu |
 |-------|---------|--------|---------|
 | **P0** | 0.1.0 | **done** | Contrat + policy (+ helpers purs layout / pixel-signal / pool-plan) |
 | **P1** | 0.2.0 | **done** | Engine dwv portable (`dwv-app`, `stack`, `pool`, `sequential`) + assets SoT (`assets/` + MANIFEST sha256) + sync/check vers `public/` des deux apps |
 | **P2** | 0.3.0 | **done** | Shell React `@franchir/imaging-viewer/ui` (toolbar, overlays, info banner, series nav busy) + `DicomJpeg2000FallbackViewer` partagé |
-| **P2.1** | 0.4.0 | **landed** | Host React `DicomViewer` + `useDwvViewportResize` + PDF encapsulé DOC (`DicomEncapsulatedPdfViewer` + extract purs) |
-| **P2.2a** | 0.5.0 | **landed** | Helpers rewrite Next workers + chemins OpenJPEG (`/worker-rewrite`) — SoT partagé, adapters app minces |
-| **P2.2b** | — | apps | Listing / auth signed URL (adapters) — hors package |
-| **P3a** | 0.6.0 | **landed** | Observabilité produit non-PHI (`onImagingTelemetry`) — TTFP, fallback OpenJPEG, canvas noir, workers |
-| **P3b/c** | — | apps | Upload-time SUID, deep-link séries, runbook ops — hors package |
-| **P4** | 0.7.0 | **landed** | Feature flags capabilities (openjpeg / pdf / mp4) + `resolveViewerCapabilities` ; adapters app allégés ; roadmap sync |
-| **P4∥** | 0.8.0 | **landed** | Chrome export DICOM (`onDownloadSeries` / `onDownloadStudy`) — ZIP brut via adapters app |
-| **P4+** | 0.9.x | **landed** | Grid UX card-actions (download scope, delete confirm, mobile ⋯, no file-list) |
-| **P5** | 0.10.0 | **landed** | Télémétrie `dicom_export` ; apps = plan + ZIP étude multi-parties (Fatima >400) |
-| **P6b** | 0.10.1 | **landed** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
-| **P6a** | 0.11.0 | **landed** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
-| **P8** | 0.12.0 | **landed** | Télémétrie actionable — seuils, raisons `dicom_export` (sync + async réservé P7), résumé contrat ops |
-| **P7** | 0.13.0–0.13.1 | **landed** | Async ZIP Storage + cron cleanup TTL + UX 410 ; parité `mp4Native` clinicien (staging/flag) |
-| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 **prod** default (lane B) |
+| **P2.1** | 0.4.0 | **done** | Host React `DicomViewer` + `useDwvViewportResize` + PDF encapsulé DOC (`DicomEncapsulatedPdfViewer` + extract purs) |
+| **P2.2a** | 0.5.0 | **done** | Helpers rewrite Next workers + chemins OpenJPEG (`/worker-rewrite`) — SoT partagé, adapters app minces |
+| **P2.2b** | — | **done** (apps) | Listing / auth signed URL (adapters) — soft-refresh TTL, hors package |
+| **P3a** | 0.6.0 | **done** | Observabilité produit non-PHI (`onImagingTelemetry`) — TTFP, fallback OpenJPEG, canvas noir, workers |
+| **P3b/c** | — | **done** (apps) | Upload-time SUID, deep-link séries, runbook ops — hors package |
+| **P4** | 0.7.0 | **done** | Feature flags capabilities (openjpeg / pdf / mp4) + `resolveViewerCapabilities` ; adapters app allégés |
+| **P4∥** | 0.8.0 | **done** | Chrome export DICOM (`onDownloadSeries` / `onDownloadStudy`) — ZIP brut via adapters app |
+| **P4+** | 0.9.x | **done** | Grid UX card-actions (download scope, delete confirm, mobile ⋯, no file-list) |
+| **P5** | 0.10.0 | **done** | Télémétrie `dicom_export` ; apps = plan + ZIP étude multi-parties (Fatima >400) |
+| **P6b** | 0.10.1 | **done** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
+| **P6a** | 0.11.0 | **done** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
+| **P8** | 0.12.0 | **done** | Télémétrie actionable — seuils, raisons `dicom_export` (sync + async), résumé contrat ops |
+| **P7** | 0.13.0–0.13.1 | **done** | Async ZIP Storage + cron cleanup TTL + UX 410 ; parité `mp4Native` clinicien (staging/flag) |
+
+Close-out ops : `docs/ops/IMAGING_STABILIZE.md` (checklist suite complète).
 
 ## Promesse
 
@@ -112,7 +113,7 @@ Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 | `openjpeg_fallback` | dwv J2K non supporté → repli OpenJPEG |
 | `ready_without_pixels` | Géométrie OK, buffer pixels vide (canvas noir évité) |
 | `worker_asset_fail` | Échec ressemblant à un worker codec introuvable |
-| `dicom_export` | ZIP série / étude (single, chunked, **async réservé P7**) — `reason` + `file_count` |
+| `dicom_export` | ZIP série / étude (single, chunked, **async**) — `reason` + `file_count` |
 
 ### P8 — actionable
 
@@ -120,34 +121,37 @@ Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 |----------|-----|
 | Comment lire gtag / Plausible | `docs/ops/IMAGING_TELEMETRY.md` |
 | Seuils d’alerte (`ready_without_pixels`, TTFP p95, …) | `IMAGING_TELEMETRY_ALERT_THRESHOLDS` + ops doc |
-| Raisons `dicom_export` sync vs async réservé | `DICOM_EXPORT_REASONS` / `DICOM_EXPORT_ASYNC_REASONS` |
+| Raisons `dicom_export` sync vs async | `DICOM_EXPORT_REASONS` / `DICOM_EXPORT_ASYNC_REASONS` |
 | Résumé contrat machine-readable | `buildImagingTelemetryContractSummary()` → tracker `GET /api/internal/imaging/telemetry-summary` |
 
-**Coordination P7** : pas de nouveau nom d’événement pour ZIP async — émettre
-`dicom_export` avec `reason=study_async|study_async_fail|study_async_timeout`.
-P8 ne touche pas au code ZIP / MP4.
+Émettre `dicom_export` avec `reason=study_async|study_async_fail|study_async_timeout`
+pour le ZIP async (P7) — pas de nouveau nom d’événement.
 
 Ops : `docs/ops/IMAGING_TELEMETRY.md`.
 
-## Différé / lanes parallèles
+## Résiduels suite (ops / produit mineur — hors roadmap P0–P8)
 
-- Listing documents / auth signed URL encore côté apps (P2.2b) — soft-refresh landed.
-- Tests e2e host / golden Fatima-Tania encore côté apps.
-- **`/host` subpath** — différé : `DicomViewer` compose déjà le chrome `/ui` ;
-  un export séparé ne réduit pas le graphe host. Réévaluer si des imports
-  chrome-only tirent dwv malgré le tree-shake.
-- **Delete clinicien (P6b)** — volontairement off (`canDelete={false}`) :
-  destruction SoT tracker seulement (Marcel). UX explicite via
-  `deleteReservedHint` (« Suppression réservée au tracker Marcel ») dans le
-  menu ⋯ — pas de fausse poubelle. Ne pas activer côté Q sans politique IDOR
-  + audit M2M testé.
+Pas des phases ouvertes de cette suite ; durcir seulement si besoin ops :
+
 - **MP4 prod default** — reste `mp4Native: false` ; staging / preview / flag
-  explicite via `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (Marcel + clinicien, P7).
+  `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (Marcel + clinicien).
   **Ne pas activer en prod par défaut** (lane B séparée).
+- **Delete clinicien** — volontairement off (`canDelete={false}`) ; UX
+  `deleteReservedHint` seulement. Ne pas activer côté Q sans IDOR + audit M2M.
 - **Async ZIP cleanup** — cron tracker
-  `GET /api/internal/imaging/cleanup-async-exports` (`vercel.json` horaire) +
+  `GET /api/internal/imaging/cleanup-async-exports` (`vercel.json` quotidien Hobby-safe) +
   best-effort delete sur GET/build 410. Compteurs only — voir
   `docs/ops/IMAGING_RUNBOOK.md` (section async export cleanup).
+- **`/host` subpath** — différé ; `DicomViewer` compose déjà `/ui`.
+- **Tests e2e host / golden tour** — raffinements apps (fixtures Tania/Fatima).
+
+## Hors suite (future — ne pas ouvrir dans ce close-out)
+
+Capacités visionneuse avancées **non** livrées et **hors** P0–P8 :
+
+- **MPR** (multi-planar reconstruction)
+- **DICOMDIR** / compagnons CD structurés
+- **Annotations** / mesures persistantes
 
 ## Évolution Marcel
 
@@ -156,3 +160,4 @@ l’auth / URLs. Divergence de message, plafond pool, chrome, ou binaire codec =
 bug produit.
 
 Agent Cursor : `.cursor/agents/franchir-imaging.md`.
+Close-out stabilize : `.cursor/agents/franchir-imaging-stabilize.md`.
