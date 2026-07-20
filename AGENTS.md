@@ -21,6 +21,7 @@
 - Docs ops / matrice / blueprint : **repo questionnaires**
 - Agent pont : `.cursor/agents/franchir-anamneze-bridge.md`
 - Agent imaging : `.cursor/agents/franchir-imaging.md` — DICOM viewer / packages imaging* / sync / parité Marcel↔clinicien
+- Agent imaging stabilize : `.cursor/agents/franchir-imaging-stabilize.md` — consolidation pins / golden-path CI / hygiène post-merge (avec `franchir-imaging`)
 - Rule Cursor : `.cursor/rules/anamneze-bridge.mdc`
 
 ## Règles rapides
