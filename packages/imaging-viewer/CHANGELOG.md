@@ -1,13 +1,22 @@
 # Changelog — `@franchir/imaging-viewer`
 
-## 0.13.1
+## 0.13.3
 
 - P7 residual polish (lane A) :
   - `studyAsyncExpiredMessage()` (410 / TTL 2 h)
   - `ImagingDownloadStatus` : barre dès le début multi-lots (async / chunked)
+  - Apps : cron cleanup Storage TTL (tracker) — voir runbook
+
+## 0.13.2
+
+
+- MP4 prod readiness (docs / contrat) :
+  - `mp4Native` documenté comme **ops flip** (Marcel + clinicien) — default
+    package `false` ; flag `NEXT_PUBLIC_ENABLE_MP4_VIEWER` ou alias
+    `NEXT_PUBLIC_MP4_VIEWER=1`
+  - Commentaire `ViewerCapabilities.mp4Native` aligné (parité clinicien)
 
 ## 0.13.0
-
 
 - P7 (apps + docs package) :
   - Export étude **async durable** — job Storage + poll/build + signed URL TTL

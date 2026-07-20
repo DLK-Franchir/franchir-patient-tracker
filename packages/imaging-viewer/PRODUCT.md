@@ -19,7 +19,8 @@
 | **P6b** | 0.10.1 | **done** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
 | **P6a** | 0.11.0 | **done** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
 | **P8** | 0.12.0 | **done** | Télémétrie actionable — seuils, raisons `dicom_export` (sync + async), résumé contrat ops |
-| **P7** | 0.13.0–0.13.1 | **done** | Async ZIP Storage + cron cleanup TTL + UX 410 ; parité `mp4Native` clinicien (staging/flag) |
+| **P7** | 0.13.0–0.13.3 | **done** | Async ZIP Storage + cron cleanup TTL + UX 410 ; parité `mp4Native` clinicien (staging/flag) |
+| **MP4 prod** | apps | **ops flip** | Code prêt (Marcel + clinicien) ; prod reste off jusqu’au flag Vercel — voir adapters |
 
 Close-out ops : `docs/ops/IMAGING_STABILIZE.md` (checklist suite complète).
 
@@ -73,7 +74,7 @@ SoT binaire : `packages/imaging-viewer/assets/{dwv-workers,openjpeg}`.
 |------|-----------------|-------------|
 | `jpeg2000OpenJpegFallback` | `true` | Host `DicomViewer` coupe `onJpeg2000Unsupported` si `false` |
 | `encapsulatedPdf` | `true` | Listing app : cartes DOC → viewer PDF (adapter) |
-| `mp4Native` | `false` | Marcel **et** clinicien : `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (+ preview/dev) via adapters |
+| `mp4Native` | `false` | Marcel **et** clinicien : `NEXT_PUBLIC_ENABLE_MP4_VIEWER` ou `NEXT_PUBLIC_MP4_VIEWER=1` (+ preview/dev) via adapters |
 | `pixelSignalGate` | `true` | Engine / policy (canvas noir) |
 | `stackMode` / `sequentialMode` | `true` | Documentaires ; plafonds pool inchangés |
 
@@ -133,9 +134,11 @@ Ops : `docs/ops/IMAGING_TELEMETRY.md`.
 
 Pas des phases ouvertes de cette suite ; durcir seulement si besoin ops :
 
-- **MP4 prod default** — reste `mp4Native: false` ; staging / preview / flag
-  `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (Marcel + clinicien).
-  **Ne pas activer en prod par défaut** (lane B séparée).
+- **MP4 prod** — **code done** (parité Marcel + clinicien). Package default
+  `mp4Native: false` (ne force pas les navigateurs). **Ops flip** : poser
+  `NEXT_PUBLIC_ENABLE_MP4_VIEWER=true` (ou alias `NEXT_PUBLIC_MP4_VIEWER=1`)
+  en Production sur **les deux** projets Vercel, puis redeploy. Détail :
+  `docs/ops/IMAGING_ADAPTERS.md` (tracker) / miroir Q.
 - **Delete clinicien** — volontairement off (`canDelete={false}`) ; UX
   `deleteReservedHint` seulement. Ne pas activer côté Q sans IDOR + audit M2M.
 - **Async ZIP cleanup** — cron tracker

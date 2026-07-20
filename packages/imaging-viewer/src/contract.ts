@@ -80,9 +80,10 @@ export type ViewerCapabilities = {
   /** Viewer PDF encapsulé DOC (SOP 1.2.840.10008.5.1.4.1.1.104.1). */
   encapsulatedPdf: boolean
   /**
-   * Lecteur MP4 natif — défaut package `false`.
-   * Marcel staging : `NEXT_PUBLIC_ENABLE_MP4_VIEWER` via adapter app.
-   * Clinicien : pas encore branché (parity volontairement différée).
+   * Lecteur MP4/m4v natif — défaut package `false` (safe browsers).
+   * Marcel + clinicien : `getAppViewerCapabilities()` → `isMp4ViewerEnabled`
+   * (`NEXT_PUBLIC_ENABLE_MP4_VIEWER` ou alias `NEXT_PUBLIC_MP4_VIEWER=1` ;
+   * preview / dev). Prod = ops flip flag, pas de default silencieux.
    */
   mp4Native: boolean
 }
