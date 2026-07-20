@@ -1,7 +1,7 @@
 # `@franchir/imaging-viewer`
 
 Couche produit partagée de la visionneuse DICOM Franchir : **contrat**,
-**politique codec/UX**, **orchestration dwv** (stack / pool / sequential), et
+**politique codec/UX**, **orchestration dwv**, **shell React**, et
 **assets codec** (workers + OpenJPEG).
 
 | Repo | Rôle | Chemin |
@@ -18,19 +18,19 @@ Voir aussi [`PRODUCT.md`](./PRODUCT.md).
 3. `npm run imaging-viewer:sync` → pin Q + install `public/` des deux apps.
 4. CI : `npm run imaging-viewer:check` + `npm run test:imaging-viewer`.
 
-## Scope P1 (ce package)
+## Exports
 
-- Types contrat + policy (P0) — `@franchir/imaging-viewer`
-- Engine dwv : `@franchir/imaging-viewer/engine` (`dwv-app`, `stack`, `pool`, `sequential`)
-- Assets : `assets/dwv-workers/*`, `assets/openjpeg/openjpegjs.js` + MANIFEST
+| Subpath | Contenu | SSR-safe |
+|---------|---------|----------|
+| `@franchir/imaging-viewer` | Contrat + policy + helpers purs | oui |
+| `@franchir/imaging-viewer/engine` | Hooks / App dwv | client (peer dwv) |
+| `@franchir/imaging-viewer/ui` | Chrome React + fallback OpenJPEG | **client only** |
 
-Le barrel principal **n’importe pas** `dwv` (chemins SSR / upload-guidance).
+## Hors scope (P2.1)
 
-## Hors scope (P2)
+- Host dwv unique `<DicomViewer>` (lifecycle stack/pool encore dans les apps)
+- PDF encapsulé DOC
 
-- Shell React unifié `<DicomViewer>` (chrome toolbar/overlays)
-- Viewer fallback OpenJPEG React (helpers decode restent app-local pour l’instant)
-
-Peer deps : `react`, `react-dom`, `dwv` (^0.36).
+Peer deps : `react`, `react-dom`, `dwv` (^0.36), `lucide-react` (UI).
 
 Companion grouping : `@franchir/imaging`.

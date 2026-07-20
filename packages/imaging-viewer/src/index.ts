@@ -1,6 +1,7 @@
 /**
- * @franchir/imaging-viewer — contrat + policy (sans dwv).
+ * @franchir/imaging-viewer — contrat + policy (sans dwv / sans React UI).
  * Engine dwv : `@franchir/imaging-viewer/engine`.
+ * Shell React + fallback OpenJPEG : `@franchir/imaging-viewer/ui`.
  * SoT = franchir-patient-tracker. Sync → questionnaires via `npm run imaging-viewer:sync`.
  */
 

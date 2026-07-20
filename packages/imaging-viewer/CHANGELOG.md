@@ -1,5 +1,16 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.3.0
+
+- Extraction P2 : shell React partagé sous `@franchir/imaging-viewer/ui`
+  (`ViewerInfoBubble`, `DicomSeriesHeader`, `DicomViewerToolbar`, overlays
+  loading/error, messages viewport).
+- Fallback OpenJPEG unifié `DicomJpeg2000FallbackViewer` + helpers decode
+  (`jpeg2000-decode`, `dicom-j2k-extract`, `dicom-windowing`).
+- Peer `lucide-react` pour les icônes chrome (référence UX tracker).
+- Host dwv (`DicomViewer` lifecycle stack/pool) reste app-local — trop couplé
+  au DOM dwv pour un seul composant portable en P2.
+
 ## 0.2.0
 
 - Extraction P1 : orchestration dwv partagée (`createDwvApp`, `useDicomStackMode`,

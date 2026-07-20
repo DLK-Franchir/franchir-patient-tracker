@@ -30,6 +30,12 @@ export default defineConfig({
           new URL('./packages/imaging-viewer/src/engine.ts', import.meta.url),
         ),
       },
+      {
+        find: /^@franchir\/imaging-viewer\/ui$/,
+        replacement: fileURLToPath(
+          new URL('./packages/imaging-viewer/src/ui/index.ts', import.meta.url),
+        ),
+      },
     ],
   },
   test: {
@@ -39,6 +45,7 @@ export default defineConfig({
       'components/**/*.test.tsx',
       'app/**/*.test.ts',
       'packages/**/*.test.ts',
+      'packages/**/*.test.tsx',
     ],
   },
 })
