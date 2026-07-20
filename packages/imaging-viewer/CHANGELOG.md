@@ -1,5 +1,22 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.10.0
+
+- P5 : événement télémétrie non-PHI `dicom_export` (série / étude single /
+  étude multi-parties) — `reason` snake_case (`series`, `study_single`,
+  `study_chunked`, `*_fail`).
+- Docs roadmap : export étude chunked côté apps (plan + `?part=N`).
+
+## 0.9.2
+
+- Grid UX : menu carte (⋯ mobile), dialog portée téléchargement série/étude,
+  confirm delete typé ; barrel `/ui/card-actions` sans tirer dwv.
+
+## 0.9.0 / 0.9.1
+
+- Actions carte Imaging (download scope + delete confirm) sous `/ui` ;
+  0.9.1 isole `card-actions` pour le listing.
+
 ## 0.8.0
 
 - Export DICOM desktop (P0/P1 UI) : boutons chrome

@@ -15,10 +15,12 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 | Legacy backfill (P3b) | `POST /api/internal/imaging/backfill-dicom-metadata` + `scripts/backfill-dicom-metadata.mjs` |
 | Workers rewrite | `proxy.ts` (lane A — not this doc) |
 | Product telemetry (P3a) | `onImagingTelemetry` → `lib/imaging/report-imaging-telemetry.ts` — see `IMAGING_TELEMETRY.md` |
-| DICOM export ZIP (P0/P1) | `GET …/imaging/series/[seriesUid]/export.zip` + `…/study/export.zip` — stream Storage ; UI `onDownloadSeries` / `onDownloadStudy` |
+| DICOM export ZIP (P0/P1/P5) | `GET …/imaging/series/[seriesUid]/export.zip` + `…/study/export-plan` + `…/study/export.zip?part=N` — stream Storage ; UI `downloadStudyDicomExport` |
 | Capabilities / feature flags (P4) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from env; openjpeg/pdf defaults package) |
 
-Export / ZIP DICOM download = **lane sibling** (hors ce doc / hors P4 capabilities).
+**P5 study ZIP** — sous plafond (`MAX_STUDY_EXPORT_FILES` = 400) → un ZIP ; au-delà
+(Fatima) → plan `chunked` puis parties séquentielles (`?part=0…`). Pas de job async
+durable (Vercel) : multi-ZIP sync. Delete clinicien = différé (SoT Marcel only).
 
 ## Rules
 

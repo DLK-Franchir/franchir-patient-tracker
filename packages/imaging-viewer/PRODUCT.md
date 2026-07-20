@@ -14,7 +14,9 @@
 | **P3b/c** | — | apps | Upload-time SUID, deep-link séries, runbook ops — hors package |
 | **P4** | 0.7.0 | **landed** | Feature flags capabilities (openjpeg / pdf / mp4) + `resolveViewerCapabilities` ; adapters app allégés ; roadmap sync |
 | **P4∥** | 0.8.0 | **landed** | Chrome export DICOM (`onDownloadSeries` / `onDownloadStudy`) — ZIP brut via adapters app |
-| **P4+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` seulement si le barrel `/ui` devient trop lourd |
+| **P4+** | 0.9.x | **landed** | Grid UX card-actions (download scope, delete confirm, mobile ⋯, no file-list) |
+| **P5** | 0.10.0 | **landed** | Télémétrie `dicom_export` ; apps = plan + ZIP étude multi-parties (Fatima >400) |
+| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 prod default ; delete clinicien |
 
 ## Promesse
 
@@ -106,18 +108,21 @@ Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 | `openjpeg_fallback` | dwv J2K non supporté → repli OpenJPEG |
 | `ready_without_pixels` | Géométrie OK, buffer pixels vide (canvas noir évité) |
 | `worker_asset_fail` | Échec ressemblant à un worker codec introuvable |
+| `dicom_export` | ZIP série / étude (single ou chunked) — `reason` + `file_count` |
 
 Ops : `docs/ops/IMAGING_TELEMETRY.md`.
 
 ## Différé / lanes parallèles
 
-- Listing documents / auth signed URL encore côté apps (P2.2b).
+- Listing documents / auth signed URL encore côté apps (P2.2b) — soft-refresh landed.
 - Tests e2e host / golden Fatima-Tania encore côté apps.
 - **`/host` subpath** — différé : `DicomViewer` compose déjà le chrome `/ui` ;
   un export séparé ne réduit pas le graphe host. Réévaluer si des imports
   chrome-only tirent dwv malgré le tree-shake.
-- **Export / ZIP DICOM download** — lane sibling (hors package / hors P4
-  capabilities) ; ne pas mélanger les PRs.
+- **Delete clinicien** — volontairement off (`canDelete={false}`) : destruction
+  SoT tracker seulement (Marcel). Ne pas activer côté Q sans politique IDOR.
+- **MP4 prod default** — reste `mp4Native: false` ; staging via
+  `NEXT_PUBLIC_ENABLE_MP4_VIEWER`.
 
 ## Évolution Marcel
 

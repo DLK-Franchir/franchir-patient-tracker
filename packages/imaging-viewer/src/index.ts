@@ -89,6 +89,7 @@ export {
   isImagingTelemetryEvent,
   isImagingTelemetryEventName,
   looksLikeWorkerAssetFailure,
+  nowMs,
   type ImagingTelemetryEngine,
   type ImagingTelemetryEvent,
   type ImagingTelemetryEventName,

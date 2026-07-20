@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildStudyExportParts,
   hashSeriesUid,
+  MAX_STUDY_EXPORT_FILES,
   normalizeSeriesExportKey,
+  planStudyExport,
   resolveSeriesExport,
   resolveStudyExport,
+  resolveStudyExportPart,
   sanitizeZipPathSegment,
   type DicomExportRow,
 } from './dicom-export'
@@ -132,5 +136,78 @@ describe('resolveStudyExport', () => {
     expect(resolved.fileCount).toBe(2)
     expect(resolved.entries.some((e) => e.zipPath.startsWith('SE001_'))).toBe(true)
     expect(resolved.entries.some((e) => e.zipPath.startsWith('SE002_'))).toBe(true)
+  })
+
+  it('marks Fatima-scale study as too_large for single ZIP', () => {
+    const rows: DicomExportRow[] = []
+    for (let s = 0; s < 5; s += 1) {
+      for (let i = 0; i < 100; i += 1) {
+        rows.push(
+          row({
+            id: `s${s}-i${i}`,
+            filePath: `p/${s}/${i}.dcm`,
+            fileName: `${i}.dcm`,
+            seriesInstanceUid: `1.2.${s}`,
+            seriesDescription: `S${s}`,
+            instanceNumber: i + 1,
+            sopInstanceUid: `10.${s}.${i}`,
+          }),
+        )
+      }
+    }
+    expect(rows.length).toBeGreaterThan(MAX_STUDY_EXPORT_FILES)
+    const resolved = resolveStudyExport(rows)
+    expect(resolved).toMatchObject({ error: 'too_large', fileCount: 500 })
+  })
+})
+
+describe('planStudyExport / chunks', () => {
+  it('plans single mode under plafond', () => {
+    const rows = [
+      row({
+        id: 'a',
+        filePath: 'p/a.dcm',
+        fileName: 'a.dcm',
+        seriesInstanceUid: '1.1',
+        sopInstanceUid: 's1',
+      }),
+    ]
+    expect(planStudyExport(rows)).toMatchObject({
+      mode: 'single',
+      partCount: 1,
+      fileCount: 1,
+    })
+  })
+
+  it('splits oversized study into multiple parts under plafond each', () => {
+    const rows: DicomExportRow[] = []
+    for (let s = 0; s < 5; s += 1) {
+      for (let i = 0; i < 100; i += 1) {
+        rows.push(
+          row({
+            id: `s${s}-i${i}`,
+            filePath: `p/${s}/${i}.dcm`,
+            fileName: `${i}.dcm`,
+            seriesInstanceUid: `1.2.${s}`,
+            seriesDescription: `S${s}`,
+            instanceNumber: i + 1,
+            sopInstanceUid: `10.${s}.${i}`,
+          }),
+        )
+      }
+    }
+    const plan = planStudyExport(rows)
+    expect(plan).toMatchObject({ mode: 'chunked', fileCount: 500 })
+    if ('error' in plan || plan.mode !== 'chunked') return
+    expect(plan.partCount).toBeGreaterThan(1)
+    expect(plan.parts.every((p) => p.fileCount <= MAX_STUDY_EXPORT_FILES)).toBe(true)
+
+    const parts = buildStudyExportParts(rows)
+    expect(parts.length).toBe(plan.partCount)
+    const part0 = resolveStudyExportPart(rows, 0)
+    expect('error' in part0).toBe(false)
+    if ('error' in part0) return
+    expect(part0.fileCount).toBe(plan.parts[0]?.fileCount)
+    expect(resolveStudyExportPart(rows, 99)).toMatchObject({ error: 'part_out_of_range' })
   })
 })

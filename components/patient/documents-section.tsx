@@ -32,8 +32,10 @@ import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
 import { reportImagingTelemetry } from '@/lib/imaging/report-imaging-telemetry'
 import { getAppViewerCapabilities } from '@/lib/imaging/viewer-capabilities'
 import {
-  downloadDicomZip,
+  downloadSeriesDicomExport,
+  downloadStudyDicomExport,
   seriesExportZipUrl,
+  studyExportPlanUrl,
   studyExportZipUrl,
 } from '@/lib/imaging/trigger-dicom-zip-download'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
@@ -483,30 +485,52 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     [dicomItems, items, openViewer, selectedId],
   )
 
-  const runZipDownload = useCallback(
-    async (url: string) => {
-      setDownloadBusy(true)
-      try {
-        const result = await downloadDicomZip(url)
-        if (!result.ok) {
-          alert(result.message)
-        }
-      } finally {
-        setDownloadBusy(false)
+  const runSeriesZipDownload = useCallback(async (seriesKey: string, fileCount?: number) => {
+    setDownloadBusy(true)
+    try {
+      const result = await downloadSeriesDicomExport({
+        url: seriesExportZipUrl(patientId, seriesKey),
+        fileCount,
+        onTelemetry: reportImagingTelemetry,
+      })
+      if (!result.ok) {
+        alert(result.message)
       }
-    },
-    [],
-  )
+    } finally {
+      setDownloadBusy(false)
+    }
+  }, [patientId])
+
+  const runStudyZipDownload = useCallback(async () => {
+    setDownloadBusy(true)
+    try {
+      const result = await downloadStudyDicomExport({
+        planUrl: studyExportPlanUrl(patientId),
+        studyZipUrl: (partIndex) => studyExportZipUrl(patientId, partIndex),
+        onTelemetry: reportImagingTelemetry,
+      })
+      if (!result.ok) {
+        alert(result.message)
+      } else if (result.mode === 'chunked' && (result.partCount ?? 0) > 1) {
+        alert(
+          `Étude volumineuse : ${result.partCount} fichiers ZIP téléchargés (lots pour Horos / RadiAnt).`,
+        )
+      }
+    } finally {
+      setDownloadBusy(false)
+    }
+  }, [patientId])
 
   const handleDownloadSeries = useCallback(() => {
     const item = items.find((i) => i.id === selectedId)
     if (!item || (item.kind !== 'dicom-series' && item.kind !== 'dicom-pdf-series')) return
-    void runZipDownload(seriesExportZipUrl(patientId, item.groupId))
-  }, [items, patientId, selectedId, runZipDownload])
+    const fileCount = 'urls' in item && Array.isArray(item.urls) ? item.urls.length : undefined
+    void runSeriesZipDownload(item.groupId, fileCount)
+  }, [items, selectedId, runSeriesZipDownload])
 
   const handleDownloadStudy = useCallback(() => {
-    void runZipDownload(studyExportZipUrl(patientId))
-  }, [patientId, runZipDownload])
+    void runStudyZipDownload()
+  }, [runStudyZipDownload])
 
   const handleCardDownloadScope = useCallback(
     async (scope: ImagingDownloadScope) => {
@@ -514,12 +538,13 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       if (!item) return
       if (scope === 'study') {
         setDownloadTargetId(null)
-        await runZipDownload(studyExportZipUrl(patientId))
+        await runStudyZipDownload()
         return
       }
       if (item.kind === 'dicom-series' || item.kind === 'dicom-pdf-series') {
         setDownloadTargetId(null)
-        await runZipDownload(seriesExportZipUrl(patientId, item.groupId))
+        const fileCount = 'urls' in item && Array.isArray(item.urls) ? item.urls.length : undefined
+        await runSeriesZipDownload(item.groupId, fileCount)
         return
       }
       if (item.kind === 'file') {
@@ -546,7 +571,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
         a.remove()
       }
     },
-    [downloadTargetId, items, patientId, runZipDownload],
+    [downloadTargetId, items, patientId, runSeriesZipDownload, runStudyZipDownload],
   )
 
   const requestCardDownload = useCallback(
