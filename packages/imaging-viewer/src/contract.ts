@@ -1,6 +1,7 @@
 /**
  * Contrat public visionneuse — types stables pour tracker + questionnaires.
- * Le shell React / dwv reste dans les apps (P1).
+ * Orchestration dwv (stack/pool/sequential) vit dans ce package (P1) ;
+ * chrome React (toolbar, overlays) reste dans les apps.
  */
 
 /** Une série affichable (URLs signées déjà résolues). */
@@ -68,7 +69,7 @@ export type ViewerCapabilities = {
   pixelSignalGate: boolean
 }
 
-/** Props shell React (contrat ; implémentation reste dans les apps en P0). */
+/** Props shell React (contrat ; chrome UI reste dans les apps en P1). */
 export type DicomViewerProps = {
   urls: string[]
   name: string

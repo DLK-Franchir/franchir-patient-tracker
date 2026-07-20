@@ -1,47 +1,85 @@
-# Franchir Imaging Viewer — produit (P0)
+# Franchir Imaging Viewer — produit
+
+## Statut roadmap
+
+| Phase | Version | Statut | Contenu |
+|-------|---------|--------|---------|
+| **P0** | 0.1.0 | **done** | Contrat + policy (+ helpers purs layout / pixel-signal / pool-plan) |
+| **P1** | 0.2.0 | **landed** | Engine dwv portable (`dwv-app`, `stack`, `pool`, `sequential`) + assets SoT (`assets/` + MANIFEST sha256) + sync/check vers `public/` des deux apps |
+| **P1.1** | — | next si besoin | Affiner adapters / edge cases engine ; pas de shell React |
+| **P2** | — | planned | Shell React unifié `<DicomViewer>` (+ fallback OpenJPEG UI partagé) |
+
+Chrome React (toolbar, overlays, lucide/Icon, flags mp4) reste **app-local** —
+adapters minces re-exportent le package. Ne pas réintroduire de logique engine
+dans les apps.
 
 ## Promesse
 
-Une seule politique viewer pour Marcel (tracker) et le clinicien (questionnaires) :
-mêmes messages, mêmes plafonds pool, même gate « pixels réellement décodés »,
-même détection JPEG 2000 / orientation — sans forks silencieux.
+Une seule politique **et** une seule orchestration dwv pour Marcel (tracker)
+et le clinicien (questionnaires) : mêmes messages, mêmes plafonds pool, même
+gate « pixels réellement décodés », même stack→sequential, mêmes workers /
+OpenJPEG — sans forks silencieux.
 
 ## Source de vérité
 
-| Couche | Package | SoT |
-|--------|---------|-----|
+| Couche | Package / chemin | SoT |
+|--------|------------------|-----|
 | Grouping / dédup séries | `@franchir/imaging` | tracker |
-| Contrat + policy + helpers purs viewer | `@franchir/imaging-viewer` | tracker |
-| Shell React + dwv App | apps (`components/.../dicom-viewer*`) | parité manuelle → **P1 extract** |
-| Workers codec / OpenJPEG | `public/dwv-workers`, assets openjpeg | **même set dans les deux apps** (pas encore packagé) |
+| Contrat + policy + **engine dwv** (app/stack/pool/sequential) + assets codec | `@franchir/imaging-viewer` | tracker |
+| Chrome React (toolbar, overlays, lucide/Icon, feature flags mp4) | apps | parité manuelle → **P2 shell unifié** |
+| Workers / OpenJPEG servis | `public/dwv-workers`, `public/openjpeg` | **installés depuis** `packages/imaging-viewer/assets` |
 
 ## Discipline sync
 
-1. Éditer uniquement `franchir-patient-tracker/packages/imaging-viewer`.
+1. Éditer uniquement `franchir-patient-tracker/packages/imaging-viewer`
+   (code **et** binaires sous `assets/`).
 2. Bump `version` + `CHANGELOG.md`.
-3. `npm run imaging-viewer:sync` (cible sibling `Franchir_Questionnaires_Patients`).
+3. `npm run imaging-viewer:sync` — pin Q + installe les assets dans les deux
+   `public/`, régénère `assets/MANIFEST.json`.
 4. PR tracker d’abord, puis PR questionnaires avec le pin.
-5. `imaging-viewer:check` + tests package en CI.
+5. CI : `imaging-viewer:check` (package + checksums public) + `test:imaging-viewer`.
 
 Ne pas modifier la copie pinée côté questionnaires sauf hotfix d’urgence
 (puis re-sync depuis SoT).
 
-## Assets codec (hors package)
+## Assets codec (P1)
 
-Les workers dwv (`jpeg2000`, `jpegls`, …) et le repli OpenJPEG restent dans
-chaque app (`public/dwv-workers`, middleware rewrite `/_next/.../assets/workers`).
-**P0** : garder les fichiers alignés manuellement ; noter tout changement de
-binaire dans les deux PRs. Checksum / packaging → backlog P1.
+SoT binaire : `packages/imaging-viewer/assets/{dwv-workers,openjpeg}`.
 
-## Roadmap P1
+- `MANIFEST.json` : sha256 par fichier.
+- Sync copie vers `public/` tracker **et** questionnaires.
+- Check échoue si `public/` d’une app diverge du package.
+- Rewrite Next `/_next/.../assets/workers` → `/dwv-workers` reste **app-local**
+  (`proxy.ts` / middleware) — hors package.
 
-- Extraire le shell React `DicomViewer` + modules dwv (`*-app`, `*-stack`,
-  `*-pool`, `*-sequential`) dans ce package (ou `@franchir/imaging-viewer-react`).
-- Packaging / checksum des workers + OpenJPEG.
-- Un seul chemin d’import produit ; supprimer les shims de re-export locaux.
+## Comment changer la visionneuse
+
+| Besoin | Où éditer |
+|--------|-----------|
+| Messages, plafonds pool, détection JPEG 2000 / orientation | `packages/imaging-viewer/src/policy.ts` |
+| Gate pixels / layout retries | `pixel-signal.ts`, `layout.ts`, `pool-plan.ts` |
+| Création App dwv, stack, pool, nav séquentielle | `@franchir/imaging-viewer/engine` (`dwv-app`, `stack`, `pool`, `sequential`) — pas le barrel `.` |
+| Workers / OpenJPEG (binaires) | `packages/imaging-viewer/assets/` puis sync |
+| Toolbar, overlays, URLs signées, auth, routing | apps (`components/.../dicom-viewer.tsx`, documents) |
+| Grouping séries | `@franchir/imaging` |
+
+Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
+
+## Différé (P1.1 / P2)
+
+**P1.1 (optionnel)** — restes engine non urgents (hooks encore dépendants de
+`dwv` peer + React dans le package ; OK pour P1). Pas d’extract React shell.
+
+**P2**
+
+- Extraire un seul `<DicomViewer>` React partagé (chrome UI) — aujourd’hui
+  tracker et Q divergent (lucide vs Icon, toolbar split).
+- Déplacer le shell OpenJPEG fallback React (helpers decode déjà alignés).
+- Optionnel : sous-path export `@franchir/imaging-viewer/react`.
 
 ## Évolution Marcel
 
-Éditer la policy et le contrat ici, sync vers Q, puis n’ajuster le shell React
-tracker que pour l’orchestration Next/dwv. Toute divergence de message ou de
-plafond pool = bug produit, pas une « variante clinicien ».
+Éditer engine + policy ici, sync vers Q, n’ajuster le chrome app que pour
+l’UI Next. Divergence de message, plafond pool, ou binaire codec = bug produit.
+
+Agent Cursor : `.cursor/agents/franchir-imaging.md`.

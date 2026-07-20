@@ -1,33 +1,36 @@
 # `@franchir/imaging-viewer`
 
 Couche produit partagée de la visionneuse DICOM Franchir : **contrat**,
-**politique codec/UX**, et **helpers purs** (pool, layout, signal pixel).
+**politique codec/UX**, **orchestration dwv** (stack / pool / sequential), et
+**assets codec** (workers + OpenJPEG).
 
 | Repo | Rôle | Chemin |
 |------|------|--------|
 | `franchir-patient-tracker` | **Source de vérité** — éditer ici | `packages/imaging-viewer` |
 | `Franchir_Questionnaires_Patients` | Copie pinée (Vercel isolé) | `packages/imaging-viewer` |
 
-Voir aussi [`PRODUCT.md`](./PRODUCT.md) (promesse produit + roadmap P1).
+Voir aussi [`PRODUCT.md`](./PRODUCT.md).
 
 ## Discipline
 
-1. Modifier uniquement dans le **tracker**.
+1. Modifier uniquement dans le **tracker** (src **et** `assets/`).
 2. Bump semver + note dans `CHANGELOG.md`.
-3. `npm run imaging-viewer:sync` → copie vers questionnaires.
-4. CI : `npm run imaging-viewer:check` (fail si drift) + `npm run test:imaging-viewer`.
+3. `npm run imaging-viewer:sync` → pin Q + install `public/` des deux apps.
+4. CI : `npm run imaging-viewer:check` + `npm run test:imaging-viewer`.
 
-## Scope P0 (ce package)
+## Scope P1 (ce package)
 
-- Types contrat : `ImagingSeries`, `ImagingViewerItem`, `ViewerCapabilities`, …
-- Constantes / messages / formatters (orientation, JPEG 2000, load errors)
-- `pool-plan`, layout helpers (sans React / sans import `dwv`)
-- `hasPixelSignal` (gate canvas noir vs pixels décodés)
+- Types contrat + policy (P0) — `@franchir/imaging-viewer`
+- Engine dwv : `@franchir/imaging-viewer/engine` (`dwv-app`, `stack`, `pool`, `sequential`)
+- Assets : `assets/dwv-workers/*`, `assets/openjpeg/openjpegjs.js` + MANIFEST
 
-## Hors scope (P1)
+Le barrel principal **n’importe pas** `dwv` (chemins SSR / upload-guidance).
 
-- Shell React `DicomViewer` + orchestration dwv
-- Binaires OpenJPEG / workers `public/dwv-workers` (les deux apps doivent
-  shipper les mêmes assets — checksum documenté dans PRODUCT.md)
+## Hors scope (P2)
+
+- Shell React unifié `<DicomViewer>` (chrome toolbar/overlays)
+- Viewer fallback OpenJPEG React (helpers decode restent app-local pour l’instant)
+
+Peer deps : `react`, `react-dom`, `dwv` (^0.36).
 
 Companion grouping : `@franchir/imaging`.

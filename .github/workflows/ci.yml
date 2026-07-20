@@ -36,3 +36,6 @@ jobs:
 
       - name: Imaging viewer package tests
         run: npm run test:imaging-viewer
+
+      - name: Imaging viewer pin + assets check
+        run: npm run imaging-viewer:check

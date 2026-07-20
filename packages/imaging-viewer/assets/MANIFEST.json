@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-07-20T06:39:20.542Z",
+  "files": {
+    "dwv-workers/jpeg2000.worker.min.js": "3d3f2b270d36c6d00f891f0b3dbff03d5197231ca67a1b2e57866fb625b0599a",
+    "dwv-workers/jpegbaseline.worker.min.js": "5decd36f67bbdf231ceb1b60400a52cdc8308c2ac0ae5489fa57216f6451ed5b",
+    "dwv-workers/jpegloss.worker.min.js": "98f6cc2fecd67794b2c50ef11c99f13cbefe9d61e8727fb586b0a27c4ea59647",
+    "dwv-workers/labeling.worker.min.js": "8b0fbb93512e3209c814dcf8932e3ec08383703133e52e8a7a4e1ea98f36cef6",
+    "dwv-workers/resampling.worker.min.js": "87e3f5ec668489ba34372fce41547da55c02843c29d5dc0456df4355154f71ff",
+    "dwv-workers/rle.worker.min.js": "95de3203062c9325268a72f1d81f8482bb5d47cf386dd0502ef8d0eef6325f63",
+    "openjpeg/openjpegjs.js": "54424e1d345e67d862e40c71ed94ce60230a399d4f84b9a7d6136180c4a1a4e5"
+  }
+}

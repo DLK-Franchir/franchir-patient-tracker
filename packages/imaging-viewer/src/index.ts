@@ -1,5 +1,6 @@
 /**
- * @franchir/imaging-viewer — contrat + policy + helpers purs visionneuse DICOM.
+ * @franchir/imaging-viewer — contrat + policy (sans dwv).
+ * Engine dwv : `@franchir/imaging-viewer/engine`.
  * SoT = franchir-patient-tracker. Sync → questionnaires via `npm run imaging-viewer:sync`.
  */
 

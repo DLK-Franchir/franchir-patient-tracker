@@ -16,9 +16,10 @@
 - Stuck-sent : `patients.questionnaire_sent_at`
 - **Contrat synthèse (P1)** : `packages/synthesis-contract` vendored — ne pas éditer ici ; sync depuis Q (`npm run contract:sync`)
 - **Imagerie grouping (P0)** : `packages/imaging` (`@franchir/imaging`) — **SoT = ce repo** ; après edit : `npm run imaging:sync` → questionnaires ; CI `imaging:check`
-- **Visionneuse produit (P0)** : `packages/imaging-viewer` (`@franchir/imaging-viewer`) — contrat + policy + helpers purs ; **SoT = ce repo** ; `npm run imaging-viewer:sync` / `imaging-viewer:check` ; shell React dwv = P1
+- **Visionneuse produit (P1)** : `packages/imaging-viewer` (`@franchir/imaging-viewer`) — contrat + policy + orchestration dwv + assets codec ; **SoT = ce repo** ; `npm run imaging-viewer:sync` / `imaging-viewer:check` ; chrome React unifié = P2
 - Docs ops / matrice / blueprint : **repo questionnaires**
-- Agent : `.cursor/agents/franchir-anamneze-bridge.md`
+- Agent pont : `.cursor/agents/franchir-anamneze-bridge.md`
+- Agent imaging : `.cursor/agents/franchir-imaging.md` — DICOM viewer / packages imaging* / sync / parité Marcel↔clinicien
 - Rule Cursor : `.cursor/rules/anamneze-bridge.mdc`
 
 ## Règles rapides
