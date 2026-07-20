@@ -54,10 +54,12 @@ Exécuter ou vérifier, dans l’ordre :
 
 1. `npm run imaging:check` (tracker + Q pin)
 2. `npm run imaging-viewer:check` (tracker + Q pin)
-3. `npm run imaging:golden-path --ci` (si dispo)
-4. Smoke manuel **Tania** / **Fatima** (grouping + JPEG2000 / blank canvas) — **sans PHI** dans les notes
-5. Hygiène branches : fermer / merger les PR imaging orphelines ; ne pas empiler de gros refactors sur des pins divergents
+3. `npm run imaging:golden-path -- --ci` (alias `imaging:golden-tour -- --ci`)
+4. Smoke manuel **Tania** / **Fatima** — checklist `docs/ops/IMAGING_STABILIZE.md` + runbook post-deploy (sans PHI)
+5. Hygiène branches : fermer / supprimer remotes imaging dont la PR est MERGED ; ne pas empiler de gros refactors sur des pins divergents
 6. Ops legacy SUID : backfill / continuité SeriesInstanceUID si gaps post-merge (scripts/docs ops existants)
+
+Docs ops : `docs/ops/IMAGING_STABILIZE.md`, `IMAGING_RUNBOOK.md`, `IMAGING_GOLDEN_TOUR.md`.
 
 ## Deferred (ne pas ouvrir sans demande)
 
