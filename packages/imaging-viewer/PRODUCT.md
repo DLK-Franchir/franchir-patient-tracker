@@ -19,8 +19,8 @@
 | **P6b** | 0.10.1 | **landed** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
 | **P6a** | 0.11.0 | **landed** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
 | **P8** | 0.12.0 | **landed** | Télémétrie actionable — seuils, raisons `dicom_export` (sync + async réservé P7), résumé contrat ops |
-| **P7** | — | parallel | Async ZIP Storage / MP4 clinicien — **hors P8** ; réutiliser `study_async*` seulement |
-| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 prod default |
+| **P7** | 0.13.0 | **landed** | Async ZIP Storage (job + signed TTL) + parité `mp4Native` clinicien (staging/flag) |
+| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 **prod** default |
 
 ## Promesse
 
@@ -72,7 +72,7 @@ SoT binaire : `packages/imaging-viewer/assets/{dwv-workers,openjpeg}`.
 |------|-----------------|-------------|
 | `jpeg2000OpenJpegFallback` | `true` | Host `DicomViewer` coupe `onJpeg2000Unsupported` si `false` |
 | `encapsulatedPdf` | `true` | Listing app : cartes DOC → viewer PDF (adapter) |
-| `mp4Native` | `false` | Marcel : `NEXT_PUBLIC_ENABLE_MP4_VIEWER` via `getAppViewerCapabilities()` |
+| `mp4Native` | `false` | Marcel **et** clinicien : `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (+ preview/dev) via adapters |
 | `pixelSignalGate` | `true` | Engine / policy (canvas noir) |
 | `stackMode` / `sequentialMode` | `true` | Documentaires ; plafonds pool inchangés |
 
@@ -141,10 +141,10 @@ Ops : `docs/ops/IMAGING_TELEMETRY.md`.
   `deleteReservedHint` (« Suppression réservée au tracker Marcel ») dans le
   menu ⋯ — pas de fausse poubelle. Ne pas activer côté Q sans politique IDOR
   + audit M2M testé.
-- **P7 async ZIP / MP4 clinicien** — lane parallèle ; télémétrie via
-  `study_async*` seulement (P8).
-- **MP4 prod default** — reste `mp4Native: false` ; staging via
-  `NEXT_PUBLIC_ENABLE_MP4_VIEWER`.
+- **MP4 prod default** — reste `mp4Native: false` ; staging / preview / flag
+  explicite via `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (Marcel + clinicien, P7).
+- **Async ZIP residual** — pas de file d’attente Vercel Workflows / cron cleanup
+  des `exports/{patientId}/{jobId}/` (TTL 2 h + signed URL) ; à durcir si volume.
 
 ## Évolution Marcel
 

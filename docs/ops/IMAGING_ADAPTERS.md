@@ -15,12 +15,13 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 | Legacy backfill (P3b) | `POST /api/internal/imaging/backfill-dicom-metadata` + `scripts/backfill-dicom-metadata.mjs` |
 | Workers rewrite | `proxy.ts` (lane A — not this doc) |
 | Product telemetry (P3a) | `onImagingTelemetry` → `lib/imaging/report-imaging-telemetry.ts` — see `IMAGING_TELEMETRY.md` |
-| DICOM export ZIP (P0/P1/P5) | `GET …/imaging/series/[seriesUid]/export.zip` + `…/study/export-plan` + `…/study/export.zip?part=N` — stream Storage ; UI `downloadStudyDicomExport` |
-| Capabilities / feature flags (P4) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from env; openjpeg/pdf defaults package) |
+| DICOM export ZIP (P0/P1/P5/P7) | `GET …/export-plan` + sync `…/export.zip?part=N` **ou** async `POST …/export-async` + `…/build` + signed TTL ; UI `downloadStudyDicomExport` |
+| Capabilities / feature flags (P4/P7) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from `isMp4ViewerEnabled`) |
 
-**P5 study ZIP** — sous plafond (`MAX_STUDY_EXPORT_FILES` = 400) → un ZIP ; au-delà
-(Fatima) → plan `chunked` puis parties séquentielles (`?part=0…`). Pas de job async
-durable (Vercel) : multi-ZIP sync. Delete clinicien = différé (SoT Marcel only).
+**P5/P7 study ZIP** — sous plafond sync (400 fichiers) → un ZIP ; Fatima →
+`recommendAsync` + job Storage (`exports/{patientId}/{jobId}/`, parties ≤80
+fichiers / ~90 Mo) puis signed download TTL. Fallback sync chunked si async
+indisponible. Delete clinicien = différé (SoT Marcel only).
 
 ## Rules
 

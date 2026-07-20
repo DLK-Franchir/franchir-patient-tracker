@@ -1,5 +1,13 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.13.0
+
+- P7 (apps + docs package) :
+  - Export étude **async durable** — job Storage + poll/build + signed URL TTL
+    (Fatima-scale) ; télémétrie `dicom_export` reasons `study_async*`
+  - UX export : mode `async` dans `ExportProgressLike` / messages multi-lots
+  - Parité **mp4Native** clinicien (staging / preview / flag, comme Marcel)
+
 ## 0.12.0
 
 - P8 observabilité actionable :

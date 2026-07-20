@@ -67,6 +67,7 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 | **P4∥ / P4+** | done (0.8–0.9.x) | Export ZIP chrome + grid card-actions |
 | **P5** | done (0.10.0) | `dicom_export` telemetry ; apps plan + study ZIP multi-parties |
 | **P8** | done (0.12.0) | Telemetry actionable — thresholds, async reasons reserved for P7, summary API |
+| **P7** | done (0.13.0) | Async ZIP Storage + signed TTL ; `mp4Native` clinicien staging parity |
 
 ## Workflow quand invoqué
 

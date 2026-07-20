@@ -176,6 +176,7 @@ describe('planStudyExport / chunks', () => {
       mode: 'single',
       partCount: 1,
       fileCount: 1,
+      recommendAsync: false,
     })
   })
 
@@ -197,9 +198,10 @@ describe('planStudyExport / chunks', () => {
       }
     }
     const plan = planStudyExport(rows)
-    expect(plan).toMatchObject({ mode: 'chunked', fileCount: 500 })
+    expect(plan).toMatchObject({ mode: 'chunked', fileCount: 500, recommendAsync: true })
     if ('error' in plan || plan.mode !== 'chunked') return
     expect(plan.partCount).toBeGreaterThan(1)
+    expect(plan.asyncPartCount).toBeGreaterThanOrEqual(plan.partCount)
     expect(plan.parts.every((p) => p.fileCount <= MAX_STUDY_EXPORT_FILES)).toBe(true)
 
     const parts = buildStudyExportParts(rows)

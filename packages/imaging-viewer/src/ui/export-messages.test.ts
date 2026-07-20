@@ -17,6 +17,12 @@ describe('export-messages', () => {
     expect(
       studyDownloadProgressMessage({ completed: 2, total: 5, mode: 'chunked' }),
     ).toBe("Téléchargement de l'étude — lot 2/5…")
+    expect(
+      studyDownloadProgressMessage({ completed: 1, total: 4, mode: 'async' }),
+    ).toMatch(/lot 1\/4/)
+    expect(
+      studyDownloadProgressMessage({ completed: 0, total: 4, mode: 'async' }),
+    ).toMatch(/durable/)
   })
 
   it('reste simple pour un ZIP unique', () => {

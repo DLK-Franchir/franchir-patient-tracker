@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   downloadDicomZip,
   downloadStudyDicomExport,
+  downloadStudyDicomExportAsync,
 } from './trigger-dicom-zip-download'
 
 describe('downloadDicomZip', () => {
@@ -126,6 +127,7 @@ describe('downloadStudyDicomExport', () => {
             totalBytes: 9_000_000,
             partCount: 2,
             maxFiles: 400,
+            recommendAsync: false,
             parts: [
               { index: 0, fileCount: 300, seriesCount: 3, totalBytes: 5_000_000 },
               { index: 1, fileCount: 200, seriesCount: 2, totalBytes: 4_000_000 },
@@ -161,6 +163,131 @@ describe('downloadStudyDicomExport', () => {
     expect(progress.at(-1)).toEqual({ completed: 2, total: 2 })
     expect(telemetry).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'dicom_export', reason: 'study_chunked', outcome: 'ready' }),
+    )
+  })
+
+  it('utilise le job async Storage quand recommendAsync', async () => {
+    vi.useFakeTimers()
+    const blob = new Blob(['zip'], { type: 'application/zip' })
+    const jobId = '11111111-1111-4111-8111-111111111111'
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('export-plan')) {
+        return new Response(
+          JSON.stringify({
+            mode: 'chunked',
+            fileCount: 500,
+            seriesCount: 5,
+            totalBytes: 9_000_000,
+            partCount: 2,
+            maxFiles: 400,
+            recommendAsync: true,
+            asyncPartCount: 5,
+            parts: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.endsWith('/export-async') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            jobId,
+            status: 'queued',
+            partCount: 2,
+            completedParts: 0,
+            fileCount: 500,
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.includes('/build') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            jobId,
+            status: 'building',
+            partCount: 2,
+            completedParts: 1,
+            fileCount: 500,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.includes(`/export-async/${jobId}`) && !url.includes('/build')) {
+        return new Response(
+          JSON.stringify({
+            jobId,
+            status: 'ready',
+            partCount: 2,
+            completedParts: 2,
+            fileCount: 500,
+            downloads: [
+              {
+                index: 0,
+                filename: 'etude-dicom-part1of2.zip',
+                signedUrl: 'https://storage.example/p1.zip',
+              },
+              {
+                index: 1,
+                filename: 'etude-dicom-part2of2.zip',
+                signedUrl: 'https://storage.example/p2.zip',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.includes('storage.example')) {
+        return new Response(blob, { status: 200 })
+      }
+      return new Response(JSON.stringify({ error: 'unexpected' }), { status: 500 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    stubBrowserDownload()
+
+    const telemetry = vi.fn()
+    const pending = downloadStudyDicomExport({
+      planUrl: '/api/patients/x/imaging/study/export-plan',
+      studyZipUrl: () => '/api/patients/x/imaging/study/export.zip',
+      asyncUrls: {
+        createUrl: '/api/patients/x/imaging/study/export-async',
+        statusUrl: (id) => `/api/patients/x/imaging/study/export-async/${id}`,
+        buildUrl: (id, part) =>
+          `/api/patients/x/imaging/study/export-async/${id}/build?part=${part}`,
+      },
+      onTelemetry: telemetry,
+    })
+    await vi.runAllTimersAsync()
+    const result = await pending
+    expect(result).toEqual({ ok: true, mode: 'async', partCount: 2 })
+    expect(telemetry).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'dicom_export', reason: 'study_async', outcome: 'ready' }),
+    )
+  })
+})
+
+describe('downloadStudyDicomExportAsync', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('emet study_async_fail si create echoue', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 })),
+    )
+    const telemetry = vi.fn()
+    const result = await downloadStudyDicomExportAsync({
+      urls: {
+        createUrl: '/api/patients/x/imaging/study/export-async',
+        statusUrl: (id) => `/j/${id}`,
+        buildUrl: (id, p) => `/j/${id}/build?part=${p}`,
+      },
+      onTelemetry: telemetry,
+    })
+    expect(result.ok).toBe(false)
+    expect(telemetry).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'study_async_fail', outcome: 'error' }),
     )
   })
 })
