@@ -2,13 +2,18 @@
  * ============================================================================
  * Backfill des métadonnées DICOM + déduplication par SOPInstanceUID (existant).
  *
- * Pourquoi : avant la migration patient_documents_dicom_metadata, les coupes
- * étaient dédupliquées par nom+taille (fragile). Ce script lit l'EN-TÊTE de
- * chaque objet DICOM en Storage (requête Range, ~64 Ko), en extrait les
- * métadonnées (SOPInstanceUID, SeriesInstanceUID, InstanceNumber, dates), puis :
- *   1. renseigne les nouvelles colonnes de patient_documents ;
+ * Pourquoi : avant la migration patient_documents_dicom_metadata / P3b upload
+ * persist, les coupes pouvaient n'avoir aucune SeriesInstanceUID en DB.
+ * Ce script lit l'EN-TÊTE de chaque objet DICOM en Storage (requête Range),
+ * en extrait les métadonnées, puis :
+ *   1. renseigne les colonnes de patient_documents ;
  *   2. supprime les VRAIS doublons (même SOPInstanceUID), en gardant la coupe
- *      la plus volumineuse (la plus complète) — lignes + objets Storage.
+ *      la plus volumineuse — lignes + objets Storage.
+ *
+ * Préférer le chemin non-destructif HTTP (P3b) quand seule la meta manque :
+ *   POST /api/internal/imaging/backfill-dicom-metadata
+ *   (Bearer TRACKER_SYNC_SERVICE_TOKEN, dryRun d'abord — compteurs seuls).
+ * Ce CLI reste pour la dédup SOP destructive.
  *
  * Sécurité / réversibilité :
  *   - lit SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY depuis .env.local (jamais
@@ -16,6 +21,7 @@
  *   - écrit une sauvegarde JSON des lignes supprimées sous
  *     .dicom-dedupe-backups/ (gitignored) AVANT toute suppression ;
  *   - `--dry-run` n'écrit rien (inspection seule).
+ *   - Pas de PHI dans stdout (éviter d'imprimer noms patients).
  *
  * Usage :
  *   node scripts/backfill-dicom-metadata.mjs <patientId> [--dry-run]

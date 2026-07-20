@@ -3,10 +3,11 @@
  * Orchestration de l'upload DIRECT navigateur → Supabase Storage (Item A).
  *
  * Flux (aucun octet ne transite par la fonction serverless Vercel) :
- *   1. POST /api/patients/{id}/documents/sign-upload → URLs signées d'upload ;
- *   2. pour chaque fichier, `uploadToSignedUrl(path, token, file)` DIRECT vers
+ *   1. Prépare DICOM (métadonnées + nom SUID.*) côté navigateur ;
+ *   2. POST /api/patients/{id}/documents/sign-upload → URLs signées d'upload ;
+ *   3. pour chaque fichier, `uploadToSignedUrl(path, token, file)` DIRECT vers
  *      Storage avec le client navigateur (anon) ;
- *   3. POST /api/patients/{id}/documents/finalize → enregistre les métadonnées
+ *   4. POST /api/patients/{id}/documents/finalize → enregistre les métadonnées
  *      (et déclenche le forward best-effort vers le portail chirurgien).
  *
  * Le seul plafond restant est la taille par fichier (100 Mo) ; le nombre de
@@ -16,13 +17,13 @@
  */
 
 import { createClient } from '@/lib/supabase/client'
-import { PATIENT_DOCUMENTS_BUCKET, inferRenderType } from '@/lib/documents/patient-documents'
+import { PATIENT_DOCUMENTS_BUCKET } from '@/lib/documents/patient-documents'
 import { putFileToSignedUploadUrl } from '@/lib/integrations/signed-upload-put'
-import { DICOM_HEADER_SCAN_BYTES } from '@/lib/imaging/dicom-detection'
 import {
-  extractDicomPersistedMetadata,
-  type DicomPersistedMetadata,
-} from '@/lib/imaging/dicom-content'
+  prepareDicomFilesForUpload,
+  type PreparedUploadFile,
+} from '@/lib/documents/prepare-dicom-for-upload'
+import type { DicomPersistedMetadata } from '@/lib/imaging/dicom-content'
 
 /** Taille des sous-lots d'émission d'URLs signées (équilibre latence / charge). */
 const SIGN_BATCH_SIZE = 50
@@ -60,22 +61,6 @@ export type UploadProgress = {
 export type UploadResultSummary = {
   count: number
   skipped: number
-}
-
-/**
- * Lit l'en-tête DICOM côté navigateur (octets déjà nécessaires à l'upload) pour
- * en extraire les métadonnées persistées (SOPInstanceUID, série, etc.). Renvoie
- * null pour les fichiers non-DICOM ou illisibles.
- */
-async function readDicomMetadata(file: File): Promise<DicomPersistedMetadata | null> {
-  if (inferRenderType(file.name, file.type) !== 'dicom') return null
-  try {
-    const head = file.slice(0, Math.min(file.size, DICOM_HEADER_SCAN_BYTES))
-    const buffer = await head.arrayBuffer()
-    return extractDicomPersistedMetadata(buffer)
-  } catch {
-    return null
-  }
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -167,20 +152,19 @@ export async function uploadPatientDocuments(
   let processedCount = 0
   let skippedDuplicates = 0
 
-  for (const batch of chunk(files, SIGN_BATCH_SIZE)) {
-    // 0. Extrait les métadonnées DICOM (SOPInstanceUID + série) pour ce lot.
-    const metas = await Promise.all(batch.map((f) => readDicomMetadata(f)))
+  // P3b : métadonnées + nom SUID.* avant sign/upload (tous chemins, pas seulement dossier).
+  const preparedAll = await prepareDicomFilesForUpload(files)
 
-    // 1. Demande les URLs signées (le serveur saute les SOPInstanceUID connus).
+  for (const batch of chunk(preparedAll, SIGN_BATCH_SIZE)) {
     const signRes = await fetch(`/api/patients/${patientId}/documents/sign-upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        files: batch.map((f, i) => ({
-          name: f.name,
-          size: f.size,
-          type: f.type || null,
-          sopInstanceUid: metas[i]?.sopInstanceUid ?? null,
+        files: batch.map((p: PreparedUploadFile) => ({
+          name: p.file.name,
+          size: p.file.size,
+          type: p.file.type || null,
+          sopInstanceUid: p.dicom?.sopInstanceUid ?? null,
         })),
       }),
     })
@@ -189,12 +173,14 @@ export async function uploadPatientDocuments(
     }
     const { results } = (await signRes.json()) as { results: SignUploadResult[] }
 
-    // Apparie chaque décision à son fichier (même ordre que la requête).
-    const signedPairs: Array<{ upload: SignedUpload; file: File; meta: DicomPersistedMetadata | null }> = []
+    const signedPairs: Array<{
+      upload: SignedUpload
+      prepared: PreparedUploadFile
+    }> = []
     for (let index = 0; index < results.length; index += 1) {
       const result = results[index]
-      const file = batch[index]
-      if (!result || !file) continue
+      const prepared = batch[index]
+      if (!result || !prepared) continue
       if (result.status === 'skipped') {
         skippedDuplicates += 1
         processedCount += 1
@@ -202,16 +188,20 @@ export async function uploadPatientDocuments(
         continue
       }
       signedPairs.push({
-        upload: { fileName: result.fileName, path: result.path, token: result.token, signedUrl: result.signedUrl },
-        file,
-        meta: metas[index] ?? null,
+        upload: {
+          fileName: result.fileName,
+          path: result.path,
+          token: result.token,
+          signedUrl: result.signedUrl,
+        },
+        prepared,
       })
     }
 
-    // 2. Upload DIRECT vers Storage, avec une concurrence bornée.
     for (const group of chunk(signedPairs, UPLOAD_CONCURRENCY)) {
       await Promise.all(
-        group.map(async ({ upload, file, meta }) => {
+        group.map(async ({ upload, prepared }) => {
+          const { file, dicom } = prepared
           const { error } = await supabase.storage
             .from(PATIENT_DOCUMENTS_BUCKET)
             .uploadToSignedUrl(upload.path, upload.token, file, {
@@ -225,7 +215,7 @@ export async function uploadPatientDocuments(
             fileName: file.name,
             size: file.size,
             type: file.type || null,
-            dicom: meta,
+            dicom,
           })
           processedCount += 1
           onProgress?.({ total: files.length, uploaded: processedCount })
@@ -233,8 +223,7 @@ export async function uploadPatientDocuments(
       )
     }
 
-    // Cross-portail : seuls les fichiers réellement uploadés (non-doublons).
-    const acceptedFiles = signedPairs.map((p) => p.file)
+    const acceptedFiles = signedPairs.map((p) => p.prepared.file)
     for (const qBatch of chunk(acceptedFiles, QUESTIONNAIRES_SIGN_BATCH_SIZE)) {
       await forwardBatchToQuestionnaires(patientId, qBatch)
     }
@@ -244,7 +233,6 @@ export async function uploadPatientDocuments(
     return { count: 0, skipped: skippedDuplicates }
   }
 
-  // 3. Enregistre les métadonnées (route légère : aucun octet).
   const finalizeRes = await fetch(`/api/patients/${patientId}/documents/finalize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
