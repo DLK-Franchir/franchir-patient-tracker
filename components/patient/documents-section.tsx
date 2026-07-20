@@ -22,6 +22,7 @@ import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-question
 import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
 import { filterQuestionnaireImagingAgainstTracker } from '@/lib/imaging/dedupe-imaging-sources'
+import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
@@ -211,7 +212,9 @@ function findDicomSeriesIndexById(items: ViewerItem[], selectedId: string): numb
 export default function DocumentsSection({ patientId, canManage }: DocumentsSectionProps) {
   const [documents, setDocuments] = useState<PatientDocument[]>([])
   const [questionnaireFiles, setQuestionnaireFiles] = useState<QuestionnaireImagingFile[]>([])
+  const [listedAtMs, setListedAtMs] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshingUrls, setRefreshingUrls] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /** Feedback immédiat avant que dwv peigne la premiere coupe. */
@@ -260,6 +263,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       }
       const data = await docsRes.json()
       setDocuments(data.documents ?? [])
+      setListedAtMs(Date.now())
       setError(null)
       return true
     } catch {
@@ -295,6 +299,24 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     }
     setLoading(false)
   }, [fetchTrackerDocuments, fetchQuestionnaireImaging])
+
+  /** Remint signed URLs only — no Range enrich, no loading flash. */
+  const refreshSignedUrls = useCallback(async () => {
+    setRefreshingUrls(true)
+    try {
+      const ok = await fetchTrackerDocuments()
+      if (ok) {
+        void fetchQuestionnaireImaging()
+      }
+    } finally {
+      setRefreshingUrls(false)
+    }
+  }, [fetchTrackerDocuments, fetchQuestionnaireImaging])
+
+  const ensureFreshSignedUrls = useCallback(async () => {
+    if (!isSignedUrlListingStale(listedAtMs)) return
+    await refreshSignedUrls()
+  }, [listedAtMs, refreshSignedUrls])
 
   useEffect(() => {
     let cancelled = false
@@ -360,13 +382,18 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   )
 
   /**
-   * Ouverture immédiate avec les URLs déjà en mémoire (TTL 30 min).
-   * Pas de re-fetch pont Q : c'était la cause des freezes « clic → rien ».
+   * Fast-open : URLs en mémoire si encore fraîches.
+   * Soft-refresh (~25 min / TTL 30) avant open — sinon JWT expiré au re-clic.
+   * Pas d'enrich Range×N ni re-fetch pont Q obligatoire.
    */
-  const openViewer = useCallback((id: string) => {
-    setViewerShellBusy(true)
-    setSelectedId(id)
-  }, [])
+  const openViewer = useCallback(
+    async (id: string) => {
+      setViewerShellBusy(true)
+      await ensureFreshSignedUrls()
+      setSelectedId(id)
+    },
+    [ensureFreshSignedUrls],
+  )
 
   const navigateDicomSeries = useCallback(
     (direction: 'next' | 'prev') => {
@@ -378,10 +405,9 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           : Math.max(current - 1, 0)
       const nextItem = dicomItems[nextIndex]
       if (!nextItem || nextItem.id === selectedId) return
-      setViewerShellBusy(true)
-      setSelectedId(nextItem.id)
+      void openViewer(nextItem.id)
     },
-    [dicomItems, items, selectedId],
+    [dicomItems, items, openViewer, selectedId],
   )
 
   useEffect(() => {
@@ -407,18 +433,31 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
 
   return (
     <section id="patient-documents-section" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2">
         <h2 className="text-lg sm:text-xl font-bold text-gray-900">Imagerie & documents</h2>
-        {canManage && !showUpload && (
-          <button
-            onClick={() => setShowUpload(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#2563EB] hover:bg-blue-50 rounded-lg transition min-h-[44px]"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Ajouter des fichiers</span>
-            <span className="sm:hidden">Ajouter</span>
-          </button>
-        )}
+        <div className="flex items-center gap-1 sm:gap-2">
+          {!loading && items.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => void refreshSignedUrls()}
+              disabled={refreshingUrls}
+              className="px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition min-h-[44px] disabled:opacity-50"
+              title="Regénérer les liens sécurisés (TTL 30 min)"
+            >
+              {refreshingUrls ? 'Actualisation…' : 'Actualiser les liens'}
+            </button>
+          ) : null}
+          {canManage && !showUpload && (
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#2563EB] hover:bg-blue-50 rounded-lg transition min-h-[44px]"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Ajouter des fichiers</span>
+              <span className="sm:hidden">Ajouter</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {canManage && showUpload && (
