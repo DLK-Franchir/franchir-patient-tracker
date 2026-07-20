@@ -1,4 +1,4 @@
-# Imaging adapters (P2.2b) — tracker Marcel
+# Imaging adapters (P2.2b / P3b) — tracker Marcel
 
 App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put auth / listing / signed-URL TTL in the package.
 
@@ -11,6 +11,8 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 | Pont Q imaging (no Range enrich by default) | `lib/integrations/fetch-questionnaire-imaging.ts` (`enrichMetadata=0`) |
 | Series / DOC PDF grouping | `@franchir/imaging` via `groupDicomFilesByMetadata` |
 | PDF encapsulé UI | adapter → `@franchir/imaging-viewer/ui` (`dicom-encapsulated-pdf-viewer.tsx`) |
+| Upload-time SUID persist (P3b) | `lib/documents/prepare-dicom-for-upload.ts` → finalize → `patient_documents.series_instance_uid` |
+| Legacy backfill (P3b) | `POST /api/internal/imaging/backfill-dicom-metadata` + `scripts/backfill-dicom-metadata.mjs` |
 | Workers rewrite | `proxy.ts` (lane A — not this doc) |
 
 ## Rules
@@ -19,5 +21,26 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 2. **Soft-refresh** — if listing is stale, remint signed URLs then open (manual « Actualiser les liens » also available).
 3. **SoT meta** — `patient_documents` SeriesInstanceUID drives grouping; Q forward is secondary / deduped.
 4. **DOC PDF** — `dicom-pdf-series` cards route to encapsulated PDF viewer, not dwv image stack.
+5. **Upload-time SoT (P3b)** — new DICOM uploads always extract header meta client-side, rename with `SUID.*` when needed, and persist `series_instance_uid` / SOP / instance on finalize. Do **not** rely on list-time `enrichMetadata=1`.
 
 Ops triage / deep-link / golden-path: [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md).
+
+## Legacy backfill (P3b)
+
+Rows uploaded before upload-time persist may have `series_instance_uid IS NULL`.
+
+**Preferred (service-token, non-destructive)** — fill missing columns only:
+
+```bash
+curl -sS -X POST "$TRACKER_URL/api/internal/imaging/backfill-dicom-metadata" \
+  -H "Authorization: Bearer $TRACKER_SYNC_SERVICE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"patientId":"<uuid>","dryRun":true}'
+# then dryRun:false
+```
+
+Response = counters only (`scanned` / `parseOk` / `updated` / …). No file names or UIDs in logs.
+
+**CLI (local, includes optional SOP dedupe)** — `node scripts/backfill-dicom-metadata.mjs <patientId> [--dry-run]` (service-role from `.env.local`). Use for destructive dedupe; prefer dry-run first.
+
+After backfill, Marcel listing groups by SeriesInstanceUID without Range enrich.

@@ -25,6 +25,7 @@ import {
   inferDocumentKind,
   isObjectKeyOwnedByPatient,
 } from '@/lib/documents/patient-documents'
+import { resolveDicomPersistMeta } from '@/lib/documents/resolve-dicom-persist-meta'
 import { forwardDocumentsViaSignedUpload } from '@/lib/integrations/forward-imaging'
 import { Logger } from '@/lib/logger'
 
@@ -137,21 +138,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ success: true, count: 0, skipped: skippedPaths.length })
   }
 
-  const rows = accepted.map((doc) => ({
-    patient_id: patientId,
-    kind: inferDocumentKind(doc.fileName, doc.type ?? null),
-    file_path: doc.path,
-    file_name: doc.fileName,
-    mime_type: doc.type ?? null,
-    size_bytes: doc.size,
-    uploaded_by: user.id,
-    sop_instance_uid: doc.dicom?.sopInstanceUid ?? null,
-    series_instance_uid: doc.dicom?.seriesInstanceUid ?? null,
-    series_description: doc.dicom?.seriesDescription ?? null,
-    body_part: doc.dicom?.bodyPart ?? null,
-    instance_number: doc.dicom?.instanceNumber ?? null,
-    acquisition_datetime: doc.dicom?.acquisitionDatetime ?? null,
-  }))
+  const rows = accepted.map((doc) => {
+    const dicom = resolveDicomPersistMeta(doc.fileName, doc.dicom)
+    return {
+      patient_id: patientId,
+      kind: inferDocumentKind(doc.fileName, doc.type ?? null),
+      file_path: doc.path,
+      file_name: doc.fileName,
+      mime_type: doc.type ?? null,
+      size_bytes: doc.size,
+      uploaded_by: user.id,
+      sop_instance_uid: dicom?.sopInstanceUid ?? null,
+      series_instance_uid: dicom?.seriesInstanceUid ?? null,
+      series_description: dicom?.seriesDescription ?? null,
+      body_part: dicom?.bodyPart ?? null,
+      instance_number: dicom?.instanceNumber ?? null,
+      acquisition_datetime: dicom?.acquisitionDatetime ?? null,
+    }
+  })
 
   const { data: inserted, error: insertError } = await service
     .from('patient_documents')
