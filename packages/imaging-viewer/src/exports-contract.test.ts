@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as pkg from './index'
 import * as engine from './engine'
 import * as ui from './ui'
+import * as cardActions from './ui/card-actions'
 
 /** Surface publique sans dwv — safe pour chemins SSR / upload-guidance. */
 const REQUIRED_EXPORTS = [
@@ -110,6 +111,13 @@ describe('@franchir/imaging-viewer exports contract', () => {
     for (const key of REQUIRED_UI_EXPORTS) {
       expect(ui, key).toHaveProperty(key)
     }
+  })
+
+  it('expose card actions sans dwv sous /ui/card-actions', () => {
+    expect(cardActions).toHaveProperty('ImagingCardActionMenu')
+    expect(cardActions).toHaveProperty('ImagingDownloadScopeDialog')
+    expect(cardActions).toHaveProperty('ImagingDeleteConfirmDialog')
+    expect(cardActions).not.toHaveProperty('DicomViewer')
   })
 
   it('plafonds pool alignés capabilities', () => {

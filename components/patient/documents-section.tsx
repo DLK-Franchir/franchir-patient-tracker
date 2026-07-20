@@ -19,7 +19,7 @@ import {
   ImagingDeleteConfirmDialog,
   ImagingDownloadScopeDialog,
   type ImagingDownloadScope,
-} from '@franchir/imaging-viewer/ui'
+} from '@franchir/imaging-viewer/ui/card-actions'
 import DocumentUpload from '@/components/patient/document-upload'
 import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
