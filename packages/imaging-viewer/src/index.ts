@@ -41,6 +41,7 @@ export {
   nextLayerGroupId,
   orientationFallbackMessage,
   resetLayerGroupIdCounterForTests,
+  resolveViewerCapabilities,
   resolveViewerInfoKind,
   type WlPresetId,
 } from './policy'

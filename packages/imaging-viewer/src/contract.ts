@@ -62,14 +62,29 @@ export type ImagingPoolEntry<TApp = unknown> = {
 /** Alias historique. */
 export type PoolEntry<TApp = unknown> = ImagingPoolEntry<TApp>
 
-/** Capacités / plafonds produit (documentés + consommés par les apps). */
+/**
+ * Capacités / plafonds produit (documentés + consommés par les apps).
+ *
+ * Feature flags légers — defaults package = prod Marcel/clinicien.
+ * Overrides app via `resolveViewerCapabilities` (ex. MP4 staging).
+ */
 export type ViewerCapabilities = {
   maxSequentialPool: number
   maxPoolLoadConcurrency: number
   stackMode: boolean
   sequentialMode: boolean
+  /** Repli OpenJPEG quand dwv J2K échoue (Fatima COD / transfer 1.2.4.90). */
   jpeg2000OpenJpegFallback: boolean
+  /** Gate « pixels réellement décodés » (évite canvas noir « prêt »). */
   pixelSignalGate: boolean
+  /** Viewer PDF encapsulé DOC (SOP 1.2.840.10008.5.1.4.1.1.104.1). */
+  encapsulatedPdf: boolean
+  /**
+   * Lecteur MP4 natif — défaut package `false`.
+   * Marcel staging : `NEXT_PUBLIC_ENABLE_MP4_VIEWER` via adapter app.
+   * Clinicien : pas encore branché (parity volontairement différée).
+   */
+  mp4Native: boolean
 }
 
 /** Props host dwv / shell React (chrome partagé via `/ui`). */
@@ -84,6 +99,11 @@ export type DicomViewerProps = {
   onPrevSeries?: () => void
   onClose?: () => void
   onSliceCountResolved?: (count: number) => void
+  /**
+   * Overrides partiels des capabilities (ex. couper le fallback OpenJPEG).
+   * Non fourni → `DEFAULT_VIEWER_CAPABILITIES`.
+   */
+  capabilities?: Partial<ViewerCapabilities>
   /** Appelé quand dwv ne sait pas décoder le JPEG 2000 (→ repli OpenJPEG). */
   onJpeg2000Unsupported?: () => void
   /**

@@ -10,7 +10,7 @@ import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import {
   MAX_POOL_LOAD_CONCURRENCY,
   MAX_SEQUENTIAL_POOL,
-} from '@/components/patient/dicom-viewer/dicom-viewer-types'
+} from '@franchir/imaging-viewer'
 
 /** Aligné lib/integrations/forward-imaging.ts SIGNED_FORWARD_MAX_FILE_SIZE */
 export const FORWARD_TO_QUESTIONNAIRES_MAX_BYTES = 50 * 1024 * 1024

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_VIEWER_CAPABILITIES,
   SEQUENTIAL_LOCALIZER_ORIENTATION_MSG,
   SEQUENTIAL_ORIENTATION_FALLBACK_MSG,
   formatDicomLoadError,
   isStackOrientationMismatch,
   isUnsupportedJpeg2000Error,
   orientationFallbackMessage,
+  resolveViewerCapabilities,
   resolveViewerInfoKind,
 } from './policy'
 
@@ -99,5 +101,20 @@ describe('resolveViewerInfoKind', () => {
         sliceCount: 19,
       }),
     ).toBe('stack')
+  })
+})
+
+describe('resolveViewerCapabilities', () => {
+  it('retourne une copie des defaults sans override', () => {
+    const caps = resolveViewerCapabilities()
+    expect(caps).toEqual(DEFAULT_VIEWER_CAPABILITIES)
+    expect(caps).not.toBe(DEFAULT_VIEWER_CAPABILITIES)
+  })
+
+  it('preserve les flags openjpeg / pdf / mp4 documentés', () => {
+    expect(DEFAULT_VIEWER_CAPABILITIES.jpeg2000OpenJpegFallback).toBe(true)
+    expect(DEFAULT_VIEWER_CAPABILITIES.encapsulatedPdf).toBe(true)
+    expect(DEFAULT_VIEWER_CAPABILITIES.mp4Native).toBe(false)
+    expect(resolveViewerCapabilities({ mp4Native: true }).mp4Native).toBe(true)
   })
 })

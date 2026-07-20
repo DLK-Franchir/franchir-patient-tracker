@@ -20,13 +20,20 @@ import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
-import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
 import { filterQuestionnaireImagingAgainstTracker } from '@/lib/imaging/dedupe-imaging-sources'
 import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
 import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
 import { reportImagingTelemetry } from '@/lib/imaging/report-imaging-telemetry'
+import { getAppViewerCapabilities } from '@/lib/imaging/viewer-capabilities'
+import {
+  seriesExportZipUrl,
+  studyExportZipUrl,
+  triggerDicomZipDownload,
+} from '@/lib/imaging/trigger-dicom-zip-download'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
+
+const VIEWER_CAPS = getAppViewerCapabilities()
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
 // paresseusement (le bundle DICOM n'est livré qu'à l'ouverture d'un DICOM).
@@ -128,7 +135,10 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   )) {
     const first = series.files[0]
     if (!first) continue
-    const kind = series.isEncapsulatedPdf ? 'dicom-pdf-series' : 'dicom-series'
+    const kind =
+      series.isEncapsulatedPdf && VIEWER_CAPS.encapsulatedPdf
+        ? 'dicom-pdf-series'
+        : 'dicom-series'
     items.push({
       kind,
       id: `${kind}-${series.groupId}`,
@@ -145,7 +155,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
 function questionnaireFileRenderType(
   file: QuestionnaireImagingFile,
 ): 'image' | 'pdf' | 'dicom' | 'video' | 'other' {
-  if (file.type === 'video' && !isMp4ViewerEnabled()) return 'other'
+  if (file.type === 'video' && !VIEWER_CAPS.mp4Native) return 'other'
   return file.type
 }
 
@@ -178,9 +188,10 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
   )) {
     const first = series.files[0]
     if (!first) continue
-    const kind = series.isEncapsulatedPdf
-      ? 'questionnaire-dicom-pdf-series'
-      : 'questionnaire-dicom-series'
+    const kind =
+      series.isEncapsulatedPdf && VIEWER_CAPS.encapsulatedPdf
+        ? 'questionnaire-dicom-pdf-series'
+        : 'questionnaire-dicom-series'
     items.push({
       kind,
       id: `${kind}-${series.groupId}`,
@@ -547,7 +558,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           <FileText className="mx-auto mb-3 w-9 h-9 text-gray-300" strokeWidth={1.5} />
           <p className="text-sm font-medium text-gray-500">Aucun fichier pour le moment</p>
           <p className="text-xs text-gray-400 mt-1">
-            Les fichiers DICOM, PDF, images{isMp4ViewerEnabled() ? ' et vidéos MP4' : ''} apparaîtront ici.
+            Les fichiers DICOM, PDF, images{VIEWER_CAPS.mp4Native ? ' et vidéos MP4' : ''} apparaîtront ici.
           </p>
         </div>
       ) : (

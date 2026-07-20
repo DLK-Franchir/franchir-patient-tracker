@@ -1,6 +1,0 @@
-/** Re-export SoT `@franchir/imaging-viewer/ui`. */
-export {
-  JPEG2000_TRANSFER_SYNTAXES,
-  parseDicomForFallback,
-  type DicomFallbackData,
-} from '@franchir/imaging-viewer/ui'

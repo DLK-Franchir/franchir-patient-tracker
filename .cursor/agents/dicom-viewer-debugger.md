@@ -53,7 +53,7 @@ ou `i.b` = `import.meta.url` du chunk dwv bundle par Next, soit
 (Rows/Columns) : dwv construit la geometrie depuis l en-tete meme quand le decodage du
 flux compresse echoue, laissant un buffer **vide / uniforme a zero** → canvas noir
 marque "pret" (toolbar + compteur de coupe OK, image noire). Verifier des **pixels
-reellement decodes** via `hasPixelSignal(image.getBuffer())` (`lib/imaging/dicom-pixel-signal.ts`,
+reellement decodes** via `hasPixelSignal(image.getBuffer())` (`@franchir/imaging-viewer` / `pixel-signal.ts`,
 buffer non vide ET non uniforme). Sinon afficher une erreur codec explicite plutot
 qu un canvas noir.
 

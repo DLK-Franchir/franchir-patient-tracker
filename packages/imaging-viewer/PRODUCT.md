@@ -11,7 +11,10 @@
 | **P2.2a** | 0.5.0 | **landed** | Helpers rewrite Next workers + chemins OpenJPEG (`/worker-rewrite`) — SoT partagé, adapters app minces |
 | **P2.2b** | — | apps | Listing / auth signed URL (adapters) — hors package |
 | **P3a** | 0.6.0 | **landed** | Observabilité produit non-PHI (`onImagingTelemetry`) — TTFP, fallback OpenJPEG, canvas noir, workers |
-| **P3+** | — | next | Raffinements host (tests e2e, golden tour) ; éventuel subpath `/host` |
+| **P3b/c** | — | apps | Upload-time SUID, deep-link séries, runbook ops — hors package |
+| **P4** | 0.7.0 | **landed** | Feature flags capabilities (openjpeg / pdf / mp4) + `resolveViewerCapabilities` ; adapters app allégés ; roadmap sync |
+| **P4∥** | 0.8.0 | **landed** | Chrome export DICOM (`onDownloadSeries` / `onDownloadStudy`) — ZIP brut via adapters app |
+| **P4+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` seulement si le barrel `/ui` devient trop lourd |
 
 ## Promesse
 
@@ -30,6 +33,7 @@ fallback OpenJPEG, même viewer PDF DOC.
 | Auth, URLs signées, listing documents | apps | thin adapters |
 | Rewrite paths workers + OpenJPEG (purs) | `@franchir/imaging-viewer/worker-rewrite` | tracker |
 | Télémétrie produit (formes + emit) | `@franchir/imaging-viewer` `telemetry.ts` + prop `onImagingTelemetry` | tracker |
+| Capabilities / feature flags | `@franchir/imaging-viewer` `ViewerCapabilities` + `resolveViewerCapabilities` | tracker |
 | Forward analytics (gtag / plausible) | adapters app | apps |
 | Workers / OpenJPEG servis | `public/dwv-workers`, `public/openjpeg` | **installés depuis** `packages/imaging-viewer/assets` |
 
@@ -56,11 +60,29 @@ SoT binaire : `packages/imaging-viewer/assets/{dwv-workers,openjpeg}`.
 - Chemins rewrite Next : SoT `src/worker-rewrite.ts` ; apps branchent
   `proxy.ts` / `next.config` dessus (P2.2a).
 
+## Feature flags (P4)
+
+| Flag | Default package | Où brancher |
+|------|-----------------|-------------|
+| `jpeg2000OpenJpegFallback` | `true` | Host `DicomViewer` coupe `onJpeg2000Unsupported` si `false` |
+| `encapsulatedPdf` | `true` | Listing app : cartes DOC → viewer PDF (adapter) |
+| `mp4Native` | `false` | Marcel : `NEXT_PUBLIC_ENABLE_MP4_VIEWER` via `getAppViewerCapabilities()` |
+| `pixelSignalGate` | `true` | Engine / policy (canvas noir) |
+| `stackMode` / `sequentialMode` | `true` | Documentaires ; plafonds pool inchangés |
+
+```ts
+import { resolveViewerCapabilities } from '@franchir/imaging-viewer'
+
+const caps = resolveViewerCapabilities({ mp4Native: true })
+// → DicomViewer capabilities={caps} ou routing listing
+```
+
 ## Comment changer la visionneuse
 
 | Besoin | Où éditer |
 |--------|-----------|
 | Messages, plafonds pool, détection JPEG 2000 / orientation | `packages/imaging-viewer/src/policy.ts` |
+| Feature flags capabilities | `contract.ts` `ViewerCapabilities` + `resolveViewerCapabilities` |
 | Gate pixels / layout retries | `pixel-signal.ts`, `layout.ts`, `pool-plan.ts` |
 | Création App dwv, stack, pool, nav séquentielle | `@franchir/imaging-viewer/engine` |
 | Host React dwv, toolbar, overlays, PDF DOC, fallback OpenJPEG | `@franchir/imaging-viewer/ui` |
@@ -87,12 +109,15 @@ Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 
 Ops : `docs/ops/IMAGING_TELEMETRY.md`.
 
-## Différé (P2.2b / P3+)
+## Différé / lanes parallèles
 
-- Listing documents / auth signed URL encore côté apps.
+- Listing documents / auth signed URL encore côté apps (P2.2b).
 - Tests e2e host / golden Fatima-Tania encore côté apps.
-- Éventuelle séparation subpath `/host` si le barrel `/ui` devient trop lourd
-  pour certains imports chrome-only.
+- **`/host` subpath** — différé : `DicomViewer` compose déjà le chrome `/ui` ;
+  un export séparé ne réduit pas le graphe host. Réévaluer si des imports
+  chrome-only tirent dwv malgré le tree-shake.
+- **Export / ZIP DICOM download** — lane sibling (hors package / hors P4
+  capabilities) ; ne pas mélanger les PRs.
 
 ## Évolution Marcel
 
