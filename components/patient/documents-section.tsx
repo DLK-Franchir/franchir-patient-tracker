@@ -7,7 +7,6 @@ import {
   FileText,
   Brain,
   Download,
-  Trash2,
   Plus,
   X,
   ArrowLeft,
@@ -15,6 +14,12 @@ import {
   AlertCircle,
   Play,
 } from 'lucide-react'
+import {
+  ImagingCardActionMenu,
+  ImagingDeleteConfirmDialog,
+  ImagingDownloadScopeDialog,
+  type ImagingDownloadScope,
+} from '@franchir/imaging-viewer/ui'
 import DocumentUpload from '@/components/patient/document-upload'
 import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
@@ -27,9 +32,9 @@ import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
 import { reportImagingTelemetry } from '@/lib/imaging/report-imaging-telemetry'
 import { getAppViewerCapabilities } from '@/lib/imaging/viewer-capabilities'
 import {
+  downloadDicomZip,
   seriesExportZipUrl,
   studyExportZipUrl,
-  triggerDicomZipDownload,
 } from '@/lib/imaging/trigger-dicom-zip-download'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
@@ -87,8 +92,24 @@ type DocumentsSectionProps = {
 
 type ViewerItem =
   | { kind: 'file'; id: string; doc: PatientDocument }
-  | { kind: 'dicom-series'; id: string; name: string; urls: string[]; firstUrl: string; groupId: string }
-  | { kind: 'dicom-pdf-series'; id: string; name: string; urls: string[]; firstUrl: string; groupId: string }
+  | {
+      kind: 'dicom-series'
+      id: string
+      name: string
+      urls: string[]
+      firstUrl: string
+      groupId: string
+      documentIds: string[]
+    }
+  | {
+      kind: 'dicom-pdf-series'
+      id: string
+      name: string
+      urls: string[]
+      firstUrl: string
+      groupId: string
+      documentIds: string[]
+    }
   | {
       kind: 'questionnaire-file'
       id: string
@@ -96,7 +117,14 @@ type ViewerItem =
       url: string
       renderType: 'image' | 'pdf' | 'dicom' | 'video' | 'other'
     }
-  | { kind: 'questionnaire-dicom-series'; id: string; name: string; urls: string[]; firstUrl: string; groupId: string }
+  | {
+      kind: 'questionnaire-dicom-series'
+      id: string
+      name: string
+      urls: string[]
+      firstUrl: string
+      groupId: string
+    }
   | {
       kind: 'questionnaire-dicom-pdf-series'
       id: string
@@ -118,20 +146,19 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
     }
   }
 
+  const dicomDocs = docs.filter((d) => d.renderType === 'dicom')
   for (const series of groupDicomFilesByMetadata(
-    docs
-      .filter((d) => d.renderType === 'dicom')
-      .map((d) => ({
-        name: d.fileName,
-        url: d.url,
-        size: d.sizeBytes,
-        sopInstanceUid: d.sopInstanceUid,
-        seriesInstanceUid: d.seriesInstanceUid,
-        seriesDescription: d.seriesDescription,
-        bodyPart: d.bodyPart,
-        instanceNumber: d.instanceNumber,
-        acquisitionDatetime: d.acquisitionDatetime,
-      })),
+    dicomDocs.map((d) => ({
+      name: d.fileName,
+      url: d.url,
+      size: d.sizeBytes,
+      sopInstanceUid: d.sopInstanceUid,
+      seriesInstanceUid: d.seriesInstanceUid,
+      seriesDescription: d.seriesDescription,
+      bodyPart: d.bodyPart,
+      instanceNumber: d.instanceNumber,
+      acquisitionDatetime: d.acquisitionDatetime,
+    })),
   )) {
     const first = series.files[0]
     if (!first) continue
@@ -139,6 +166,8 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
       series.isEncapsulatedPdf && VIEWER_CAPS.encapsulatedPdf
         ? 'dicom-pdf-series'
         : 'dicom-series'
+    const nameSet = new Set(series.files.map((f) => f.name))
+    const documentIds = dicomDocs.filter((d) => nameSet.has(d.fileName)).map((d) => d.id)
     items.push({
       kind,
       id: `${kind}-${series.groupId}`,
@@ -146,6 +175,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
       groupId: series.groupId,
+      documentIds,
     })
   }
 
@@ -246,6 +276,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [downloadBusy, setDownloadBusy] = useState(false)
+  const [downloadTargetId, setDownloadTargetId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
   const items = useMemo(() => {
     // Forward patient-images = copie du tracker : masquer les doublons Q.
@@ -375,18 +407,24 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     }
   }, [pendingFiles, patientId, fetchDocuments])
 
-  const handleDelete = useCallback(
-    async (doc: PatientDocument) => {
-      if (!confirm(`Supprimer définitivement « ${doc.fileName} » ?`)) return
-      setDeletingId(doc.id)
+  const deleteDocumentIds = useCallback(
+    async (documentIds: string[]) => {
+      const unique = [...new Set(documentIds.filter(Boolean))]
+      if (unique.length === 0) return
+      setDeletingId(unique[0] ?? 'batch')
       try {
-        const res = await fetch(`/api/patients/${patientId}/documents/${doc.id}`, {
-          method: 'DELETE',
-        })
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
-          throw new Error(data.error || 'Échec de la suppression')
+        for (const docId of unique) {
+          const res = await fetch(`/api/patients/${patientId}/documents/${docId}`, {
+            method: 'DELETE',
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(
+              typeof data.error === 'string' ? data.error : 'Échec de la suppression',
+            )
+          }
         }
+        setDeleteTargetId(null)
         await fetchDocuments()
       } catch (err) {
         alert(err instanceof Error ? err.message : 'Échec de la suppression')
@@ -396,6 +434,20 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     },
     [patientId, fetchDocuments],
   )
+
+  const resolveCardLabel = useCallback((item: ViewerItem): string => {
+    if (item.kind === 'file') return item.doc.fileName
+    if (item.kind === 'questionnaire-file') return item.name
+    return item.name
+  }, [])
+
+  const resolveDeletableDocumentIds = useCallback((item: ViewerItem): string[] => {
+    if (item.kind === 'file') return [item.doc.id]
+    if (item.kind === 'dicom-series' || item.kind === 'dicom-pdf-series') {
+      return item.documentIds
+    }
+    return []
+  }, [])
 
   const resolveItemById = useCallback(
     (id: string) => items.find((entry) => entry.id === id) ?? null,
@@ -431,25 +483,115 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     [dicomItems, items, openViewer, selectedId],
   )
 
+  const runZipDownload = useCallback(
+    async (url: string) => {
+      setDownloadBusy(true)
+      try {
+        const result = await downloadDicomZip(url)
+        if (!result.ok) {
+          alert(result.message)
+        }
+      } finally {
+        setDownloadBusy(false)
+      }
+    },
+    [],
+  )
+
   const handleDownloadSeries = useCallback(() => {
     const item = items.find((i) => i.id === selectedId)
-    if (!item || item.kind !== 'dicom-series') return
-    setDownloadBusy(true)
-    try {
-      triggerDicomZipDownload(seriesExportZipUrl(patientId, item.groupId))
-    } finally {
-      window.setTimeout(() => setDownloadBusy(false), 1500)
-    }
-  }, [items, patientId, selectedId])
+    if (!item || (item.kind !== 'dicom-series' && item.kind !== 'dicom-pdf-series')) return
+    void runZipDownload(seriesExportZipUrl(patientId, item.groupId))
+  }, [items, patientId, selectedId, runZipDownload])
 
   const handleDownloadStudy = useCallback(() => {
-    setDownloadBusy(true)
-    try {
-      triggerDicomZipDownload(studyExportZipUrl(patientId))
-    } finally {
-      window.setTimeout(() => setDownloadBusy(false), 1500)
-    }
-  }, [patientId])
+    void runZipDownload(studyExportZipUrl(patientId))
+  }, [patientId, runZipDownload])
+
+  const handleCardDownloadScope = useCallback(
+    async (scope: ImagingDownloadScope) => {
+      const item = items.find((i) => i.id === downloadTargetId)
+      if (!item) return
+      if (scope === 'study') {
+        setDownloadTargetId(null)
+        await runZipDownload(studyExportZipUrl(patientId))
+        return
+      }
+      if (item.kind === 'dicom-series' || item.kind === 'dicom-pdf-series') {
+        setDownloadTargetId(null)
+        await runZipDownload(seriesExportZipUrl(patientId, item.groupId))
+        return
+      }
+      if (item.kind === 'file') {
+        setDownloadTargetId(null)
+        const a = document.createElement('a')
+        a.href = item.doc.url
+        a.download = item.doc.fileName
+        a.rel = 'noopener'
+        a.target = '_blank'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        return
+      }
+      if (item.kind === 'questionnaire-file') {
+        setDownloadTargetId(null)
+        const a = document.createElement('a')
+        a.href = item.url
+        a.download = item.name
+        a.rel = 'noopener'
+        a.target = '_blank'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }
+    },
+    [downloadTargetId, items, patientId, runZipDownload],
+  )
+
+  const requestCardDownload = useCallback(
+    (item: ViewerItem) => {
+      const isSeries =
+        item.kind === 'dicom-series' ||
+        item.kind === 'dicom-pdf-series' ||
+        item.kind === 'questionnaire-dicom-series' ||
+        item.kind === 'questionnaire-dicom-pdf-series'
+      if (isSeries && (item.kind === 'dicom-series' || item.kind === 'dicom-pdf-series')) {
+        setDownloadTargetId(item.id)
+        return
+      }
+      if (item.kind === 'file') {
+        // Fichier unique : choix série(=fichier) vs étude si des DICOM existent.
+        const hasDicomStudy = items.some(
+          (i) => i.kind === 'dicom-series' || i.kind === 'dicom-pdf-series',
+        )
+        if (hasDicomStudy) {
+          setDownloadTargetId(item.id)
+          return
+        }
+        const a = document.createElement('a')
+        a.href = item.doc.url
+        a.download = item.doc.fileName
+        a.rel = 'noopener'
+        a.target = '_blank'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        return
+      }
+      if (item.kind === 'questionnaire-file') {
+        const a = document.createElement('a')
+        a.href = item.url
+        a.download = item.name
+        a.rel = 'noopener'
+        a.target = '_blank'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }
+    },
+    [items],
+  )
 
   useEffect(() => {
     if (!selectedId) {
@@ -594,12 +736,21 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             const doc = item.kind === 'file' ? item.doc : null
             const qFile = item.kind === 'questionnaire-file' ? item : null
             const itemKey = item.id
+            const label =
+              isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name
+            const deletableIds = resolveDeletableDocumentIds(item)
+            const canDeleteCard = canManage && deletableIds.length > 0
+            const canDownloadCard =
+              item.kind === 'dicom-series' ||
+              item.kind === 'dicom-pdf-series' ||
+              item.kind === 'file' ||
+              item.kind === 'questionnaire-file'
             return (
               <div key={itemKey} className="group relative">
                 <button
                   type="button"
                   onClick={() => openViewer(item.id)}
-                  aria-label={`Voir ${isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name}`}
+                  aria-label={`Voir ${label}`}
                   className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 >
                   {isDicom ? (
@@ -657,9 +808,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     </div>
                   )}
                   <div className="px-2 py-1.5 bg-white">
-                    <p className="text-xs font-medium text-gray-700 truncate text-center">
-                      {isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name}
-                    </p>
+                    <p className="text-xs font-medium text-gray-700 truncate text-center">{label}</p>
                     {(qFile ||
                       item.kind === 'questionnaire-dicom-series' ||
                       item.kind === 'questionnaire-dicom-pdf-series') && (
@@ -667,22 +816,71 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     )}
                   </div>
                 </button>
-                {canManage && doc && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(doc)}
-                    disabled={deletingId === doc.id}
-                    aria-label={`Supprimer ${doc.fileName}`}
-                    className="absolute top-1.5 right-1.5 rounded-full bg-white/90 p-1.5 text-gray-500 shadow-sm hover:text-red-600 hover:bg-white transition disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <ImagingCardActionMenu
+                  itemLabel={label}
+                  canDownload={canDownloadCard}
+                  canDelete={canDeleteCard}
+                  downloadBusy={downloadBusy && downloadTargetId === item.id}
+                  deleteBusy={Boolean(deletingId && deletableIds.includes(deletingId))}
+                  onDownload={() => requestCardDownload(item)}
+                  onDelete={() => setDeleteTargetId(item.id)}
+                />
               </div>
             )
           })}
         </div>
       )}
+
+      {downloadTargetId ? (
+        <ImagingDownloadScopeDialog
+          open
+          itemLabel={
+            (() => {
+              const t = items.find((i) => i.id === downloadTargetId)
+              return t ? resolveCardLabel(t) : 'imagerie'
+            })()
+          }
+          busy={downloadBusy}
+          offerSeries
+          seriesLabel={
+            items.find((i) => i.id === downloadTargetId)?.kind === 'file' ||
+            items.find((i) => i.id === downloadTargetId)?.kind === 'questionnaire-file'
+              ? 'Ce fichier uniquement'
+              : 'Cette série / séquence'
+          }
+          onSelect={(scope) => void handleCardDownloadScope(scope)}
+          onCancel={() => setDownloadTargetId(null)}
+        />
+      ) : null}
+
+      {deleteTargetId ? (
+        <ImagingDeleteConfirmDialog
+          open
+          itemLabel={
+            (() => {
+              const t = items.find((i) => i.id === deleteTargetId)
+              return t ? resolveCardLabel(t) : 'élément'
+            })()
+          }
+          busy={Boolean(deletingId)}
+          requireTypedConfirm={
+            (() => {
+              const t = items.find((i) => i.id === deleteTargetId)
+              return Boolean(
+                t &&
+                  (t.kind === 'dicom-series' || t.kind === 'dicom-pdf-series') &&
+                  t.documentIds.length > 1,
+              )
+            })()
+          }
+          onCancel={() => setDeleteTargetId(null)}
+          onConfirm={() => {
+            const t = items.find((i) => i.id === deleteTargetId)
+            if (!t) return
+            void deleteDocumentIds(resolveDeletableDocumentIds(t))
+          }}
+        />
+      ) : null}
 
       {/* Visionneuse plein écran (DICOM) ou lightbox (autres formats) */}
       {selectedItem &&

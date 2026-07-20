@@ -1,0 +1,90 @@
+import { describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { ImagingCardActionMenu } from './imaging-card-action-menu'
+import { ImagingDeleteConfirmDialog } from './imaging-delete-confirm-dialog'
+import { ImagingDownloadScopeDialog } from './imaging-download-scope-dialog'
+
+describe('ImagingCardActionMenu', () => {
+  it('rend telechargement et suppression quand autorises', () => {
+    const html = renderToStaticMarkup(
+      <ImagingCardActionMenu
+        itemLabel="Serie A"
+        canDownload
+        canDelete
+        onDownload={() => undefined}
+        onDelete={() => undefined}
+      />,
+    )
+    expect(html).toContain('imaging-card-action-menu')
+    expect(html).toContain('Télécharger')
+    expect(html).toContain('imaging-card-overflow')
+  })
+
+  it('masque le menu si aucune action', () => {
+    const html = renderToStaticMarkup(
+      <ImagingCardActionMenu itemLabel="Serie A" canDownload={false} canDelete={false} />,
+    )
+    expect(html).toBe('')
+  })
+})
+
+describe('ImagingDownloadScopeDialog', () => {
+  it('propose serie et etude', () => {
+    const html = renderToStaticMarkup(
+      <ImagingDownloadScopeDialog
+        open
+        itemLabel="Serie A"
+        onSelect={() => undefined}
+        onCancel={() => undefined}
+      />,
+    )
+    expect(html).toContain('imaging-download-scope-dialog')
+    expect(html).toContain('Cette série / séquence')
+    expect(html).toContain('imaging-download-scope-study')
+    expect(html).toMatch(/int[eé]gralit/i)
+  })
+
+  it('ne rend rien ferme', () => {
+    const html = renderToStaticMarkup(
+      <ImagingDownloadScopeDialog
+        open={false}
+        itemLabel="Serie A"
+        onSelect={() => undefined}
+        onCancel={() => undefined}
+      />,
+    )
+    expect(html).toBe('')
+  })
+})
+
+describe('ImagingDeleteConfirmDialog', () => {
+  it('exige une confirmation explicite — pas de suppression one-click', () => {
+    const onConfirm = vi.fn()
+    const html = renderToStaticMarkup(
+      <ImagingDeleteConfirmDialog
+        open
+        itemLabel="radio.jpg"
+        onConfirm={onConfirm}
+        onCancel={() => undefined}
+      />,
+    )
+    expect(html).toContain('Supprimer définitivement ?')
+    expect(html).toContain('imaging-delete-confirm-submit')
+    expect(html).toContain('imaging-delete-confirm-cancel')
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('mode type SUPPRIMER pour series multi-fichiers', () => {
+    const html = renderToStaticMarkup(
+      <ImagingDeleteConfirmDialog
+        open
+        itemLabel="Serie DICOM"
+        requireTypedConfirm
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    )
+    expect(html).toContain('imaging-delete-confirm-input')
+    expect(html).toContain('SUPPRIMER')
+  })
+})

@@ -82,6 +82,9 @@ const REQUIRED_UI_EXPORTS = [
   'decodeJpeg2000',
   'parseDicomForFallback',
   'grayPixelsToRgba',
+  'ImagingCardActionMenu',
+  'ImagingDownloadScopeDialog',
+  'ImagingDeleteConfirmDialog',
 ] as const
 
 describe('@franchir/imaging-viewer exports contract', () => {
