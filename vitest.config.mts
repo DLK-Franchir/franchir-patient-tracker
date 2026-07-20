@@ -3,18 +3,34 @@ import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('.', import.meta.url)),
-      '@franchir/synthesis-contract': fileURLToPath(
-        new URL('./packages/synthesis-contract/src/index.ts', import.meta.url),
-      ),
-      '@franchir/imaging': fileURLToPath(
-        new URL('./packages/imaging/src/index.ts', import.meta.url),
-      ),
-      '@franchir/imaging-viewer': fileURLToPath(
-        new URL('./packages/imaging-viewer/src/index.ts', import.meta.url),
-      ),
-    },
+    alias: [
+      { find: '@', replacement: fileURLToPath(new URL('.', import.meta.url)) },
+      {
+        find: '@franchir/synthesis-contract',
+        replacement: fileURLToPath(
+          new URL('./packages/synthesis-contract/src/index.ts', import.meta.url),
+        ),
+      },
+      {
+        find: '@franchir/imaging',
+        replacement: fileURLToPath(
+          new URL('./packages/imaging/src/index.ts', import.meta.url),
+        ),
+      },
+      // Exact matches only — a string alias is prefix-based and breaks `/engine`.
+      {
+        find: /^@franchir\/imaging-viewer$/,
+        replacement: fileURLToPath(
+          new URL('./packages/imaging-viewer/src/index.ts', import.meta.url),
+        ),
+      },
+      {
+        find: /^@franchir\/imaging-viewer\/engine$/,
+        replacement: fileURLToPath(
+          new URL('./packages/imaging-viewer/src/engine.ts', import.meta.url),
+        ),
+      },
+    ],
   },
   test: {
     environment: 'node',
