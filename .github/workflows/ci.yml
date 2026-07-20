@@ -39,3 +39,23 @@ jobs:
 
       - name: Imaging viewer pin + assets check
         run: npm run imaging-viewer:check
+
+  # Focused non-PHI imaging fixtures + MANIFEST check (no Q sibling).
+  # Isolated job so a flake does not block typecheck/unit quality — keep green.
+  imaging-golden-path:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Imaging golden path (CI)
+        run: npm run imaging:golden-path -- --ci

@@ -153,7 +153,18 @@ function main() {
     }
   }
 
-  steps.push(run("imaging-viewer:check", "npm", ["run", "imaging-viewer:check"]));
+  if (ci) {
+    // Tracker SoT + public assets only — ignore Q sibling pin drift (parallel lanes / no Q checkout).
+    steps.push(
+      run("imaging-viewer:check (tracker-only)", "node", [
+        "scripts/sync-imaging-viewer-package.mjs",
+        "--check",
+        "--tracker-only",
+      ]),
+    );
+  } else {
+    steps.push(run("imaging-viewer:check", "npm", ["run", "imaging-viewer:check"]));
+  }
 
   let imagingCheck = "skipped";
   if (ci && !requireSibling) {
