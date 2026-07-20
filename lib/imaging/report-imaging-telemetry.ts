@@ -4,6 +4,7 @@
  */
 
 import {
+  imagingTelemetryAnalyticsEventName,
   imagingTelemetryToAnalyticsProps,
   type ImagingTelemetryEvent,
   type ImagingTelemetryHandler,
@@ -19,7 +20,7 @@ declare global {
 /** Handler prêt à passer à `DicomViewer` / `DicomJpeg2000FallbackViewer`. */
 export const reportImagingTelemetry: ImagingTelemetryHandler = (event) => {
   const props = imagingTelemetryToAnalyticsProps(event)
-  const eventName = `imaging_${event.name}`
+  const eventName = imagingTelemetryAnalyticsEventName(event.name)
 
   if (typeof window === 'undefined') return
 

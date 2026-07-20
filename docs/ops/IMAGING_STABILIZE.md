@@ -31,16 +31,19 @@ Pointers: [`IMAGING_ADAPTERS.md`](./IMAGING_ADAPTERS.md).
 
 ### 3. Telemetry watch (non-PHI)
 
-After deploy, watch product analytics for spikes (no patient ids / SUIDs / URLs in tickets):
+After deploy, watch product analytics for spikes (no patient ids / SUIDs / URLs in tickets).
+Numeric thresholds + gtag/Plausible how-to: [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md) (P8).
 
-| Signal | Suspect |
-|--------|---------|
-| `imaging_ready_without_pixels` / `imaging_worker_asset_fail` | Worker rewrite / `public/dwv-workers` |
-| `imaging_openjpeg_fallback` | Expected for some DX; confirm OpenJPEG TTFP OK |
-| High p95 `imaging_time_to_first_paint` / `imaging_series_open_ms` | Signed URL / decode / pool |
-| `imaging_dicom_export` failures | Study ZIP chunked path / Storage stream |
+| Signal | Threshold (≈1 h) | Suspect |
+|--------|------------------|---------|
+| `imaging_ready_without_pixels` | ≥ 5 | Worker rewrite / blank-canvas gate |
+| `imaging_worker_asset_fail` | ≥ 3 | `public/dwv-workers` / `/_next` rewrite |
+| `imaging_openjpeg_fallback` | (watch TTFP) | Expected for some DX |
+| p95 `imaging_time_to_first_paint` / `series_open_ms` | ≥ 15s / 30s | Signed URL / decode / pool |
+| `imaging_dicom_export` error rate | ≥ 20% | Chunked ZIP / (P7) async |
 
-Contract: [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md).
+Contract smoke (Bearer sync/return):
+`GET /api/internal/imaging/telemetry-summary`.
 
 ### 4. Post-deploy smoke (Tania + Fatima)
 
