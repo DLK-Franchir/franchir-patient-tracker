@@ -37,6 +37,10 @@ export const DWV_PUBLIC_PATH_PREFIXES = [
 /**
  * Matcher Next middleware pour les workers demandés sous
  * `/_next/.../assets/workers/` (rewrites next.config ne couvrent pas `/_next/*`).
+ *
+ * Note : `export const config.matcher` dans `proxy.ts` doit répéter cette
+ * string en **littéral** (parse statique Next/Turbopack) ; les tests
+ * vérifient l’égalité avec cette constante SoT.
  */
 export const DWV_NEXT_WORKER_MATCHER =
   '/_next/:path*/assets/workers/:file' as const

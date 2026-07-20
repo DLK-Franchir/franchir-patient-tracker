@@ -1,7 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { isStaffProfile } from '@/lib/access-control'
 import {
-  DWV_NEXT_WORKER_MATCHER,
   DWV_PUBLIC_PATH_PREFIXES,
   dwvWorkerRewriteTarget,
 } from '@/lib/imaging/dwv-worker-rewrite'
@@ -138,7 +137,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|dwv-workers|assets/workers|openjpeg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|map)$).*)',
-    // dwv réclame ses workers sous `/_next/static/chunks/assets/workers/*`.
-    DWV_NEXT_WORKER_MATCHER,
+    // Literal requis par Next (parse statique). Doit rester = DWV_NEXT_WORKER_MATCHER (SoT).
+    '/_next/:path*/assets/workers/:file',
   ],
 }
