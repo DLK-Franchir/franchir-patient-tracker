@@ -2,6 +2,7 @@
  * @franchir/imaging-viewer — contrat + policy (sans dwv / sans React UI).
  * Engine dwv : `@franchir/imaging-viewer/engine`.
  * Host React + chrome + PDF DOC + fallback OpenJPEG : `@franchir/imaging-viewer/ui`.
+ * Rewrite workers Next : `@franchir/imaging-viewer/worker-rewrite` (aussi re-exporté ici).
  * SoT = franchir-patient-tracker. Sync → questionnaires via `npm run imaging-viewer:sync`.
  */
 
@@ -67,3 +68,15 @@ export {
   fetchEncapsulatedPdfBlobUrl,
   type DicomContentKind,
 } from './encapsulated-pdf'
+
+export {
+  DWV_ASSETS_WORKERS_SEGMENT,
+  DWV_NEXT_CONFIG_REWRITES,
+  DWV_NEXT_WORKER_MATCHER,
+  DWV_PUBLIC_PATH_PREFIXES,
+  DWV_WORKERS_PUBLIC_DIR,
+  OPENJPEG_PUBLIC_DIR,
+  OPENJPEG_SCRIPT_URL,
+  dwvWorkerRewriteTarget,
+  isDwvPublicAssetPath,
+} from './worker-rewrite'

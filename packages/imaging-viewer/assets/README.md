@@ -15,5 +15,6 @@ Binaires servis par les apps sous `public/dwv-workers` et `public/openjpeg`.
    tracker + questionnaires, pin le package Q.
 3. `npm run imaging-viewer:check` — échoue si `public/` ou pin Q dérive.
 
-Rewrite Next `/_next/.../assets/workers` → `/dwv-workers` reste **app-local**
-(`proxy.ts` / middleware) — hors de ce dossier.
+Rewrite Next `/_next/.../assets/workers` → `/dwv-workers` : logique SoT dans
+`src/worker-rewrite.ts` (`@franchir/imaging-viewer/worker-rewrite`) ; les apps
+n’ont que des adapters `proxy.ts` / `next.config`.
