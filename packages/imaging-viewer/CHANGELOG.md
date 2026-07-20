@@ -1,5 +1,15 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.11.0
+
+- P6a UX polish (card-actions / grille) :
+  - `ImagingGridEmptyState` + `ImagingGridLoadingState` (squelette grille)
+  - `ImagingDownloadStatus` — bannière visible pendant export série/étude/lots
+  - Messages export (`studyChunkedSuccessMessage`, progress multi-ZIP, fallback
+    study_too_large)
+  - Menu carte : spinner `downloadBusy`, cibles mobile 48px / pictogrammes densifiés
+  - Dialog portée : `busyMessage` pendant le stream ZIP
+
 ## 0.10.1
 
 - P6b : `deleteReservedHint` sur `ImagingCardActionMenu` — message non

@@ -87,6 +87,11 @@ const REQUIRED_UI_EXPORTS = [
   'ImagingCardActionMenu',
   'ImagingDownloadScopeDialog',
   'ImagingDeleteConfirmDialog',
+  'ImagingGridEmptyState',
+  'ImagingGridLoadingState',
+  'ImagingDownloadStatus',
+  'studyChunkedSuccessMessage',
+  'studyDownloadProgressMessage',
 ] as const
 
 describe('@franchir/imaging-viewer exports contract', () => {
@@ -118,6 +123,10 @@ describe('@franchir/imaging-viewer exports contract', () => {
     expect(cardActions).toHaveProperty('ImagingCardActionMenu')
     expect(cardActions).toHaveProperty('ImagingDownloadScopeDialog')
     expect(cardActions).toHaveProperty('ImagingDeleteConfirmDialog')
+    expect(cardActions).toHaveProperty('ImagingGridEmptyState')
+    expect(cardActions).toHaveProperty('ImagingGridLoadingState')
+    expect(cardActions).toHaveProperty('ImagingDownloadStatus')
+    expect(cardActions).toHaveProperty('studyChunkedSuccessMessage')
     expect(cardActions).not.toHaveProperty('DicomViewer')
   })
 

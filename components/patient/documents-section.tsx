@@ -18,6 +18,12 @@ import {
   ImagingCardActionMenu,
   ImagingDeleteConfirmDialog,
   ImagingDownloadScopeDialog,
+  ImagingDownloadStatus,
+  ImagingGridEmptyState,
+  ImagingGridLoadingState,
+  studyChunkedSuccessMessage,
+  studyDownloadProgressMessage,
+  type ExportProgressLike,
   type ImagingDownloadScope,
 } from '@franchir/imaging-viewer/ui/card-actions'
 import DocumentUpload from '@/components/patient/document-upload'
@@ -278,6 +284,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [downloadBusy, setDownloadBusy] = useState(false)
+  const [downloadScope, setDownloadScope] = useState<'series' | 'study'>('series')
+  const [downloadProgress, setDownloadProgress] = useState<ExportProgressLike | null>(null)
   const [downloadTargetId, setDownloadTargetId] = useState<string | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
@@ -486,6 +494,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   )
 
   const runSeriesZipDownload = useCallback(async (seriesKey: string, fileCount?: number) => {
+    setDownloadScope('series')
+    setDownloadProgress(null)
     setDownloadBusy(true)
     try {
       const result = await downloadSeriesDicomExport({
@@ -498,26 +508,29 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       }
     } finally {
       setDownloadBusy(false)
+      setDownloadProgress(null)
     }
   }, [patientId])
 
   const runStudyZipDownload = useCallback(async () => {
+    setDownloadScope('study')
+    setDownloadProgress({ completed: 0, total: 1, mode: 'single' })
     setDownloadBusy(true)
     try {
       const result = await downloadStudyDicomExport({
         planUrl: studyExportPlanUrl(patientId),
         studyZipUrl: (partIndex) => studyExportZipUrl(patientId, partIndex),
+        onProgress: setDownloadProgress,
         onTelemetry: reportImagingTelemetry,
       })
       if (!result.ok) {
         alert(result.message)
       } else if (result.mode === 'chunked' && (result.partCount ?? 0) > 1) {
-        alert(
-          `Étude volumineuse : ${result.partCount} fichiers ZIP téléchargés (lots pour Horos / RadiAnt).`,
-        )
+        alert(studyChunkedSuccessMessage(result.partCount ?? 0))
       }
     } finally {
       setDownloadBusy(false)
+      setDownloadProgress(null)
     }
   }, [patientId])
 
@@ -733,24 +746,19 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="w-7 h-7 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
-        </div>
+        <ImagingGridLoadingState />
       ) : error ? (
         <div className="flex items-center gap-2 text-sm text-red-600 py-4">
           <AlertCircle className="w-4 h-4" />
           {error}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-8">
-          <FileText className="mx-auto mb-3 w-9 h-9 text-gray-300" strokeWidth={1.5} />
-          <p className="text-sm font-medium text-gray-500">Aucun fichier pour le moment</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Les fichiers DICOM, PDF, images{VIEWER_CAPS.mp4Native ? ' et vidéos MP4' : ''} apparaîtront ici.
-          </p>
-        </div>
+        <ImagingGridEmptyState
+          title="Aucune imagerie pour le moment"
+          description={`Les séries DICOM, PDF, images${VIEWER_CAPS.mp4Native ? ' et vidéos MP4' : ''} apparaîtront ici une fois déposés.`}
+        />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
           {items.map((item) => {
             const isDicom =
               item.kind === 'dicom-series' ||
@@ -770,6 +778,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
               item.kind === 'dicom-pdf-series' ||
               item.kind === 'file' ||
               item.kind === 'questionnaire-file'
+            const cardDownloadBusy = downloadBusy && downloadTargetId === item.id
             return (
               <div key={itemKey} className="group relative">
                 <button
@@ -779,30 +788,30 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 >
                   {isDicom ? (
-                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-[#0B1020]">
-                      <Brain className="w-7 h-7 text-white/90" strokeWidth={1.75} />
-                      <span className="rounded bg-indigo-500 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
+                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                      <Brain className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
+                      <span className="rounded bg-indigo-500 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white sm:text-[10px]">
                         DICOM
                       </span>
                     </div>
                   ) : isDicomPdf ? (
-                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-blue-50">
-                      <FileText className="w-7 h-7 text-[#2563EB]" strokeWidth={1.75} />
-                      <span className="text-[10px] font-bold tracking-wide text-[#2563EB] uppercase">
+                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
+                      <FileText className="size-10 text-[#2563EB] sm:size-7" strokeWidth={1.75} />
+                      <span className="text-[11px] font-bold tracking-wide text-[#2563EB] uppercase sm:text-[10px]">
                         PDF DICOM
                       </span>
                     </div>
                   ) : doc && doc.renderType === 'video' ? (
-                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-[#0B1020]">
-                      <Play className="w-7 h-7 text-white/90" strokeWidth={1.75} />
-                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
+                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                      <Play className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
+                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white sm:text-[10px]">
                         MP4
                       </span>
                     </div>
                   ) : qFile && qFile.renderType === 'video' ? (
-                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-[#0B1020]">
-                      <Play className="w-7 h-7 text-white/90" strokeWidth={1.75} />
-                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
+                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                      <Play className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
+                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white sm:text-[10px]">
                         MP4
                       </span>
                     </div>
@@ -811,19 +820,19 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                     <img
                       src={doc.url}
                       alt={doc.fileName}
-                      className="w-full h-28 object-cover group-hover:opacity-90 transition"
+                      className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
                     />
                   ) : qFile && qFile.renderType === 'image' ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={qFile.url}
                       alt={qFile.name}
-                      className="w-full h-28 object-cover group-hover:opacity-90 transition"
+                      className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
                     />
                   ) : (
-                    <div className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-blue-50">
-                      <FileText className="w-7 h-7 text-[#2563EB]" strokeWidth={1.75} />
-                      <span className="text-[10px] font-bold tracking-wide text-[#2563EB] uppercase">
+                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
+                      <FileText className="size-10 text-[#2563EB] sm:size-7" strokeWidth={1.75} />
+                      <span className="text-[11px] font-bold tracking-wide text-[#2563EB] uppercase sm:text-[10px]">
                         {doc?.renderType === 'pdf' || qFile?.renderType === 'pdf'
                           ? 'PDF'
                           : doc?.renderType === 'video' || qFile?.renderType === 'video'
@@ -832,12 +841,16 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                       </span>
                     </div>
                   )}
-                  <div className="px-2 py-1.5 bg-white">
-                    <p className="text-xs font-medium text-gray-700 truncate text-center">{label}</p>
+                  <div className="bg-white px-2 py-2 sm:py-1.5">
+                    <p className="truncate text-center text-xs font-semibold text-gray-700 sm:font-medium">
+                      {label}
+                    </p>
                     {(qFile ||
                       item.kind === 'questionnaire-dicom-series' ||
                       item.kind === 'questionnaire-dicom-pdf-series') && (
-                      <p className="text-[10px] text-emerald-700 truncate text-center">Via questionnaire patient</p>
+                      <p className="truncate text-center text-[10px] text-emerald-700">
+                        Via questionnaire patient
+                      </p>
                     )}
                   </div>
                 </button>
@@ -845,7 +858,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   itemLabel={label}
                   canDownload={canDownloadCard}
                   canDelete={canDeleteCard}
-                  downloadBusy={downloadBusy && downloadTargetId === item.id}
+                  downloadBusy={cardDownloadBusy}
                   deleteBusy={Boolean(deletingId && deletableIds.includes(deletingId))}
                   onDownload={() => requestCardDownload(item)}
                   onDelete={() => setDeleteTargetId(item.id)}
@@ -855,6 +868,12 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           })}
         </div>
       )}
+
+      <ImagingDownloadStatus
+        open={downloadBusy}
+        scope={downloadScope}
+        progress={downloadProgress}
+      />
 
       {downloadTargetId ? (
         <ImagingDownloadScopeDialog
@@ -866,6 +885,11 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             })()
           }
           busy={downloadBusy}
+          busyMessage={
+            downloadScope === 'study' && downloadProgress
+              ? studyDownloadProgressMessage(downloadProgress)
+              : undefined
+          }
           offerSeries
           seriesLabel={
             items.find((i) => i.id === downloadTargetId)?.kind === 'file' ||

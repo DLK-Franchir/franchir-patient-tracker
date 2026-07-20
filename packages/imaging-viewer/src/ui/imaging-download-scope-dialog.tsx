@@ -9,6 +9,8 @@ export type ImagingDownloadScopeDialogProps = {
   /** Label of the series/sequence being offered (non-PHI display name). */
   itemLabel: string
   busy?: boolean
+  /** Visible status while ZIP is preparing / streaming (non-PHI). */
+  busyMessage?: string
   /** When false, only the whole-study option is shown (e.g. non-DICOM file). */
   offerSeries?: boolean
   seriesLabel?: string
@@ -25,6 +27,7 @@ export function ImagingDownloadScopeDialog({
   open,
   itemLabel,
   busy = false,
+  busyMessage = 'Téléchargement en cours…',
   offerSeries = true,
   seriesLabel = 'Cette série / séquence',
   studyLabel = "L'intégralité de l'étude",
@@ -73,6 +76,15 @@ export function ImagingDownloadScopeDialog({
         <p id={descId} className="mt-1 text-sm text-gray-600">
           Que souhaitez-vous télécharger pour « {itemLabel} » ?
         </p>
+        {busy ? (
+          <p
+            className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700"
+            data-testid="imaging-download-scope-busy"
+            aria-live="polite"
+          >
+            {busyMessage}
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-col gap-2">
           {offerSeries ? (
             <button

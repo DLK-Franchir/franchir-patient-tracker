@@ -16,7 +16,9 @@
 | **P4∥** | 0.8.0 | **landed** | Chrome export DICOM (`onDownloadSeries` / `onDownloadStudy`) — ZIP brut via adapters app |
 | **P4+** | 0.9.x | **landed** | Grid UX card-actions (download scope, delete confirm, mobile ⋯, no file-list) |
 | **P5** | 0.10.0 | **landed** | Télémétrie `dicom_export` ; apps = plan + ZIP étude multi-parties (Fatima >400) |
-| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 prod default ; delete clinicien |
+| **P6b** | 0.10.1 | **landed** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
+| **P6a** | 0.11.0 | **landed** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
+| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 prod default |
 
 ## Promesse
 

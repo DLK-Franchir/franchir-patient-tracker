@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { ImagingCardActionMenu } from './imaging-card-action-menu'
 import { ImagingDeleteConfirmDialog } from './imaging-delete-confirm-dialog'
 import { ImagingDownloadScopeDialog } from './imaging-download-scope-dialog'
+import { ImagingDownloadStatus } from './imaging-download-status'
+import { ImagingGridEmptyState, ImagingGridLoadingState } from './imaging-grid-states'
 
 describe('ImagingCardActionMenu', () => {
   it('rend telechargement et suppression quand autorises', () => {
@@ -75,6 +77,21 @@ describe('ImagingDownloadScopeDialog', () => {
     expect(html).toMatch(/int[eé]gralit/i)
   })
 
+  it('affiche busyMessage pendant export', () => {
+    const html = renderToStaticMarkup(
+      <ImagingDownloadScopeDialog
+        open
+        itemLabel="Serie A"
+        busy
+        busyMessage="Téléchargement de l'étude — lot 1/3…"
+        onSelect={() => undefined}
+        onCancel={() => undefined}
+      />,
+    )
+    expect(html).toContain('imaging-download-scope-busy')
+    expect(html).toContain('lot 1/3')
+  })
+
   it('ne rend rien ferme', () => {
     const html = renderToStaticMarkup(
       <ImagingDownloadScopeDialog
@@ -85,6 +102,24 @@ describe('ImagingDownloadScopeDialog', () => {
       />,
     )
     expect(html).toBe('')
+  })
+})
+
+describe('ImagingGridEmptyState / Loading / DownloadStatus', () => {
+  it('rend empty et loading grille', () => {
+    expect(renderToStaticMarkup(<ImagingGridEmptyState />)).toContain('imaging-grid-empty')
+    expect(renderToStaticMarkup(<ImagingGridLoadingState count={2} />)).toContain(
+      'imaging-grid-loading',
+    )
+    expect(
+      renderToStaticMarkup(
+        <ImagingDownloadStatus
+          open
+          scope="study"
+          progress={{ completed: 1, total: 3, mode: 'chunked' }}
+        />,
+      ),
+    ).toContain('imaging-download-status')
   })
 })
 
