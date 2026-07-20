@@ -18,6 +18,8 @@
 | **P5** | 0.10.0 | **landed** | Télémétrie `dicom_export` ; apps = plan + ZIP étude multi-parties (Fatima >400) |
 | **P6b** | 0.10.1 | **landed** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
 | **P6a** | 0.11.0 | **landed** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
+| **P8** | 0.12.0 | **landed** | Télémétrie actionable — seuils, raisons `dicom_export` (sync + async réservé P7), résumé contrat ops |
+| **P7** | — | parallel | Async ZIP Storage / MP4 clinicien — **hors P8** ; réutiliser `study_async*` seulement |
 | **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 prod default |
 
 ## Promesse
@@ -99,7 +101,7 @@ const caps = resolveViewerCapabilities({ mp4Native: true })
 
 Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 
-## Observabilité (P3a)
+## Observabilité (P3a → P8)
 
 Événements client-safe (pas de PHI, pas d’URL) :
 
@@ -110,7 +112,20 @@ Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 | `openjpeg_fallback` | dwv J2K non supporté → repli OpenJPEG |
 | `ready_without_pixels` | Géométrie OK, buffer pixels vide (canvas noir évité) |
 | `worker_asset_fail` | Échec ressemblant à un worker codec introuvable |
-| `dicom_export` | ZIP série / étude (single ou chunked) — `reason` + `file_count` |
+| `dicom_export` | ZIP série / étude (single, chunked, **async réservé P7**) — `reason` + `file_count` |
+
+### P8 — actionable
+
+| Livrable | Où |
+|----------|-----|
+| Comment lire gtag / Plausible | `docs/ops/IMAGING_TELEMETRY.md` |
+| Seuils d’alerte (`ready_without_pixels`, TTFP p95, …) | `IMAGING_TELEMETRY_ALERT_THRESHOLDS` + ops doc |
+| Raisons `dicom_export` sync vs async réservé | `DICOM_EXPORT_REASONS` / `DICOM_EXPORT_ASYNC_REASONS` |
+| Résumé contrat machine-readable | `buildImagingTelemetryContractSummary()` → tracker `GET /api/internal/imaging/telemetry-summary` |
+
+**Coordination P7** : pas de nouveau nom d’événement pour ZIP async — émettre
+`dicom_export` avec `reason=study_async|study_async_fail|study_async_timeout`.
+P8 ne touche pas au code ZIP / MP4.
 
 Ops : `docs/ops/IMAGING_TELEMETRY.md`.
 
@@ -126,6 +141,8 @@ Ops : `docs/ops/IMAGING_TELEMETRY.md`.
   `deleteReservedHint` (« Suppression réservée au tracker Marcel ») dans le
   menu ⋯ — pas de fausse poubelle. Ne pas activer côté Q sans politique IDOR
   + audit M2M testé.
+- **P7 async ZIP / MP4 clinicien** — lane parallèle ; télémétrie via
+  `study_async*` seulement (P8).
 - **MP4 prod default** — reste `mp4Native: false` ; staging via
   `NEXT_PUBLIC_ENABLE_MP4_VIEWER`.
 

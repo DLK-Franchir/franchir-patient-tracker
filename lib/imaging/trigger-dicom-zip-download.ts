@@ -6,8 +6,22 @@
 import {
   emitImagingTelemetry,
   nowMs,
+  type DicomExportReason,
   type ImagingTelemetryHandler,
 } from '@franchir/imaging-viewer'
+
+/** Raisons sync déjà câblées — P7 async = `study_async*` (mêmes noms d’événement). */
+type SyncExportReason = Extract<
+  DicomExportReason,
+  | 'series'
+  | 'series_fail'
+  | 'study_single'
+  | 'study_single_fail'
+  | 'study_chunked'
+  | 'study_chunk_fail'
+  | 'study_plan_fail'
+  | 'study_download_fail'
+>
 import { studyTooLargeFallbackMessage } from '@franchir/imaging-viewer/ui/card-actions'
 
 export type DicomZipDownloadResult =
@@ -116,11 +130,12 @@ export async function downloadStudyDicomExport(options: {
         status: planRes.status,
         message: data.message || data.error || `Échec du plan d'export (${planRes.status})`,
       }
+      const reason: SyncExportReason = 'study_plan_fail'
       emitImagingTelemetry(onTelemetry, {
         name: 'dicom_export',
         durationMs: nowMs() - started,
         outcome: 'error',
-        reason: 'study_plan_fail',
+        reason,
       })
       return result
     }
@@ -137,12 +152,14 @@ export async function downloadStudyDicomExport(options: {
       const url = plan.mode === 'single' ? studyZipUrl() : studyZipUrl(i)
       const partResult = await downloadDicomZip(url)
       if (!partResult.ok) {
+        const reason: SyncExportReason =
+          plan.mode === 'chunked' ? 'study_chunk_fail' : 'study_single_fail'
         emitImagingTelemetry(onTelemetry, {
           name: 'dicom_export',
           durationMs: nowMs() - started,
           fileCount: plan.fileCount,
           outcome: 'error',
-          reason: plan.mode === 'chunked' ? 'study_chunk_fail' : 'study_single_fail',
+          reason,
         })
         return partResult
       }
@@ -150,21 +167,24 @@ export async function downloadStudyDicomExport(options: {
       if (i + 1 < partCount) await sleep(PART_GAP_MS)
     }
 
+    const readyReason: SyncExportReason =
+      plan.mode === 'chunked' ? 'study_chunked' : 'study_single'
     emitImagingTelemetry(onTelemetry, {
       name: 'dicom_export',
       durationMs: nowMs() - started,
       fileCount: plan.fileCount,
       outcome: 'ready',
-      reason: plan.mode === 'chunked' ? 'study_chunked' : 'study_single',
+      reason: readyReason,
     })
 
     return { ok: true, mode: plan.mode, partCount }
   } catch {
+    const reason: SyncExportReason = 'study_download_fail'
     emitImagingTelemetry(onTelemetry, {
       name: 'dicom_export',
       durationMs: nowMs() - started,
       outcome: 'error',
-      reason: 'study_download_fail',
+      reason,
     })
     return { ok: false, status: 0, message: 'Impossible de télécharger le ZIP étude.' }
   }
@@ -178,12 +198,13 @@ export async function downloadSeriesDicomExport(options: {
 }): Promise<DicomZipDownloadResult> {
   const started = nowMs()
   const result = await downloadDicomZip(options.url)
+  const reason: SyncExportReason = result.ok ? 'series' : 'series_fail'
   emitImagingTelemetry(options.onTelemetry, {
     name: 'dicom_export',
     durationMs: nowMs() - started,
     fileCount: options.fileCount,
     outcome: result.ok ? 'ready' : 'error',
-    reason: result.ok ? 'series' : 'series_fail',
+    reason,
   })
   return result
 }

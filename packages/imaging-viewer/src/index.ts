@@ -83,13 +83,23 @@ export {
 } from './worker-rewrite'
 
 export {
+  DICOM_EXPORT_ASYNC_REASONS,
+  DICOM_EXPORT_REASONS,
+  DICOM_EXPORT_SYNC_REASONS,
+  IMAGING_TELEMETRY_ALERT_THRESHOLDS,
+  IMAGING_TELEMETRY_ANALYTICS_PREFIX,
   IMAGING_TELEMETRY_EVENT_NAMES,
+  buildImagingTelemetryContractSummary,
   emitImagingTelemetry,
+  imagingTelemetryAnalyticsEventName,
   imagingTelemetryToAnalyticsProps,
+  isDicomExportReason,
   isImagingTelemetryEvent,
   isImagingTelemetryEventName,
   looksLikeWorkerAssetFailure,
   nowMs,
+  type DicomExportReason,
+  type ImagingTelemetryAlertThresholds,
   type ImagingTelemetryEngine,
   type ImagingTelemetryEvent,
   type ImagingTelemetryEventName,

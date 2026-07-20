@@ -2,6 +2,9 @@
  * Observabilité produit Imaging — événements client sans PHI.
  * Pas d’URL (tokens signés), pas d’identifiant patient / série nominatif.
  * Les apps branchent `onImagingTelemetry` sur leur analytics (gtag / plausible / …).
+ *
+ * P8 : raisons `dicom_export` stables (dont réservées async P7), seuils d’alerte,
+ * résumé contrat pour `/api/internal/imaging/telemetry-summary`.
  */
 
 /** Noms stables — documentés dans PRODUCT.md + docs/ops/IMAGING_TELEMETRY.md. */
@@ -16,6 +19,76 @@ export const IMAGING_TELEMETRY_EVENT_NAMES = [
 ] as const
 
 export type ImagingTelemetryEventName = (typeof IMAGING_TELEMETRY_EVENT_NAMES)[number]
+
+/**
+ * Prefixe analytics app (`imaging_<name>`).
+ * Stable pour dashboards GA4 / Plausible — ne pas renommer sans migration ops.
+ */
+export const IMAGING_TELEMETRY_ANALYTICS_PREFIX = 'imaging_' as const
+
+/**
+ * Raisons `dicom_export.reason` (snake_case).
+ * P7 async ZIP / jobs Storage : utiliser les clés `study_async*` uniquement —
+ * ne pas inventer d’autres noms d’événement.
+ */
+export const DICOM_EXPORT_REASONS = [
+  'series',
+  'series_fail',
+  'study_single',
+  'study_single_fail',
+  'study_chunked',
+  'study_chunk_fail',
+  'study_plan_fail',
+  'study_download_fail',
+  /** Réservé P7 — job async terminé (ZIP prêt / téléchargé). */
+  'study_async',
+  /** Réservé P7 — échec job / fetch async. */
+  'study_async_fail',
+  /** Réservé P7 — timeout / abandon côté client. */
+  'study_async_timeout',
+] as const
+
+export type DicomExportReason = (typeof DICOM_EXPORT_REASONS)[number]
+
+/** Raisons déjà émises par les adapters sync (P5) — P7 n’y touche pas. */
+export const DICOM_EXPORT_SYNC_REASONS = [
+  'series',
+  'series_fail',
+  'study_single',
+  'study_single_fail',
+  'study_chunked',
+  'study_chunk_fail',
+  'study_plan_fail',
+  'study_download_fail',
+] as const satisfies readonly DicomExportReason[]
+
+/** Raisons réservées lane P7 (async ZIP) — coordination par nom uniquement. */
+export const DICOM_EXPORT_ASYNC_REASONS = [
+  'study_async',
+  'study_async_fail',
+  'study_async_timeout',
+] as const satisfies readonly DicomExportReason[]
+
+/**
+ * Seuils ops documentés (P8) — guide d’alerte produit, pas un moteur d’alerting.
+ * Fenêtre typique : 1 h rolling en prod (Marcel + clinicien).
+ */
+export const IMAGING_TELEMETRY_ALERT_THRESHOLDS = {
+  /** Events `ready_without_pixels` / h → suspect workers / gate pixels. */
+  readyWithoutPixelsPerHour: 5,
+  /** Events `worker_asset_fail` / h → rewrite `/_next/.../assets/workers` cassé. */
+  workerAssetFailPerHour: 3,
+  /** Part d’exports `outcome=error` parmi `dicom_export` (0–1). */
+  dicomExportErrorRate: 0.2,
+  /** p95 `time_to_first_paint.duration_ms` (ms). */
+  timeToFirstPaintP95Ms: 15_000,
+  /** p95 `series_open_ms.duration_ms` (ms). */
+  seriesOpenP95Ms: 30_000,
+  /** Minimum d’échantillons avant d’appliquer un seuil taux / p95. */
+  minSamplesForRateOrP95: 20,
+} as const
+
+export type ImagingTelemetryAlertThresholds = typeof IMAGING_TELEMETRY_ALERT_THRESHOLDS
 
 export type ImagingTelemetryEngine = 'dwv' | 'openjpeg'
 
@@ -34,7 +107,8 @@ export type ImagingTelemetryEvent = {
   engine?: ImagingTelemetryEngine
   outcome?: ImagingTelemetryOutcome
   /**
-   * Code court non-PHI (ex. `empty_pixel_buffer`, `worker_script`).
+   * Code court non-PHI (ex. `empty_pixel_buffer`, `worker_script`,
+   * `study_chunked`, `study_async`).
    * Jamais de message dwv brut ni d’URL.
    */
   reason?: string
@@ -126,5 +200,55 @@ export function emitImagingTelemetry(
     handler(event)
   } catch {
     /* analytics must not break decode / paint */
+  }
+}
+
+export function isDicomExportReason(value: unknown): value is DicomExportReason {
+  return typeof value === 'string' && (DICOM_EXPORT_REASONS as readonly string[]).includes(value)
+}
+
+/** Nom d’événement analytics (`imaging_time_to_first_paint`, …). */
+export function imagingTelemetryAnalyticsEventName(name: ImagingTelemetryEventName): string {
+  return `${IMAGING_TELEMETRY_ANALYTICS_PREFIX}${name}`
+}
+
+/**
+ * Résumé contrat non-PHI pour ops / smoke (pas de compteurs live, pas de PHI).
+ * Consommé par `GET /api/internal/imaging/telemetry-summary`.
+ */
+export function buildImagingTelemetryContractSummary(): {
+  version: 1
+  analyticsPrefix: typeof IMAGING_TELEMETRY_ANALYTICS_PREFIX
+  eventNames: ImagingTelemetryEventName[]
+  analyticsEventNames: string[]
+  dicomExportReasons: {
+    all: DicomExportReason[]
+    sync: DicomExportReason[]
+    asyncReserved: DicomExportReason[]
+  }
+  alertThresholds: ImagingTelemetryAlertThresholds
+  neverInclude: string[]
+} {
+  return {
+    version: 1,
+    analyticsPrefix: IMAGING_TELEMETRY_ANALYTICS_PREFIX,
+    eventNames: [...IMAGING_TELEMETRY_EVENT_NAMES],
+    analyticsEventNames: IMAGING_TELEMETRY_EVENT_NAMES.map(imagingTelemetryAnalyticsEventName),
+    dicomExportReasons: {
+      all: [...DICOM_EXPORT_REASONS],
+      sync: [...DICOM_EXPORT_SYNC_REASONS],
+      asyncReserved: [...DICOM_EXPORT_ASYNC_REASONS],
+    },
+    alertThresholds: { ...IMAGING_TELEMETRY_ALERT_THRESHOLDS },
+    neverInclude: [
+      'patient_id',
+      'patient_name',
+      'email',
+      'series_label',
+      'series_instance_uid',
+      'signed_url',
+      'storage_path',
+      'raw_dwv_error',
+    ],
   }
 }

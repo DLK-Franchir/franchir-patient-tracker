@@ -1,5 +1,15 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.12.0
+
+- P8 observabilité actionable :
+  - Raisons `dicom_export` stables (`DICOM_EXPORT_REASONS`) dont réservées
+    async P7 (`study_async`, `study_async_fail`, `study_async_timeout`)
+  - Seuils d’alerte documentés (`IMAGING_TELEMETRY_ALERT_THRESHOLDS`)
+  - `buildImagingTelemetryContractSummary()` pour ops /
+    `GET /api/internal/imaging/telemetry-summary` (contrat, pas de PHI)
+  - Prefixe analytics `imaging_` + helper `imagingTelemetryAnalyticsEventName`
+
 ## 0.11.0
 
 - P6a UX polish (card-actions / grille) :

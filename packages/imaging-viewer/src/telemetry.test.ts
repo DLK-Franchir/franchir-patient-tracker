@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  DICOM_EXPORT_ASYNC_REASONS,
+  DICOM_EXPORT_REASONS,
+  DICOM_EXPORT_SYNC_REASONS,
+  IMAGING_TELEMETRY_ALERT_THRESHOLDS,
+  IMAGING_TELEMETRY_ANALYTICS_PREFIX,
   IMAGING_TELEMETRY_EVENT_NAMES,
+  buildImagingTelemetryContractSummary,
   emitImagingTelemetry,
+  imagingTelemetryAnalyticsEventName,
   imagingTelemetryToAnalyticsProps,
+  isDicomExportReason,
   isImagingTelemetryEvent,
   isImagingTelemetryEventName,
   looksLikeWorkerAssetFailure,
@@ -33,6 +41,42 @@ describe('imaging telemetry event shapes', () => {
         reason: 'study_chunked',
       }),
     ).toBe(true)
+  })
+
+  it('expose raisons dicom_export sync + async reservees P7', () => {
+    expect(DICOM_EXPORT_SYNC_REASONS).toContain('study_chunked')
+    expect(DICOM_EXPORT_ASYNC_REASONS).toEqual([
+      'study_async',
+      'study_async_fail',
+      'study_async_timeout',
+    ])
+    for (const reason of DICOM_EXPORT_REASONS) {
+      expect(isDicomExportReason(reason)).toBe(true)
+      expect(
+        isImagingTelemetryEvent({
+          name: 'dicom_export',
+          outcome: reason.endsWith('_fail') || reason.endsWith('_timeout') ? 'error' : 'ready',
+          reason,
+        }),
+      ).toBe(true)
+    }
+    expect(isDicomExportReason('patient_123')).toBe(false)
+  })
+
+  it('buildImagingTelemetryContractSummary est non-PHI et versionne', () => {
+    const summary = buildImagingTelemetryContractSummary()
+    expect(summary.version).toBe(1)
+    expect(summary.analyticsPrefix).toBe(IMAGING_TELEMETRY_ANALYTICS_PREFIX)
+    expect(summary.analyticsEventNames).toContain('imaging_ready_without_pixels')
+    expect(summary.analyticsEventNames).toContain(
+      imagingTelemetryAnalyticsEventName('dicom_export'),
+    )
+    expect(summary.dicomExportReasons.asyncReserved).toEqual([...DICOM_EXPORT_ASYNC_REASONS])
+    expect(summary.alertThresholds.readyWithoutPixelsPerHour).toBe(
+      IMAGING_TELEMETRY_ALERT_THRESHOLDS.readyWithoutPixelsPerHour,
+    )
+    expect(summary.neverInclude).toContain('signed_url')
+    expect(JSON.stringify(summary)).not.toMatch(/https?:\/\//i)
   })
 
   it('valide un événement TTFP complet', () => {
