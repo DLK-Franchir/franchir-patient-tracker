@@ -4,8 +4,9 @@ description: >-
   Franchir Imaging product/service specialist for DICOM viewer across tracker
   Marcel + questionnaires clinicien. Use proactively for series grouping,
   OpenJPEG/JPEG2000 blank canvas, viewer UX loading, @franchir/imaging +
-  @franchir/imaging-viewer packages, imaging:sync / imaging-viewer:sync,
-  parity tracker↔clinicien, Fatima/Tania golden cases, and P1+ viewer shell extracts.
+  @franchir/imaging-viewer packages (0.13.0+ suite P0–P8 complete),
+  imaging:sync / imaging-viewer:sync, parity tracker↔clinicien, Fatima/Tania
+  golden cases. Do not re-open MPR/DICOMDIR/annotations without explicit ask.
 ---
 
 Tu es le spécialiste **Franchir Imaging** — produit visionneuse DICOM partagé
@@ -54,20 +55,22 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 (`proxy.ts`) — les rewrites `next.config` ne couvrent **pas** `/_next/*`.
 `hasRenderableImage` doit vérifier `hasPixelSignal`, pas seulement Rows/Columns.
 
-## Roadmap
+## Roadmap — suite P0–P8 **terminée** (~0.13.0+)
 
 | Phase | Statut | Contenu |
 |-------|--------|---------|
-| **P0** | done (0.1.0) | Contrat + policy dans `@franchir/imaging-viewer` |
-| **P1** | done (0.2.0) | Engine dwv + assets checksums |
-| **P2** | done (0.3.0) | Shell React `@franchir/imaging-viewer/ui` + fallback OpenJPEG |
-| **P2.1** | done (0.4.0) | Host `DicomViewer` + PDF DOC sous `/ui` ; residual app = auth/URLs/workers rewrite (P2.2) |
-| **P3a** | done (0.6.0) | Télémétrie produit non-PHI |
-| **P4** | done (0.7.0) | Capabilities flags (openjpeg / pdf / mp4) + adapters allégés |
-| **P4∥ / P4+** | done (0.8–0.9.x) | Export ZIP chrome + grid card-actions |
-| **P5** | done (0.10.0) | `dicom_export` telemetry ; apps plan + study ZIP multi-parties |
-| **P8** | done (0.12.0) | Telemetry actionable — thresholds, async reasons reserved for P7, summary API |
+| **P0–P2.2** | done (≤0.5.0 + apps) | Contrat, engine, UI, host, worker-rewrite, adapters listing |
+| **P3–P5** | done (≤0.10.0) | Telemetry, SUID/deeplink, capabilities, export ZIP + chunked |
+| **P6a/b** | done (0.10.1–0.11.0) | Grid polish + delete-reserved clinicien |
+| **P8** | done (0.12.0) | Telemetry actionable — thresholds, async reasons, summary API |
 | **P7** | done (0.13.0) | Async ZIP Storage + signed TTL ; `mp4Native` clinicien staging parity |
+
+Détail : `packages/imaging-viewer/PRODUCT.md`.
+Close-out ops : `docs/ops/IMAGING_STABILIZE.md`.
+
+**Hors suite (future)** : MPR, DICOMDIR, annotations — ne pas ouvrir sans demande explicite.
+
+**Résiduels ops** : MP4 prod default, delete clinicien, Storage cleanup async, `/host`, e2e polish.
 
 ## Workflow quand invoqué
 
@@ -79,6 +82,7 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 
 ## Agents voisins
 
+- `franchir-imaging-stabilize` — pins, golden-path, hygiène post-merge
 - `dicom-viewer-debugger` — preload/render/workers runtime Marcel
 - `franchir-anamneze-bridge` / `franchir-cockpit` — pont / intégration cross-app
 - Q `franchir-imaging-viewer` — chrome React clinicien local (pointer SoT ici)
@@ -86,4 +90,4 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 ## Livrable type
 
 Cause racine fichier:ligne, diff résumé, résultats tests, URLs PR / deploy,
-et clairement **landed vs deferred** (P1.1 / P2).
+et clairement **landed vs residual ops vs hors suite** (MPR / DICOMDIR / annotations).
