@@ -36,6 +36,20 @@ export { DicomViewer, type DicomViewerProps } from './dicom-viewer'
 export { useDwvViewportResize } from './use-dwv-viewport-resize'
 
 export {
+  ImagingCardActionMenu,
+  type ImagingCardActionMenuProps,
+} from './imaging-card-action-menu'
+export {
+  ImagingDownloadScopeDialog,
+  type ImagingDownloadScope,
+  type ImagingDownloadScopeDialogProps,
+} from './imaging-download-scope-dialog'
+export {
+  ImagingDeleteConfirmDialog,
+  type ImagingDeleteConfirmDialogProps,
+} from './imaging-delete-confirm-dialog'
+
+export {
   autoWindowLevel,
   grayPixelsToRgba,
   parseDicomNumber,

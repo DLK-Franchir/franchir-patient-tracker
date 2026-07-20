@@ -48,5 +48,7 @@ describe('AnamnezeDashboard', () => {
     expect(html).toContain('Scores fonctionnels')
     expect(html).toContain('Allergie latex')
     expect(html).toContain('46 ans')
+    // Table fichier-par-fichier retiree (Tania Jul 20) — grille Imagerie & documents.
+    expect(html).not.toContain('Dossier patient — Imagerie')
   })
 })

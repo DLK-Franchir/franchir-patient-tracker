@@ -1,6 +1,6 @@
 {
   "name": "@franchir/imaging-viewer",
-  "version": "0.8.0",
+  "version": "0.9.2",
   "private": true,
   "type": "module",
   "description": "Shared DICOM viewer contract, policy, dwv host, React UI shell, encapsulated PDF DOC, codec assets, and Next worker rewrite helpers — SoT = franchir-patient-tracker, vendored into questionnaires",
@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./engine": "./src/engine.ts",
     "./ui": "./src/ui/index.ts",
+    "./ui/card-actions": "./src/ui/card-actions.ts",
     "./worker-rewrite": "./src/worker-rewrite.ts"
   },
   "peerDependencies": {

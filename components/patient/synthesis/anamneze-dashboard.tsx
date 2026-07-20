@@ -5,7 +5,6 @@ import { AntecedentsCard } from '@/components/patient/synthesis/antecedents-card
 import { ClinicalFlagsCard } from '@/components/patient/synthesis/clinical-flags-card'
 import { CompletionDonutsCard } from '@/components/patient/synthesis/completion-donuts-card'
 import { FunctionalScoresCard } from '@/components/patient/synthesis/functional-scores-card'
-import { ImagingDossierCard } from '@/components/patient/synthesis/imaging-dossier-card'
 import { OrientationCliniqueCard } from '@/components/patient/synthesis/orientation-clinique-card'
 import { PatientProfileCard } from '@/components/patient/synthesis/patient-profile-card'
 import { TimelineCard } from '@/components/patient/synthesis/timeline-card'
@@ -47,13 +46,7 @@ export function AnamnezeDashboard({ patientName, preview }: AnamnezeDashboardPro
       <div className="col-span-12 lg:col-span-6">
         <TimelineCard events={preview.timeline} staggerIndex={7} />
       </div>
-      <div className="col-span-12">
-        <ImagingDossierCard
-          rows={preview.imagingRows}
-          generatedAt={preview.generatedAt}
-          staggerIndex={8}
-        />
-      </div>
+      {/* Imagerie fichier-par-fichier retiree : grille « Imagerie & documents » uniquement. */}
     </div>
   )
 }
