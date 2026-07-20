@@ -32,6 +32,7 @@ import {
   viewportLoadingMessage,
 } from './messages'
 import { useDwvViewportResize } from './use-dwv-viewport-resize'
+import { emitImagingTelemetry } from '../telemetry'
 
 export type { DicomViewerProps }
 
@@ -49,6 +50,7 @@ export function DicomViewer({
   onClose,
   onSliceCountResolved,
   onJpeg2000Unsupported,
+  onImagingTelemetry,
 }: DicomViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const poolHostRef = useRef<HTMLDivElement>(null)
@@ -59,6 +61,12 @@ export function DicomViewer({
   const toolRef = useRef<DicomTool>('WindowLevel')
   const onSliceCountResolvedRef = useRef(onSliceCountResolved)
   const onJpeg2000UnsupportedRef = useRef(onJpeg2000Unsupported)
+  const onImagingTelemetryRef = useRef(onImagingTelemetry)
+  const openStartedAtRef = useRef<number>(
+    typeof performance !== 'undefined' ? performance.now() : Date.now(),
+  )
+  const paintedRef = useRef(false)
+  const openReportedRef = useRef(false)
   const [layerGroupId] = useState(nextLayerGroupId)
 
   useEffect(() => {
@@ -68,6 +76,10 @@ export function DicomViewer({
   useEffect(() => {
     onJpeg2000UnsupportedRef.current = onJpeg2000Unsupported
   }, [onJpeg2000Unsupported])
+
+  useEffect(() => {
+    onImagingTelemetryRef.current = onImagingTelemetry
+  }, [onImagingTelemetry])
 
   const [status, setStatus] = useState<'loading' | 'rendering' | 'ready' | 'error'>('loading')
   const [progress, setProgress] = useState(0)
@@ -107,6 +119,10 @@ export function DicomViewer({
   const [prevUrlsKey, setPrevUrlsKey] = useState(urlsKey)
   if (prevUrlsKey !== urlsKey) {
     setPrevUrlsKey(urlsKey)
+    openStartedAtRef.current =
+      typeof performance !== 'undefined' ? performance.now() : Date.now()
+    paintedRef.current = false
+    openReportedRef.current = false
     setStatus('loading')
     setProgress(0)
     setPreloadLoaded(0)
@@ -120,6 +136,41 @@ export function DicomViewer({
     setSequentialFallbackNote(null)
   }
 
+  useEffect(() => {
+    const elapsed = () => {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      return Math.max(0, now - openStartedAtRef.current)
+    }
+
+    // Sequential pool marks error files as status=ready so nav continues —
+    // only count a real paint when there is no viewport error banner.
+    if (status === 'ready' && !errorMessage && !paintedRef.current) {
+      paintedRef.current = true
+      emitImagingTelemetry(onImagingTelemetryRef.current, {
+        name: 'time_to_first_paint',
+        durationMs: elapsed(),
+        navMode,
+        fileCount,
+        engine: 'dwv',
+        outcome: 'ready',
+      })
+    }
+
+    if ((status === 'ready' || status === 'error') && !openReportedRef.current) {
+      openReportedRef.current = true
+      const outcome =
+        status === 'error' || (status === 'ready' && Boolean(errorMessage)) ? 'error' : 'ready'
+      emitImagingTelemetry(onImagingTelemetryRef.current, {
+        name: 'series_open_ms',
+        durationMs: elapsed(),
+        navMode,
+        fileCount,
+        engine: 'dwv',
+        outcome,
+      })
+    }
+  }, [status, navMode, fileCount, errorMessage])
+
   useDicomStackMode({
     navMode,
     urlsKey,
@@ -130,6 +181,7 @@ export function DicomViewer({
     toolRef,
     onSliceCountResolvedRef,
     onJpeg2000UnsupportedRef,
+    onImagingTelemetryRef,
     setNavMode,
     setFileIndex,
     setStatus,
@@ -155,6 +207,7 @@ export function DicomViewer({
     toolRef,
     onSliceCountResolvedRef,
     onJpeg2000UnsupportedRef,
+    onImagingTelemetryRef,
     setStatus,
     setProgress,
     setPreloadLoaded,

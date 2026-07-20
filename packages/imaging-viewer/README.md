@@ -22,7 +22,7 @@ Voir aussi [`PRODUCT.md`](./PRODUCT.md).
 
 | Subpath | Contenu | SSR-safe |
 |---------|---------|----------|
-| `@franchir/imaging-viewer` | Contrat + policy + helpers purs (+ extract PDF + worker-rewrite) | oui |
+| `@franchir/imaging-viewer` | Contrat + policy + helpers purs (+ extract PDF + worker-rewrite + telemetry) | oui |
 | `@franchir/imaging-viewer/engine` | Hooks / App dwv | client (peer dwv) |
 | `@franchir/imaging-viewer/ui` | Host `DicomViewer`, chrome, PDF DOC, fallback OpenJPEG | **client only** |
 | `@franchir/imaging-viewer/worker-rewrite` | Chemins publics + rewrite middleware / next.config | oui (Edge-safe) |
@@ -34,7 +34,10 @@ Voir aussi [`PRODUCT.md`](./PRODUCT.md).
 import {
   extractEncapsulatedPdf,
   formatDicomLoadError,
+  type ImagingTelemetryHandler,
 } from '@franchir/imaging-viewer'
+
+// Host: pass onImagingTelemetry from the app analytics adapter (no PHI / no URLs)
 
 // Engine (client modules only)
 import { useDicomStackMode } from '@franchir/imaging-viewer/engine'

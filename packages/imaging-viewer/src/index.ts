@@ -80,3 +80,18 @@ export {
   dwvWorkerRewriteTarget,
   isDwvPublicAssetPath,
 } from './worker-rewrite'
+
+export {
+  IMAGING_TELEMETRY_EVENT_NAMES,
+  emitImagingTelemetry,
+  imagingTelemetryToAnalyticsProps,
+  isImagingTelemetryEvent,
+  isImagingTelemetryEventName,
+  looksLikeWorkerAssetFailure,
+  type ImagingTelemetryEngine,
+  type ImagingTelemetryEvent,
+  type ImagingTelemetryEventName,
+  type ImagingTelemetryHandler,
+  type ImagingTelemetryNavMode,
+  type ImagingTelemetryOutcome,
+} from './telemetry'

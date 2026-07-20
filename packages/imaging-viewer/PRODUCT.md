@@ -9,7 +9,9 @@
 | **P2** | 0.3.0 | **done** | Shell React `@franchir/imaging-viewer/ui` (toolbar, overlays, info banner, series nav busy) + `DicomJpeg2000FallbackViewer` partagé |
 | **P2.1** | 0.4.0 | **landed** | Host React `DicomViewer` + `useDwvViewportResize` + PDF encapsulé DOC (`DicomEncapsulatedPdfViewer` + extract purs) |
 | **P2.2a** | 0.5.0 | **landed** | Helpers rewrite Next workers + chemins OpenJPEG (`/worker-rewrite`) — SoT partagé, adapters app minces |
-| **P2.2b / P3** | — | next | Listing / auth signed URL ; raffinements host (tests e2e, golden tour) ; éventuel subpath `/host` |
+| **P2.2b** | — | apps | Listing / auth signed URL (adapters) — hors package |
+| **P3a** | 0.6.0 | **landed** | Observabilité produit non-PHI (`onImagingTelemetry`) — TTFP, fallback OpenJPEG, canvas noir, workers |
+| **P3+** | — | next | Raffinements host (tests e2e, golden tour) ; éventuel subpath `/host` |
 
 ## Promesse
 
@@ -27,6 +29,8 @@ fallback OpenJPEG, même viewer PDF DOC.
 | Host React + chrome + PDF DOC + fallback OpenJPEG | `@franchir/imaging-viewer/ui` | tracker |
 | Auth, URLs signées, listing documents | apps | thin adapters |
 | Rewrite paths workers + OpenJPEG (purs) | `@franchir/imaging-viewer/worker-rewrite` | tracker |
+| Télémétrie produit (formes + emit) | `@franchir/imaging-viewer` `telemetry.ts` + prop `onImagingTelemetry` | tracker |
+| Forward analytics (gtag / plausible) | adapters app | apps |
 | Workers / OpenJPEG servis | `public/dwv-workers`, `public/openjpeg` | **installés depuis** `packages/imaging-viewer/assets` |
 
 ## Discipline sync
@@ -64,11 +68,26 @@ SoT binaire : `packages/imaging-viewer/assets/{dwv-workers,openjpeg}`.
 | Rewrite workers / préfixes publics OpenJPEG | `src/worker-rewrite.ts` puis adapters `proxy.ts` |
 | Workers / OpenJPEG (binaires) | `packages/imaging-viewer/assets/` puis sync |
 | URLs signées, auth, routing, listing | apps (adapters `dicom-viewer.tsx`, documents) |
+| Branch analytics Imaging | apps (`report-imaging-telemetry` + `onImagingTelemetry`) |
 | Grouping séries | `@franchir/imaging` |
 
 Puis : bump → `imaging-viewer:sync` → PR tracker → PR Q.
 
-## Différé (P2.2b / P3)
+## Observabilité (P3a)
+
+Événements client-safe (pas de PHI, pas d’URL) :
+
+| Event | Signification |
+|-------|----------------|
+| `time_to_first_paint` | Première frame prête (dwv ou OpenJPEG) |
+| `series_open_ms` | Durée jusqu’à ready/error pour une ouverture |
+| `openjpeg_fallback` | dwv J2K non supporté → repli OpenJPEG |
+| `ready_without_pixels` | Géométrie OK, buffer pixels vide (canvas noir évité) |
+| `worker_asset_fail` | Échec ressemblant à un worker codec introuvable |
+
+Ops : `docs/ops/IMAGING_TELEMETRY.md`.
+
+## Différé (P2.2b / P3+)
 
 - Listing documents / auth signed URL encore côté apps.
 - Tests e2e host / golden Fatima-Tania encore côté apps.

@@ -1,5 +1,17 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.6.0
+
+- P3a : couche télémétrie produit non-PHI (`telemetry.ts`) — événements
+  `time_to_first_paint`, `openjpeg_fallback`, `ready_without_pixels`,
+  `series_open_ms`, `worker_asset_fail`.
+- Callback optionnel `onImagingTelemetry` sur `DicomViewer` +
+  `DicomJpeg2000FallbackViewer` ; émission depuis stack/pool (codec / workers /
+  fallback J2K) et host (TTFP / durée d’ouverture).
+- Helpers : `emitImagingTelemetry`, `imagingTelemetryToAnalyticsProps`,
+  `looksLikeWorkerAssetFailure`, validateurs de forme.
+- Apps branchent leur analytics via adapters minces (package sans vendor).
+
 ## 0.5.0
 
 - P2.2a : helpers rewrite Next partagés sous

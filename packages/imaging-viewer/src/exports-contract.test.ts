@@ -44,6 +44,12 @@ const REQUIRED_EXPORTS = [
   'OPENJPEG_SCRIPT_URL',
   'dwvWorkerRewriteTarget',
   'isDwvPublicAssetPath',
+  'IMAGING_TELEMETRY_EVENT_NAMES',
+  'emitImagingTelemetry',
+  'imagingTelemetryToAnalyticsProps',
+  'isImagingTelemetryEvent',
+  'isImagingTelemetryEventName',
+  'looksLikeWorkerAssetFailure',
 ] as const
 
 const REQUIRED_ENGINE_EXPORTS = [

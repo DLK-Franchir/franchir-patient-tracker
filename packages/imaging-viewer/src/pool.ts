@@ -18,6 +18,11 @@ import {
 } from './dwv-app'
 import { ensureDwvVisible, setPoolContainerVisible } from './layout'
 import { nextPoolLoadIndex, POOL_BOOTSTRAP_INDEX } from './pool-plan'
+import {
+  emitImagingTelemetry,
+  looksLikeWorkerAssetFailure,
+  type ImagingTelemetryHandler,
+} from './telemetry'
 
 type PoolEntry = ImagingPoolEntry<App>
 
@@ -32,6 +37,7 @@ export type PoolModeParams = {
   toolRef: RefObject<DicomTool>
   onSliceCountResolvedRef: RefObject<((count: number) => void) | undefined>
   onJpeg2000UnsupportedRef: RefObject<(() => void) | undefined>
+  onImagingTelemetryRef?: RefObject<ImagingTelemetryHandler | undefined>
   setStatus: (status: 'loading' | 'rendering' | 'ready' | 'error') => void
   setProgress: (value: number) => void
   setPreloadLoaded: (value: number) => void
@@ -96,6 +102,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
     toolRef,
     onSliceCountResolvedRef,
     onJpeg2000UnsupportedRef,
+    onImagingTelemetryRef,
     setStatus,
     setProgress,
     setPreloadLoaded,
@@ -223,6 +230,13 @@ export function useDicomSequentialPool(params: PoolModeParams) {
             return
           }
           // Chargé sans pixels exploitables → échec silencieux du codec.
+          emitImagingTelemetry(onImagingTelemetryRef?.current, {
+            name: 'ready_without_pixels',
+            navMode: 'sequential',
+            fileCount: seriesUrls.length,
+            engine: 'dwv',
+            reason: 'empty_pixel_buffer',
+          })
           finalizeEntry(false, formatDicomLoadError('décodage du flux compressé impossible (codec)'))
         })
       }
@@ -234,9 +248,26 @@ export function useDicomSequentialPool(params: PoolModeParams) {
         if (isUnsupportedJpeg2000Error(message)) {
           if (!jpeg2000FallbackTriggered) {
             jpeg2000FallbackTriggered = true
+            emitImagingTelemetry(onImagingTelemetryRef?.current, {
+              name: 'openjpeg_fallback',
+              navMode: 'sequential',
+              fileCount: seriesUrls.length,
+              engine: 'dwv',
+              outcome: 'fallback',
+              reason: 'unsupported_j2k',
+            })
             onJpeg2000UnsupportedRef.current?.()
           }
           return
+        }
+        if (looksLikeWorkerAssetFailure(message)) {
+          emitImagingTelemetry(onImagingTelemetryRef?.current, {
+            name: 'worker_asset_fail',
+            navMode: 'sequential',
+            fileCount: seriesUrls.length,
+            engine: 'dwv',
+            reason: 'worker_script',
+          })
         }
         console.error(`[DicomViewer] pool load error file ${index + 1}`, message ?? event)
         finalizeEntry(false, formatDicomLoadError(message ?? 'erreur de chargement'))

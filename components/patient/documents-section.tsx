@@ -25,6 +25,7 @@ import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
 import { filterQuestionnaireImagingAgainstTracker } from '@/lib/imaging/dedupe-imaging-sources'
 import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
 import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
+import { reportImagingTelemetry } from '@/lib/imaging/report-imaging-telemetry'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
@@ -685,6 +686,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                 name={selectedName}
                 fullscreen
                 onClose={() => setSelectedId(null)}
+                onImagingTelemetry={reportImagingTelemetry}
               />
             ) : (
               <>
@@ -697,6 +699,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   onNextSeries={() => navigateDicomSeries('next')}
                   onPrevSeries={() => navigateDicomSeries('prev')}
                   onClose={() => setSelectedId(null)}
+                  onImagingTelemetry={reportImagingTelemetry}
                   onJpeg2000Unsupported={() => {
                     const seriesId = selectedItem.id
                     setJpeg2000Fallbacks((prev) => {
