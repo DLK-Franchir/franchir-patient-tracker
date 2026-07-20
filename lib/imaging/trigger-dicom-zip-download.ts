@@ -8,6 +8,7 @@ import {
   nowMs,
   type ImagingTelemetryHandler,
 } from '@franchir/imaging-viewer'
+import { studyTooLargeFallbackMessage } from '@franchir/imaging-viewer/ui/card-actions'
 
 export type DicomZipDownloadResult =
   | { ok: true; mode?: 'single' | 'chunked'; partCount?: number }
@@ -31,8 +32,7 @@ export type StudyExportPlanResponse =
       parts: Array<{ index: number; fileCount: number; seriesCount: number; totalBytes: number }>
     }
 
-const STUDY_TOO_LARGE_MSG =
-  'Étude trop volumineuse pour un export unique. Téléchargement par lots…'
+const STUDY_TOO_LARGE_MSG = studyTooLargeFallbackMessage()
 
 const PART_GAP_MS = 350
 

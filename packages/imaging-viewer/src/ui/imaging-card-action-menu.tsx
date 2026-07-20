@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react'
-import { Download, MoreVertical, Trash2 } from 'lucide-react'
+import { Download, Loader2, MoreVertical, Trash2 } from 'lucide-react'
 
 export type ImagingCardActionMenuProps = {
   /** Accessible name of the card item (non-PHI). */
@@ -24,7 +24,7 @@ export type ImagingCardActionMenuProps = {
 
 /**
  * Actions carte imagerie — desktop : rangée icônes + labels tooltips ;
- * mobile : menu overflow « ⋯ » (bottom-sheet style panel) pour gros targets.
+ * mobile : menu overflow « ⋯ » (cibles 48px, pictogrammes denses).
  * Évite la poubelle minuscule superposée sur la vignette.
  */
 export function ImagingCardActionMenu({
@@ -42,8 +42,7 @@ export function ImagingCardActionMenu({
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const showDeleteReserved =
-    !canDelete && Boolean(deleteReservedHint?.trim())
+  const showDeleteReserved = !canDelete && Boolean(deleteReservedHint?.trim())
   /** Mobile always needs ⋯ when download/delete; desktop also when reserved hint. */
   const showOverflow =
     (canDownload && Boolean(onDownload)) ||
@@ -90,8 +89,11 @@ export function ImagingCardActionMenu({
           <button
             type="button"
             disabled={downloadBusy}
-            title="Télécharger"
-            aria-label={`Télécharger ${itemLabel}`}
+            title={downloadBusy ? 'Téléchargement…' : 'Télécharger'}
+            aria-label={
+              downloadBusy ? `Téléchargement de ${itemLabel}` : `Télécharger ${itemLabel}`
+            }
+            aria-busy={downloadBusy}
             data-testid="imaging-card-download"
             onClick={(e) => {
               stop(e)
@@ -99,8 +101,14 @@ export function ImagingCardActionMenu({
             }}
             className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1 rounded-lg bg-white/95 px-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-black/5 hover:bg-white hover:text-[#2563EB] disabled:opacity-50"
           >
-            <Download className="h-4 w-4" aria-hidden />
-            <span className="hidden lg:inline">Télécharger</span>
+            {downloadBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-4 w-4" aria-hidden />
+            )}
+            <span className="hidden lg:inline">
+              {downloadBusy ? 'Export…' : 'Télécharger'}
+            </span>
           </button>
         ) : null}
         {canDelete && onDelete ? (
@@ -129,22 +137,29 @@ export function ImagingCardActionMenu({
             aria-haspopup="menu"
             aria-expanded={open}
             aria-controls={menuId}
-            aria-label={`Actions pour ${itemLabel}`}
+            aria-label={
+              downloadBusy ? `Téléchargement pour ${itemLabel}` : `Actions pour ${itemLabel}`
+            }
+            aria-busy={downloadBusy}
             title={showDeleteReserved ? deleteReservedHint : undefined}
             data-testid="imaging-card-overflow"
             onClick={(e) => {
               stop(e)
               setOpen((v) => !v)
             }}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-white/95 text-gray-700 shadow-sm ring-1 ring-black/5 sm:min-h-[40px] sm:min-w-[40px] sm:rounded-lg"
+            className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl bg-white/95 text-gray-700 shadow-md ring-1 ring-black/10 sm:min-h-[40px] sm:min-w-[40px] sm:rounded-lg sm:shadow-sm"
           >
-            <MoreVertical className="h-5 w-5" aria-hidden />
+            {downloadBusy ? (
+              <Loader2 className="h-6 w-6 animate-spin text-[#2563EB] sm:h-5 sm:w-5" aria-hidden />
+            ) : (
+              <MoreVertical className="h-6 w-6 sm:h-5 sm:w-5" aria-hidden />
+            )}
           </button>
           <div
             id={menuId}
             role="menu"
             hidden={!open}
-            className="absolute right-0 top-full mt-1 min-w-[12rem] max-w-[16rem] overflow-hidden rounded-xl bg-white py-1 shadow-lg ring-1 ring-black/10"
+            className="absolute right-0 top-full z-20 mt-1 min-w-[12.5rem] max-w-[16rem] overflow-hidden rounded-xl bg-white py-1 shadow-lg ring-1 ring-black/10"
           >
             {canDownload && onDownload ? (
               <button
@@ -157,10 +172,14 @@ export function ImagingCardActionMenu({
                   setOpen(false)
                   onDownload()
                 }}
-                className="flex w-full min-h-[48px] items-center gap-2 px-4 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50 sm:hidden"
+                className="flex w-full min-h-[52px] items-center gap-3 px-4 text-left text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50 sm:hidden"
               >
-                <Download className="h-4 w-4" aria-hidden />
-                Télécharger
+                {downloadBusy ? (
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                ) : (
+                  <Download className="h-5 w-5" aria-hidden />
+                )}
+                {downloadBusy ? 'Téléchargement…' : 'Télécharger'}
               </button>
             ) : null}
             {canDelete && onDelete ? (
@@ -174,9 +193,9 @@ export function ImagingCardActionMenu({
                   setOpen(false)
                   onDelete()
                 }}
-                className="flex w-full min-h-[48px] items-center gap-2 px-4 text-left text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                className="flex w-full min-h-[52px] items-center gap-3 px-4 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
               >
-                <Trash2 className="h-4 w-4" aria-hidden />
+                <Trash2 className="h-5 w-5" aria-hidden />
                 Supprimer
               </button>
             ) : null}
