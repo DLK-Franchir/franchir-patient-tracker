@@ -26,6 +26,37 @@ describe('ImagingCardActionMenu', () => {
     )
     expect(html).toBe('')
   })
+
+  it('affiche le hint suppression reservee sans poubelle', () => {
+    const html = renderToStaticMarkup(
+      <ImagingCardActionMenu
+        itemLabel="Serie A"
+        canDownload
+        canDelete={false}
+        deleteReservedHint="Suppression réservée au tracker Marcel"
+        onDownload={() => undefined}
+      />,
+    )
+    expect(html).toContain('imaging-card-overflow')
+    expect(html).toContain('imaging-card-delete-reserved')
+    expect(html).toContain('Suppression réservée au tracker Marcel')
+    expect(html).not.toContain('data-testid="imaging-card-delete"')
+    expect(html).not.toContain('data-testid="imaging-card-delete-mobile"')
+  })
+
+  it('ignore le hint si canDelete est actif', () => {
+    const html = renderToStaticMarkup(
+      <ImagingCardActionMenu
+        itemLabel="Serie A"
+        canDownload={false}
+        canDelete
+        deleteReservedHint="Suppression réservée au tracker Marcel"
+        onDelete={() => undefined}
+      />,
+    )
+    expect(html).not.toContain('imaging-card-delete-reserved')
+    expect(html).toContain('data-testid="imaging-card-delete"')
+  })
 })
 
 describe('ImagingDownloadScopeDialog', () => {

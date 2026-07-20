@@ -119,8 +119,11 @@ Ops : `docs/ops/IMAGING_TELEMETRY.md`.
 - **`/host` subpath** — différé : `DicomViewer` compose déjà le chrome `/ui` ;
   un export séparé ne réduit pas le graphe host. Réévaluer si des imports
   chrome-only tirent dwv malgré le tree-shake.
-- **Delete clinicien** — volontairement off (`canDelete={false}`) : destruction
-  SoT tracker seulement (Marcel). Ne pas activer côté Q sans politique IDOR.
+- **Delete clinicien (P6b)** — volontairement off (`canDelete={false}`) :
+  destruction SoT tracker seulement (Marcel). UX explicite via
+  `deleteReservedHint` (« Suppression réservée au tracker Marcel ») dans le
+  menu ⋯ — pas de fausse poubelle. Ne pas activer côté Q sans politique IDOR
+  + audit M2M testé.
 - **MP4 prod default** — reste `mp4Native: false` ; staging via
   `NEXT_PUBLIC_ENABLE_MP4_VIEWER`.
 
