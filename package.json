@@ -17,6 +17,7 @@
     "imaging:check": "node scripts/sync-imaging-package.mjs --check",
     "imaging-viewer:sync": "node scripts/sync-imaging-viewer-package.mjs",
     "imaging-viewer:check": "node scripts/sync-imaging-viewer-package.mjs --check",
+    "imaging:golden-tour": "node scripts/imaging-golden-tour.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "rm -rf .next node_modules",
