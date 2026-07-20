@@ -290,4 +290,42 @@ describe('downloadStudyDicomExportAsync', () => {
       expect.objectContaining({ reason: 'study_async_fail', outcome: 'error' }),
     )
   })
+
+  it('mappe 410 expired vers message TTL 2 h', async () => {
+    const jobId = '11111111-1111-4111-8111-111111111111'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/export-async') && init?.method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              jobId,
+              status: 'queued',
+              partCount: 1,
+              completedParts: 0,
+              fileCount: 2,
+            }),
+            { status: 200 },
+          )
+        }
+        if (url.includes('/build')) {
+          return new Response(JSON.stringify({ error: 'expired' }), { status: 410 })
+        }
+        return new Response('{}', { status: 404 })
+      }),
+    )
+    const result = await downloadStudyDicomExportAsync({
+      urls: {
+        createUrl: '/api/patients/x/imaging/study/export-async',
+        statusUrl: (id) => `/api/patients/x/imaging/study/export-async/${id}`,
+        buildUrl: (id, part) =>
+          `/api/patients/x/imaging/study/export-async/${id}/build?part=${part}`,
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.status).toBe(410)
+    expect(result.message).toMatch(/2 h/)
+  })
 })

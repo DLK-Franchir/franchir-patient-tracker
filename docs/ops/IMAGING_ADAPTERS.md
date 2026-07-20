@@ -16,6 +16,7 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 | Workers rewrite | `proxy.ts` (lane A — not this doc) |
 | Product telemetry (P3a) | `onImagingTelemetry` → `lib/imaging/report-imaging-telemetry.ts` — see `IMAGING_TELEMETRY.md` |
 | DICOM export ZIP (P0/P1/P5/P7) | `GET …/export-plan` + sync `…/export.zip?part=N` **ou** async `POST …/export-async` + `…/build` + signed TTL ; UI `downloadStudyDicomExport` |
+| Async export cleanup (P7 residual) | Cron `GET /api/internal/imaging/cleanup-async-exports` (`vercel.json`) — TTL 2 h sur `exports/{patientId}/{jobId}/` |
 | Capabilities / feature flags (P4/P7) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from `isMp4ViewerEnabled`) |
 
 ## MP4 / m4v native viewer — prod ops flip
@@ -57,6 +58,13 @@ et sur la fiche clinicien — badge MP4 + lecteur `data-testid="native-mp4-viewe
 `recommendAsync` + job Storage (`exports/{patientId}/{jobId}/`, parties ≤80
 fichiers / ~90 Mo) puis signed download TTL. Fallback sync chunked si async
 indisponible. Delete clinicien = différé (SoT Marcel only).
+
+**Async cleanup** — objets job TTL **2 h** ; cron quotidien tracker
+(`vercel.json` → `/api/internal/imaging/cleanup-async-exports`) + delete
+best-effort sur GET/build **410**. Auth : `CRON_SECRET` (Vercel Cron) ou
+`TRACKER_SYNC_SERVICE_TOKEN`. Réponse = compteurs only (pas de PHI). Détail :
+[`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md#async-export-cleanup-p7). Storage
+SoT = tracker uniquement — pas de cron côté questionnaires.
 
 ## Rules
 

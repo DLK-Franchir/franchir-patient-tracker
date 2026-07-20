@@ -8,6 +8,9 @@
  *
  * Auth / audit = mêmes barrières que l’export sync. Pas de PHI dans les logs
  * (compteurs + hash job uniquement).
+ *
+ * Cleanup : cron `GET /api/internal/imaging/cleanup-async-exports` + best-effort
+ * sur GET/build expiré (TTL 2 h).
  */
 
 import { randomUUID } from 'node:crypto'
@@ -25,10 +28,20 @@ import {
   type ResolvedDicomExport,
 } from '@/lib/imaging/dicom-export'
 
-/** TTL objets job (status + ZIP) — nettoyage best-effort au GET expiré. */
+/** TTL objets job (status + ZIP) — cron + best-effort au GET/build expiré. */
 export const ASYNC_EXPORT_JOB_TTL_MS = 2 * 60 * 60 * 1000
 
+/** Préfixe Storage des jobs async (hors `patients/…`). */
+export const ASYNC_EXPORT_STORAGE_ROOT = 'exports'
+
+/** Plafond jobs inspectés par run cron (Vercel-safe). */
+export const ASYNC_EXPORT_CLEANUP_DEFAULT_MAX_JOBS = 80
+export const ASYNC_EXPORT_CLEANUP_MAX_JOBS = 200
+
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+/** Dossiers Storage : forme UUID (version/variant non stricts — chemins historiques). */
+const STORAGE_UUID_FOLDER_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type AsyncExportPartState = {
   index: number
@@ -91,7 +104,7 @@ export function isValidAsyncExportJobId(jobId: string): boolean {
 }
 
 export function asyncExportJobPrefix(patientId: string, jobId: string): string {
-  return `exports/${patientId}/${jobId}`
+  return `${ASYNC_EXPORT_STORAGE_ROOT}/${patientId}/${jobId}`
 }
 
 export function asyncExportStatusPath(patientId: string, jobId: string): string {
@@ -211,6 +224,195 @@ function isExpired(record: AsyncExportJobRecord, nowMs: number = Date.now()): bo
   return Date.parse(record.expiresAt) <= nowMs
 }
 
+/**
+ * Supprime tous les objets d’un job (`status.json` + parties ZIP).
+ * Compteurs uniquement — pas de paths / PHI dans le retour.
+ */
+export async function deleteAsyncExportJobObjects(
+  supabase: SupabaseClient,
+  patientId: string,
+  jobId: string,
+  options: { dryRun?: boolean } = {},
+): Promise<{ objectsFound: number; objectsDeleted: number; deleteErrors: number }> {
+  const prefix = asyncExportJobPrefix(patientId, jobId)
+  const { data: entries, error } = await supabase.storage
+    .from(PATIENT_DOCUMENTS_BUCKET)
+    .list(prefix, { limit: 100 })
+
+  if (error || !entries) {
+    return { objectsFound: 0, objectsDeleted: 0, deleteErrors: 1 }
+  }
+
+  const paths = entries
+    .filter((e) => Boolean(e.name) && e.id != null)
+    .map((e) => `${prefix}/${e.name}`)
+
+  if (paths.length === 0) {
+    return { objectsFound: 0, objectsDeleted: 0, deleteErrors: 0 }
+  }
+
+  if (options.dryRun) {
+    return { objectsFound: paths.length, objectsDeleted: 0, deleteErrors: 0 }
+  }
+
+  const { error: removeError } = await supabase.storage
+    .from(PATIENT_DOCUMENTS_BUCKET)
+    .remove(paths)
+
+  if (removeError) {
+    return { objectsFound: paths.length, objectsDeleted: 0, deleteErrors: 1 }
+  }
+  return { objectsFound: paths.length, objectsDeleted: paths.length, deleteErrors: 0 }
+}
+
+export type CleanupAsyncExportsResult = {
+  dryRun: boolean
+  patientPrefixesScanned: number
+  jobsScanned: number
+  jobsExpired: number
+  objectsDeleted: number
+  listErrors: number
+  deleteErrors: number
+  truncated: boolean
+}
+
+type StorageListEntry = {
+  name: string
+  id: string | null
+  updated_at?: string | null
+  created_at?: string | null
+}
+
+async function listStoragePrefix(
+  supabase: SupabaseClient,
+  prefix: string,
+): Promise<{ entries: StorageListEntry[]; error: boolean }> {
+  const { data, error } = await supabase.storage
+    .from(PATIENT_DOCUMENTS_BUCKET)
+    .list(prefix, { limit: 1000, offset: 0, sortBy: { column: 'name', order: 'asc' } })
+  if (error || !data) return { entries: [], error: true }
+  return {
+    entries: data.map((e) => ({
+      name: e.name,
+      id: e.id ?? null,
+      updated_at: e.updated_at,
+      created_at: e.created_at,
+    })),
+    error: false,
+  }
+}
+
+function entryLooksLikeFolder(entry: StorageListEntry): boolean {
+  // Dossiers Storage : pas d’id fichier ; ou nom UUID / job sans extension.
+  return entry.id == null || !entry.name.includes('.')
+}
+
+function jobExpiredFromRecordOrObjects(
+  record: AsyncExportJobRecord | null,
+  objects: StorageListEntry[],
+  nowMs: number,
+): boolean {
+  if (record) return isExpired(record, nowMs)
+
+  // Orphelin sans status.json : TTL depuis la plus récente mtime connue.
+  const stamps = objects
+    .map((o) => Date.parse(o.updated_at || o.created_at || ''))
+    .filter((t) => Number.isFinite(t))
+  if (stamps.length === 0) return true
+  const newest = Math.max(...stamps)
+  return newest + ASYNC_EXPORT_JOB_TTL_MS <= nowMs
+}
+
+/**
+ * Parcourt `exports/{patientId}/{jobId}/` et supprime les jobs au-delà du TTL (2 h).
+ * Réponse = compteurs uniquement (pas de patientId / jobId / paths).
+ */
+export async function cleanupExpiredAsyncExports(
+  supabase: SupabaseClient,
+  options: {
+    dryRun?: boolean
+    maxJobs?: number
+    nowMs?: number
+  } = {},
+): Promise<CleanupAsyncExportsResult> {
+  const dryRun = Boolean(options.dryRun)
+  const maxJobs = Math.min(
+    Math.max(1, options.maxJobs ?? ASYNC_EXPORT_CLEANUP_DEFAULT_MAX_JOBS),
+    ASYNC_EXPORT_CLEANUP_MAX_JOBS,
+  )
+  const nowMs = options.nowMs ?? Date.now()
+
+  const result: CleanupAsyncExportsResult = {
+    dryRun,
+    patientPrefixesScanned: 0,
+    jobsScanned: 0,
+    jobsExpired: 0,
+    objectsDeleted: 0,
+    listErrors: 0,
+    deleteErrors: 0,
+    truncated: false,
+  }
+
+  const root = await listStoragePrefix(supabase, ASYNC_EXPORT_STORAGE_ROOT)
+  if (root.error) {
+    result.listErrors += 1
+    return result
+  }
+
+  const patientFolders = root.entries.filter(
+    (e) => entryLooksLikeFolder(e) && STORAGE_UUID_FOLDER_RE.test(e.name),
+  )
+  result.patientPrefixesScanned = patientFolders.length
+
+  for (const patient of patientFolders) {
+    if (result.jobsScanned >= maxJobs) {
+      result.truncated = true
+      break
+    }
+
+    const patientPrefix = `${ASYNC_EXPORT_STORAGE_ROOT}/${patient.name}`
+    const jobsList = await listStoragePrefix(supabase, patientPrefix)
+    if (jobsList.error) {
+      result.listErrors += 1
+      continue
+    }
+
+    const jobFolders = jobsList.entries.filter(
+      (e) => entryLooksLikeFolder(e) && STORAGE_UUID_FOLDER_RE.test(e.name),
+    )
+
+    for (const job of jobFolders) {
+      if (result.jobsScanned >= maxJobs) {
+        result.truncated = true
+        break
+      }
+      result.jobsScanned += 1
+
+      const jobId = job.name
+      const patientId = patient.name
+      const record = await readAsyncExportJob(supabase, patientId, jobId)
+      const jobPrefix = asyncExportJobPrefix(patientId, jobId)
+      const objectsList = await listStoragePrefix(supabase, jobPrefix)
+      if (objectsList.error) {
+        result.listErrors += 1
+        continue
+      }
+
+      if (!jobExpiredFromRecordOrObjects(record, objectsList.entries, nowMs)) {
+        continue
+      }
+
+      result.jobsExpired += 1
+      const del = await deleteAsyncExportJobObjects(supabase, patientId, jobId, { dryRun })
+      result.deleteErrors += del.deleteErrors
+      // dry-run : objectsDeleted = objets qui auraient été effacés
+      result.objectsDeleted += dryRun ? del.objectsFound : del.objectsDeleted
+    }
+  }
+
+  return result
+}
+
 export async function getAsyncExportJobPublic(
   supabase: SupabaseClient,
   patientId: string,
@@ -219,7 +421,11 @@ export async function getAsyncExportJobPublic(
 ): Promise<AsyncExportJobPublic | { error: 'not_found' | 'expired' }> {
   const record = await readAsyncExportJob(supabase, patientId, jobId)
   if (!record) return { error: 'not_found' }
-  if (isExpired(record)) return { error: 'expired' }
+  if (isExpired(record)) {
+    // Best-effort : ne bloque pas la réponse 410.
+    void deleteAsyncExportJobObjects(supabase, patientId, jobId).catch(() => undefined)
+    return { error: 'expired' }
+  }
 
   const pub = toPublic(record)
   if (!options.includeSignedUrls) return pub
@@ -260,7 +466,10 @@ export async function buildAsyncExportPart(
 ): Promise<AsyncExportJobPublic | { error: string; status?: number }> {
   const record = await readAsyncExportJob(supabase, patientId, jobId)
   if (!record) return { error: 'not_found', status: 404 }
-  if (isExpired(record)) return { error: 'expired', status: 410 }
+  if (isExpired(record)) {
+    void deleteAsyncExportJobObjects(supabase, patientId, jobId).catch(() => undefined)
+    return { error: 'expired', status: 410 }
+  }
 
   if (!Number.isInteger(partIndex) || partIndex < 0 || partIndex >= record.partCount) {
     return { error: 'part_out_of_range', status: 400 }

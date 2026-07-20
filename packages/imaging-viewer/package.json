@@ -1,6 +1,6 @@
 {
   "name": "@franchir/imaging-viewer",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "private": true,
   "type": "module",
   "description": "Shared DICOM viewer contract, policy, dwv host, React UI shell, encapsulated PDF DOC, codec assets, and Next worker rewrite helpers — SoT = franchir-patient-tracker, vendored into questionnaires",

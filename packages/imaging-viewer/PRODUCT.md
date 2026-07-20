@@ -19,7 +19,7 @@
 | **P6b** | 0.10.1 | **done** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
 | **P6a** | 0.11.0 | **done** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
 | **P8** | 0.12.0 | **done** | Télémétrie actionable — seuils, raisons `dicom_export` (sync + async), résumé contrat ops |
-| **P7** | 0.13.0 | **done** | Async ZIP Storage (job + signed TTL) + parité `mp4Native` clinicien (staging/flag) |
+| **P7** | 0.13.0–0.13.3 | **done** | Async ZIP Storage + cron cleanup TTL + UX 410 ; parité `mp4Native` clinicien (staging/flag) |
 | **MP4 prod** | apps | **ops flip** | Code prêt (Marcel + clinicien) ; prod reste off jusqu’au flag Vercel — voir adapters |
 
 Close-out ops : `docs/ops/IMAGING_STABILIZE.md` (checklist suite complète).
@@ -141,8 +141,10 @@ Pas des phases ouvertes de cette suite ; durcir seulement si besoin ops :
   `docs/ops/IMAGING_ADAPTERS.md` (tracker) / miroir Q.
 - **Delete clinicien** — volontairement off (`canDelete={false}`) ; UX
   `deleteReservedHint` seulement. Ne pas activer côté Q sans IDOR + audit M2M.
-- **Async ZIP ops** — cleanup Storage / cron / UX 410 peuvent durcir en patch
-  post-0.13.0 (lane ops séparée) ; TTL signed URL déjà en place.
+- **Async ZIP cleanup** — cron tracker
+  `GET /api/internal/imaging/cleanup-async-exports` (`vercel.json` quotidien Hobby-safe) +
+  best-effort delete sur GET/build 410. Compteurs only — voir
+  `docs/ops/IMAGING_RUNBOOK.md` (section async export cleanup).
 - **`/host` subpath** — différé ; `DicomViewer` compose déjà `/ui`.
 - **Tests e2e host / golden tour** — raffinements apps (fixtures Tania/Fatima).
 
