@@ -1,13 +1,5 @@
 # Changelog — `@franchir/imaging-viewer`
 
-## 0.8.0
-
-- Export DICOM desktop (P0/P1 UI) : boutons chrome
-  « Télécharger la série » / « Étude » via callbacks optionnels
-  `onDownloadSeries` / `onDownloadStudy` (+ `downloadBusy`).
-- Package reste sans auth / Storage — les apps streamnent le ZIP
-  `.dcm` brut (Horos, RadiAnt, OsiriX, Weasis).
-
 ## 0.7.0
 
 - P4 : feature flags capabilities documentés —

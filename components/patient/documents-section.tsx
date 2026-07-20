@@ -26,11 +26,6 @@ import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
 import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
 import { reportImagingTelemetry } from '@/lib/imaging/report-imaging-telemetry'
 import { getAppViewerCapabilities } from '@/lib/imaging/viewer-capabilities'
-import {
-  seriesExportZipUrl,
-  studyExportZipUrl,
-  triggerDicomZipDownload,
-} from '@/lib/imaging/trigger-dicom-zip-download'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 const VIEWER_CAPS = getAppViewerCapabilities()
