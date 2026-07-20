@@ -1,5 +1,12 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.8.0
+
+- Export DICOM desktop (P0/P1 UI) : boutons chrome
+  « Télécharger la série » / « Étude » via callbacks optionnels
+  `onDownloadSeries` / `onDownloadStudy` (+ `downloadBusy`).
+- Package reste sans auth / Storage — apps streamnent le ZIP `.dcm` brut.
+
 ## 0.7.0
 
 - P4 : feature flags capabilities documentés —
@@ -7,8 +14,9 @@
 - Helper `resolveViewerCapabilities(overrides?)` pour fusion shallow app/package.
 - Prop optionnelle `capabilities` sur `DicomViewer` : si
   `jpeg2000OpenJpegFallback: false`, le callback OpenJPEG n’est pas branché.
-- Roadmap PRODUCT : P3 done, P4 landed ; export/ZIP = lane sibling ; `/host`
-  différé (pas de gain clair vs barrel `/ui`).
+- P4∥ export DICOM desktop : boutons chrome « Télécharger la série » / « Étude »
+  via `onDownloadSeries` / `onDownloadStudy` (+ `downloadBusy`) — ZIP brut
+  via adapters app (Horos / RadiAnt / OsiriX / Weasis).
 
 ## 0.6.0
 

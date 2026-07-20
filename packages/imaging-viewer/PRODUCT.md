@@ -13,7 +13,7 @@
 | **P3a** | 0.6.0 | **landed** | Observabilité produit non-PHI (`onImagingTelemetry`) — TTFP, fallback OpenJPEG, canvas noir, workers |
 | **P3b/c** | — | apps | Upload-time SUID, deep-link séries, runbook ops — hors package |
 | **P4** | 0.7.0 | **landed** | Feature flags capabilities (openjpeg / pdf / mp4) + `resolveViewerCapabilities` ; adapters app allégés ; roadmap sync |
-| **P4∥** | — | sibling | Export / ZIP DICOM download — lane parallèle (hors ce package / hors cette PR) |
+| **P4∥** | 0.8.0 | **landed** | Chrome export DICOM (`onDownloadSeries` / `onDownloadStudy`) — ZIP brut via adapters app |
 | **P4+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` seulement si le barrel `/ui` devient trop lourd |
 
 ## Promesse

@@ -53,6 +53,9 @@ export function DicomViewer({
   capabilities: capabilitiesOverride,
   onJpeg2000Unsupported,
   onImagingTelemetry,
+  onDownloadSeries,
+  onDownloadStudy,
+  downloadBusy = false,
 }: DicomViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const poolHostRef = useRef<HTMLDivElement>(null)
@@ -107,7 +110,9 @@ export function DicomViewer({
 
   const seriesCount = series?.length ?? 0
   const hasSeriesNav = seriesCount > 1 && onNextSeries && onPrevSeries
-  const showHeader = Boolean(fullscreen || onClose || hasSeriesNav)
+  const showHeader = Boolean(
+    fullscreen || onClose || hasSeriesNav || onDownloadSeries || onDownloadStudy,
+  )
 
   const infoKind = resolveViewerInfoKind({
     isBusy,
@@ -413,6 +418,9 @@ export function DicomViewer({
           onPrevSeries={hasSeriesNav ? onPrevSeries : undefined}
           onNextSeries={hasSeriesNav ? onNextSeries : undefined}
           onClose={onClose}
+          onDownloadSeries={onDownloadSeries}
+          onDownloadStudy={onDownloadStudy}
+          downloadBusy={downloadBusy}
         />
       ) : null}
 
