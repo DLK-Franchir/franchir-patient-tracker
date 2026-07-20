@@ -64,15 +64,16 @@ npm run imaging:check   # needs Q sibling
 
 ---
 
-## CI
+## CI (optional)
 
-Tracker CI runs:
+Existing CI already runs `test:imaging-viewer` and `imaging-viewer:check`.
+Optionally add a single step:
 
 ```bash
 npm run imaging:golden-tour -- --ci
 ```
 
-This covers focused fixture tests + `imaging-viewer:check`. It does **not** call `imaging:check` (questionnaires tree is not checked out).
+`--ci` covers focused fixture tests + `imaging-viewer:check` and skips `imaging:check` (no questionnaires checkout).
 
 ---
 
