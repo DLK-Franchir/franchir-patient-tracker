@@ -19,8 +19,8 @@
 | **P6b** | 0.10.1 | **landed** | `deleteReservedHint` clinicien (SoT Marcel) — pas de poubelle factice |
 | **P6a** | 0.11.0 | **landed** | Empty/loading grille, feedback download (banner + busy), copy multi-ZIP, densité mobile ⋯ |
 | **P8** | 0.12.0 | **landed** | Télémétrie actionable — seuils, raisons `dicom_export` (sync + async réservé P7), résumé contrat ops |
-| **P7** | 0.13.0 | **landed** | Async ZIP Storage (job + signed TTL) + parité `mp4Native` clinicien (staging/flag) |
-| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 **prod** default |
+| **P7** | 0.13.0–0.13.1 | **landed** | Async ZIP Storage + cron cleanup TTL + UX 410 ; parité `mp4Native` clinicien (staging/flag) |
+| **P5+** | — | next | Raffinements host (tests e2e, golden tour) ; `/host` si barrel `/ui` trop lourd ; MP4 **prod** default (lane B) |
 
 ## Promesse
 
@@ -143,8 +143,11 @@ Ops : `docs/ops/IMAGING_TELEMETRY.md`.
   + audit M2M testé.
 - **MP4 prod default** — reste `mp4Native: false` ; staging / preview / flag
   explicite via `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (Marcel + clinicien, P7).
-- **Async ZIP residual** — pas de file d’attente Vercel Workflows / cron cleanup
-  des `exports/{patientId}/{jobId}/` (TTL 2 h + signed URL) ; à durcir si volume.
+  **Ne pas activer en prod par défaut** (lane B séparée).
+- **Async ZIP cleanup** — cron tracker
+  `GET /api/internal/imaging/cleanup-async-exports` (`vercel.json` horaire) +
+  best-effort delete sur GET/build 410. Compteurs only — voir
+  `docs/ops/IMAGING_RUNBOOK.md` (section async export cleanup).
 
 ## Évolution Marcel
 
