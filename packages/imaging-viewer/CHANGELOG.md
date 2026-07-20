@@ -1,5 +1,11 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.10.1
+
+- P6b : `deleteReservedHint` sur `ImagingCardActionMenu` — message non
+  actionnable dans le menu ⋯ quand la suppression reste SoT Marcel
+  (clinicien). Pas de contrôle poubelle factice.
+
 ## 0.10.0
 
 - P5 : événement télémétrie non-PHI `dicom_export` (série / étude single /

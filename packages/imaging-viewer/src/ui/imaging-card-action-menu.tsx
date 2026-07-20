@@ -12,6 +12,12 @@ export type ImagingCardActionMenuProps = {
   deleteBusy?: boolean
   onDownload?: () => void
   onDelete?: () => void
+  /**
+   * When delete is product-disabled (e.g. clinicien), show this non-actionable
+   * copy in the overflow menu. Never paired with a fake trash control —
+   * ignored when `canDelete` is true.
+   */
+  deleteReservedHint?: string
   /** Optional class on the absolute action host (top-right of card). */
   className?: string
 }
@@ -29,11 +35,20 @@ export function ImagingCardActionMenu({
   deleteBusy = false,
   onDownload,
   onDelete,
+  deleteReservedHint,
   className = '',
 }: ImagingCardActionMenuProps) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
+
+  const showDeleteReserved =
+    !canDelete && Boolean(deleteReservedHint?.trim())
+  /** Mobile always needs ⋯ when download/delete; desktop also when reserved hint. */
+  const showOverflow =
+    (canDownload && Boolean(onDownload)) ||
+    (canDelete && Boolean(onDelete)) ||
+    showDeleteReserved
 
   useEffect(() => {
     if (!open) return
@@ -51,12 +66,15 @@ export function ImagingCardActionMenu({
     }
   }, [open])
 
-  if (!canDownload && !canDelete) return null
+  if (!canDownload && !canDelete && !showDeleteReserved) return null
 
   const stop = (e: SyntheticEvent) => {
     e.preventDefault()
     e.stopPropagation()
   }
+
+  /** Overflow on mobile always; also on desktop when delete is reserved (hint only). */
+  const overflowClass = showDeleteReserved ? 'relative' : 'relative sm:hidden'
 
   return (
     <div
@@ -103,28 +121,30 @@ export function ImagingCardActionMenu({
         ) : null}
       </div>
 
-      {/* Mobile : overflow ⋯ */}
-      <div className="relative sm:hidden">
-        <button
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-controls={menuId}
-          aria-label={`Actions pour ${itemLabel}`}
-          data-testid="imaging-card-overflow"
-          onClick={(e) => {
-            stop(e)
-            setOpen((v) => !v)
-          }}
-          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-white/95 text-gray-700 shadow-sm ring-1 ring-black/5"
-        >
-          <MoreVertical className="h-5 w-5" aria-hidden />
-        </button>
-        {open ? (
+      {/* Mobile overflow ⋯ ; also desktop when delete reserved (hint in menu) */}
+      {showOverflow ? (
+        <div className={overflowClass}>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-controls={menuId}
+            aria-label={`Actions pour ${itemLabel}`}
+            title={showDeleteReserved ? deleteReservedHint : undefined}
+            data-testid="imaging-card-overflow"
+            onClick={(e) => {
+              stop(e)
+              setOpen((v) => !v)
+            }}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-white/95 text-gray-700 shadow-sm ring-1 ring-black/5 sm:min-h-[40px] sm:min-w-[40px] sm:rounded-lg"
+          >
+            <MoreVertical className="h-5 w-5" aria-hidden />
+          </button>
           <div
             id={menuId}
             role="menu"
-            className="absolute right-0 top-full mt-1 min-w-[11rem] overflow-hidden rounded-xl bg-white py-1 shadow-lg ring-1 ring-black/10"
+            hidden={!open}
+            className="absolute right-0 top-full mt-1 min-w-[12rem] max-w-[16rem] overflow-hidden rounded-xl bg-white py-1 shadow-lg ring-1 ring-black/10"
           >
             {canDownload && onDownload ? (
               <button
@@ -137,7 +157,7 @@ export function ImagingCardActionMenu({
                   setOpen(false)
                   onDownload()
                 }}
-                className="flex w-full min-h-[48px] items-center gap-2 px-4 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                className="flex w-full min-h-[48px] items-center gap-2 px-4 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50 sm:hidden"
               >
                 <Download className="h-4 w-4" aria-hidden />
                 Télécharger
@@ -160,9 +180,23 @@ export function ImagingCardActionMenu({
                 Supprimer
               </button>
             ) : null}
+            {showDeleteReserved ? (
+              <p
+                role="note"
+                data-testid="imaging-card-delete-reserved"
+                className={[
+                  'px-4 py-3 text-xs leading-snug text-gray-500',
+                  (canDownload && onDownload) || (canDelete && onDelete)
+                    ? 'border-t border-gray-100'
+                    : '',
+                ].join(' ')}
+              >
+                {deleteReservedHint}
+              </p>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   )
 }
