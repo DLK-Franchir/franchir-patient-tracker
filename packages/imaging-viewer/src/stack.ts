@@ -21,6 +21,11 @@ import {
   waitForRenderableImage,
 } from './dwv-app'
 import { clearLayoutTimers, scheduleLayoutRetries } from './layout'
+import {
+  emitImagingTelemetry,
+  looksLikeWorkerAssetFailure,
+  type ImagingTelemetryHandler,
+} from './telemetry'
 
 export type StackModeParams = {
   navMode: NavMode
@@ -33,6 +38,7 @@ export type StackModeParams = {
   toolRef: RefObject<DicomTool>
   onSliceCountResolvedRef: RefObject<((count: number) => void) | undefined>
   onJpeg2000UnsupportedRef: RefObject<(() => void) | undefined>
+  onImagingTelemetryRef?: RefObject<ImagingTelemetryHandler | undefined>
   setNavMode: (mode: NavMode) => void
   setFileIndex: (index: number) => void
   setStatus: (status: 'loading' | 'rendering' | 'ready' | 'error') => void
@@ -59,6 +65,7 @@ export function useDicomStackMode(params: StackModeParams) {
     toolRef,
     onSliceCountResolvedRef,
     onJpeg2000UnsupportedRef,
+    onImagingTelemetryRef,
     setNavMode,
     setFileIndex,
     setStatus,
@@ -164,6 +171,13 @@ export function useDicomStackMode(params: StackModeParams) {
             // Géométrie présente mais aucun pixel décodé → échec silencieux du
             // codec (worker manquant / format non géré). Erreur explicite plutôt
             // qu'un canvas noir « prêt ».
+            emitImagingTelemetry(onImagingTelemetryRef?.current, {
+              name: 'ready_without_pixels',
+              navMode: 'stack',
+              fileCount: seriesUrls.length,
+              engine: 'dwv',
+              reason: 'empty_pixel_buffer',
+            })
             setStatus('error')
             setErrorMessage(
               formatDicomLoadError('décodage du flux compressé impossible (codec)'),
@@ -218,8 +232,26 @@ export function useDicomStackMode(params: StackModeParams) {
         typeof event.error === 'string' ? event.error : (event.error?.message ?? null)
 
       if (isUnsupportedJpeg2000Error(message)) {
+        emitImagingTelemetry(onImagingTelemetryRef?.current, {
+          name: 'openjpeg_fallback',
+          navMode: 'stack',
+          fileCount: seriesUrls.length,
+          engine: 'dwv',
+          outcome: 'fallback',
+          reason: 'unsupported_j2k',
+        })
         onJpeg2000UnsupportedRef.current?.()
         return
+      }
+
+      if (looksLikeWorkerAssetFailure(message)) {
+        emitImagingTelemetry(onImagingTelemetryRef?.current, {
+          name: 'worker_asset_fail',
+          navMode: 'stack',
+          fileCount: seriesUrls.length,
+          engine: 'dwv',
+          reason: 'worker_script',
+        })
       }
 
       if (isStackOrientationMismatch(message) && seriesUrls.length > 1) {

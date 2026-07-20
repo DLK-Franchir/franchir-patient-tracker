@@ -17,6 +17,7 @@ import {
   type WindowLevel,
 } from './decode/dicom-windowing'
 import { VIEWER_BG } from './messages'
+import { emitImagingTelemetry, type ImagingTelemetryHandler } from '../telemetry'
 
 type FrameData = {
   frame: DecodedFrame
@@ -30,6 +31,7 @@ export type DicomJpeg2000FallbackViewerProps = {
   name: string
   fullscreen?: boolean
   onClose?: () => void
+  onImagingTelemetry?: ImagingTelemetryHandler
 }
 
 /** Remount on series change so index/cache/refs reset without setState-in-effect. */
@@ -42,6 +44,7 @@ function DicomJpeg2000FallbackViewerInner({
   name,
   fullscreen = false,
   onClose,
+  onImagingTelemetry,
 }: DicomJpeg2000FallbackViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -50,6 +53,12 @@ function DicomJpeg2000FallbackViewerInner({
   // Sérialise les décodages : heap WASM OpenJPEG partagé.
   const decodeChainRef = useRef<Promise<unknown>>(Promise.resolve())
   const rgbaRef = useRef<ImageData | null>(null)
+  const onImagingTelemetryRef = useRef(onImagingTelemetry)
+  const openStartedAtRef = useRef(
+    typeof performance !== 'undefined' ? performance.now() : Date.now(),
+  )
+  const paintedRef = useRef(false)
+  const openReportedRef = useRef(false)
 
   const [index, setIndex] = useState(0)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -59,6 +68,37 @@ function DicomJpeg2000FallbackViewerInner({
   const [decodedCount, setDecodedCount] = useState(0)
 
   const fileCount = urls.length
+
+  useEffect(() => {
+    onImagingTelemetryRef.current = onImagingTelemetry
+  }, [onImagingTelemetry])
+
+  useEffect(() => {
+    const elapsed = () => {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      return Math.max(0, now - openStartedAtRef.current)
+    }
+    if (status === 'ready' && !paintedRef.current) {
+      paintedRef.current = true
+      emitImagingTelemetry(onImagingTelemetryRef.current, {
+        name: 'time_to_first_paint',
+        durationMs: elapsed(),
+        fileCount,
+        engine: 'openjpeg',
+        outcome: 'ready',
+      })
+    }
+    if ((status === 'ready' || status === 'error') && !openReportedRef.current) {
+      openReportedRef.current = true
+      emitImagingTelemetry(onImagingTelemetryRef.current, {
+        name: 'series_open_ms',
+        durationMs: elapsed(),
+        fileCount,
+        engine: 'openjpeg',
+        outcome: status === 'ready' ? 'ready' : 'error',
+      })
+    }
+  }, [status, fileCount])
 
   const decodeFrame = useCallback(
     (target: number): Promise<FrameData | null> => {

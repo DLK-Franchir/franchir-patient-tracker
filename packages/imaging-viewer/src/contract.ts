@@ -2,7 +2,10 @@
  * Contrat public visionneuse — types stables pour tracker + questionnaires.
  * Orchestration dwv (stack/pool/sequential) : `/engine` (P1).
  * Host React + chrome + PDF DOC + fallback OpenJPEG : `/ui` (P2 / P2.1).
+ * Télémétrie produit : `telemetry.ts` + prop `onImagingTelemetry`.
  */
+
+import type { ImagingTelemetryHandler } from './telemetry'
 
 /** Une série affichable (URLs signées déjà résolues). */
 export type ImagingSeries = {
@@ -83,6 +86,11 @@ export type DicomViewerProps = {
   onSliceCountResolved?: (count: number) => void
   /** Appelé quand dwv ne sait pas décoder le JPEG 2000 (→ repli OpenJPEG). */
   onJpeg2000Unsupported?: () => void
+  /**
+   * Métriques produit client-safe (TTFP, fallback OpenJPEG, canvas noir, workers).
+   * Les apps branchent gtag / plausible / etc. — le package reste sans vendor analytics.
+   */
+  onImagingTelemetry?: ImagingTelemetryHandler
 }
 
 /** Surface dwv minimale pour les helpers layout (pas d'import `dwv`). */
