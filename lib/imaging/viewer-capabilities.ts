@@ -1,6 +1,7 @@
 /**
  * Adapter capabilities Imaging — SoT `@franchir/imaging-viewer`.
- * MP4 staging via `NEXT_PUBLIC_ENABLE_MP4_VIEWER` (voir `lib/features/mp4-viewer`).
+ * `mp4Native` via `isMp4ViewerEnabled` (`NEXT_PUBLIC_ENABLE_MP4_VIEWER` ou
+ * alias `NEXT_PUBLIC_MP4_VIEWER=1` ; preview / dev). Parité clinicien Q.
  */
 import {
   resolveViewerCapabilities,

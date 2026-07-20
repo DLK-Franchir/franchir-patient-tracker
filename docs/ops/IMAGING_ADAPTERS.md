@@ -18,6 +18,41 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 | DICOM export ZIP (P0/P1/P5/P7) | `GET …/export-plan` + sync `…/export.zip?part=N` **ou** async `POST …/export-async` + `…/build` + signed TTL ; UI `downloadStudyDicomExport` |
 | Capabilities / feature flags (P4/P7) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from `isMp4ViewerEnabled`) |
 
+## MP4 / m4v native viewer — prod ops flip
+
+Code prêt sur Marcel **et** clinicien (HTML5 `<video>`, H.264/AAC). Le package
+garde `mp4Native: false` par défaut ; l’activation prod est **explicite** (pas
+d’auto-enable en Production, pour ne pas surprendre les navigateurs sans codec).
+
+| Environnement | Comportement |
+|---------------|--------------|
+| `development` / Vercel **Preview** | Actif automatiquement |
+| Vercel **Production** | Off tant que le flag n’est pas posé |
+
+**Variables acceptées** (truthy : `true` / `1` / `yes`) :
+
+| Variable | Rôle |
+|----------|------|
+| `NEXT_PUBLIC_ENABLE_MP4_VIEWER` | Canonique |
+| `NEXT_PUBLIC_MP4_VIEWER` | Alias (ex. `1`) |
+
+**Vercel — poser sur Production des deux apps**, puis redeploy :
+
+| Projet Vercel | Domaine |
+|---------------|---------|
+| `franchir-patient-tracker` | https://patients.franchir.eu |
+| `franchir-questionnaires-patients` | https://questionnaire.franchir.eu |
+
+```bash
+# Exemple CLI (Production) — même valeur sur les deux projets
+vercel env add NEXT_PUBLIC_ENABLE_MP4_VIEWER production
+# valeur : true
+# puis redeploy Production des deux apps
+```
+
+Smoke post-flip (sans PHI) : upload / ouvrir un `.mp4` et un `.m4v` sur Marcel
+et sur la fiche clinicien — badge MP4 + lecteur `data-testid="native-mp4-viewer"`.
+
 **P5/P7 study ZIP** — sous plafond sync (400 fichiers) → un ZIP ; Fatima →
 `recommendAsync` + job Storage (`exports/{patientId}/{jobId}/`, parties ≤80
 fichiers / ~90 Mo) puis signed download TTL. Fallback sync chunked si async

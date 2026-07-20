@@ -1,5 +1,7 @@
 'use client'
 
+import { mp4SourceMimeType } from '@/lib/features/mp4-viewer'
+
 type NativeMp4ViewerProps = {
   src: string
   title: string
@@ -7,10 +9,11 @@ type NativeMp4ViewerProps = {
 }
 
 /**
- * Lecteur vidéo MP4 natif (HTML5). Pas de dépendance externe : le navigateur
+ * Lecteur vidéo MP4/m4v natif (HTML5). Pas de dépendance externe : le navigateur
  * décode H.264/AAC via `<video controls>`.
  */
 export default function NativeMp4Viewer({ src, title, className }: NativeMp4ViewerProps) {
+  const sourceType = mp4SourceMimeType(src)
   return (
     <video
       key={src}
@@ -21,7 +24,7 @@ export default function NativeMp4Viewer({ src, title, className }: NativeMp4View
       aria-label={title}
       data-testid="native-mp4-viewer"
     >
-      <source src={src} type="video/mp4" />
+      <source src={src} type={sourceType} />
       Votre navigateur ne prend pas en charge la lecture vidéo MP4.
     </video>
   )
