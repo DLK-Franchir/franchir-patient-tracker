@@ -33,12 +33,16 @@ export function ImagingDeleteConfirmDialog({
   const descId = useId()
   const cancelRef = useRef<HTMLButtonElement>(null)
   const [typed, setTyped] = useState('')
+  const [wasOpen, setWasOpen] = useState(open)
+
+  // Reset typed confirm when the dialog opens (render-time, not effect — eslint purity).
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setTyped('')
+  }
 
   useEffect(() => {
-    if (!open) {
-      setTyped('')
-      return
-    }
+    if (!open) return
     const prev = document.activeElement as HTMLElement | null
     cancelRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
@@ -56,12 +60,18 @@ export function ImagingDeleteConfirmDialog({
   const canConfirm =
     !busy && (!requireTypedConfirm || typed.trim().toUpperCase() === confirmWord.toUpperCase())
 
+  const dismiss = () => {
+    if (busy) return
+    setTyped('')
+    onCancel()
+  }
+
   return (
     <div
       className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !busy) onCancel()
+        if (e.target === e.currentTarget) dismiss()
       }}
     >
       <div
@@ -98,7 +108,7 @@ export function ImagingDeleteConfirmDialog({
             type="button"
             disabled={busy}
             data-testid="imaging-delete-confirm-cancel"
-            onClick={onCancel}
+            onClick={dismiss}
             className="min-h-[48px] rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             Annuler
