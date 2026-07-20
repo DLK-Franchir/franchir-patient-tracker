@@ -1,8 +1,8 @@
 # `@franchir/imaging-viewer`
 
 Couche produit partagée de la visionneuse DICOM Franchir : **contrat**,
-**politique codec/UX**, **orchestration dwv**, **shell React**, et
-**assets codec** (workers + OpenJPEG).
+**politique codec/UX**, **orchestration dwv**, **host React**, **PDF DOC**,
+**shell**, et **assets codec** (workers + OpenJPEG).
 
 | Repo | Rôle | Chemin |
 |------|------|--------|
@@ -22,14 +22,35 @@ Voir aussi [`PRODUCT.md`](./PRODUCT.md).
 
 | Subpath | Contenu | SSR-safe |
 |---------|---------|----------|
-| `@franchir/imaging-viewer` | Contrat + policy + helpers purs | oui |
+| `@franchir/imaging-viewer` | Contrat + policy + helpers purs (+ extract PDF) | oui |
 | `@franchir/imaging-viewer/engine` | Hooks / App dwv | client (peer dwv) |
-| `@franchir/imaging-viewer/ui` | Chrome React + fallback OpenJPEG | **client only** |
+| `@franchir/imaging-viewer/ui` | Host `DicomViewer`, chrome, PDF DOC, fallback OpenJPEG | **client only** |
 
-## Hors scope (P2.1)
+## Import paths (apps)
 
-- Host dwv unique `<DicomViewer>` (lifecycle stack/pool encore dans les apps)
-- PDF encapsulé DOC
+```ts
+// Policy / extract PDF (SSR-safe)
+import {
+  extractEncapsulatedPdf,
+  formatDicomLoadError,
+} from '@franchir/imaging-viewer'
+
+// Engine (client modules only)
+import { useDicomStackMode } from '@franchir/imaging-viewer/engine'
+
+// Host + chrome + DOC + J2K fallback (client only)
+import {
+  DicomViewer,
+  DicomEncapsulatedPdfViewer,
+  DicomJpeg2000FallbackViewer,
+  DicomViewerToolbar,
+} from '@franchir/imaging-viewer/ui'
+```
+
+## Hors scope (P2.2)
+
+- Rewrite workers Next (`proxy.ts` / middleware)
+- Listing documents, auth, signed URL TTL
 
 Peer deps : `react`, `react-dom`, `dwv` (^0.36), `lucide-react` (UI).
 

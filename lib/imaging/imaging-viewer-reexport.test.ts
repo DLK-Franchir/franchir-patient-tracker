@@ -17,4 +17,10 @@ describe('imaging-viewer re-export shims (tracker)', () => {
     expect(POOL_BOOTSTRAP_INDEX).toBe(pkg.POOL_BOOTSTRAP_INDEX)
     expect(hasPixelSignal).toBe(pkg.hasPixelSignal)
   })
+
+  it('expose extract PDF encapsule sur le barrel principal', () => {
+    expect(typeof pkg.extractEncapsulatedPdf).toBe('function')
+    expect(typeof pkg.fetchEncapsulatedPdfBlobUrl).toBe('function')
+    expect(pkg.ENCAPSULATED_PDF_SOP_CLASS).toMatch(/^1\.2\.840/)
+  })
 })
