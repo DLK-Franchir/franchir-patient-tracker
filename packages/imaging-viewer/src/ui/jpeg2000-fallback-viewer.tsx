@@ -52,16 +52,19 @@ export function DicomJpeg2000FallbackViewer({
   const [wl, setWl] = useState<WindowLevel | null>(null)
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
   const [decodedCount, setDecodedCount] = useState(0)
+  const [trackedUrls, setTrackedUrls] = useState(urls)
 
   const fileCount = urls.length
 
-  useEffect(() => {
+  // Reset series state while rendering when `urls` identity changes (avoid setState-in-effect).
+  if (urls !== trackedUrls) {
+    setTrackedUrls(urls)
     setIndex(0)
+    setDecodedCount(0)
     cacheRef.current.clear()
     inflightRef.current.clear()
     decodeChainRef.current = Promise.resolve()
-    setDecodedCount(0)
-  }, [urls])
+  }
 
   const decodeFrame = useCallback(
     (target: number): Promise<FrameData | null> => {
