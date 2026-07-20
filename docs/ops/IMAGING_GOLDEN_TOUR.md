@@ -64,16 +64,21 @@ npm run imaging:check   # needs Q sibling
 
 ---
 
-## CI (optional)
+## CI
 
-Existing CI already runs `test:imaging-viewer` and `imaging-viewer:check`.
-Optionally add a single step:
+Existing `quality` job runs `test:imaging-viewer` and `imaging-viewer:check`.
+
+Isolated job `imaging-golden-path` runs the same command (alias of `imaging:golden-tour`):
 
 ```bash
+npm run imaging:golden-path -- --ci
+# equivalent:
 npm run imaging:golden-tour -- --ci
 ```
 
 `--ci` covers focused fixture tests + `imaging-viewer:check` and skips `imaging:check` (no questionnaires checkout).
+
+Ops triage (workers / OpenJPEG / blank canvas / deep-link): [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md).
 
 ---
 

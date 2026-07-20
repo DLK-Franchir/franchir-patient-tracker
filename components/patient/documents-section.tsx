@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import {
   FileText,
@@ -23,6 +24,7 @@ import { isMp4ViewerEnabled } from '@/lib/features/mp4-viewer'
 import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
 import { filterQuestionnaireImagingAgainstTracker } from '@/lib/imaging/dedupe-imaging-sources'
 import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
+import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 // dwv manipule le DOM + web workers → chargé client-side uniquement, et
@@ -77,8 +79,8 @@ type DocumentsSectionProps = {
 
 type ViewerItem =
   | { kind: 'file'; id: string; doc: PatientDocument }
-  | { kind: 'dicom-series'; id: string; name: string; urls: string[]; firstUrl: string }
-  | { kind: 'dicom-pdf-series'; id: string; name: string; urls: string[]; firstUrl: string }
+  | { kind: 'dicom-series'; id: string; name: string; urls: string[]; firstUrl: string; groupId: string }
+  | { kind: 'dicom-pdf-series'; id: string; name: string; urls: string[]; firstUrl: string; groupId: string }
   | {
       kind: 'questionnaire-file'
       id: string
@@ -86,13 +88,14 @@ type ViewerItem =
       url: string
       renderType: 'image' | 'pdf' | 'dicom' | 'video' | 'other'
     }
-  | { kind: 'questionnaire-dicom-series'; id: string; name: string; urls: string[]; firstUrl: string }
+  | { kind: 'questionnaire-dicom-series'; id: string; name: string; urls: string[]; firstUrl: string; groupId: string }
   | {
       kind: 'questionnaire-dicom-pdf-series'
       id: string
       name: string
       urls: string[]
       firstUrl: string
+      groupId: string
     }
 
 /**
@@ -131,6 +134,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
       name: series.label,
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
+      groupId: series.groupId,
     })
   }
 
@@ -182,6 +186,7 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
       name: series.label,
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
+      groupId: series.groupId,
     })
   }
 
@@ -210,6 +215,9 @@ function findDicomSeriesIndexById(items: ViewerItem[], selectedId: string): numb
 }
 
 export default function DocumentsSection({ patientId, canManage }: DocumentsSectionProps) {
+  const searchParams = useSearchParams()
+  const seriesDeepLink = searchParams.get('series')
+  const deepLinkAppliedRef = useRef(false)
   const [documents, setDocuments] = useState<PatientDocument[]>([])
   const [questionnaireFiles, setQuestionnaireFiles] = useState<QuestionnaireImagingFile[]>([])
   const [listedAtMs, setListedAtMs] = useState<number | null>(null)
@@ -419,6 +427,36 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     const t = window.setTimeout(() => setViewerShellBusy(false), 400)
     return () => window.clearTimeout(t)
   }, [selectedId])
+
+  /** Deep-link `?series=<SeriesInstanceUID|groupId|itemId>` → open viewer once items load. */
+  useEffect(() => {
+    if (deepLinkAppliedRef.current || loading || !seriesDeepLink) return
+    const candidates = items
+      .filter(
+        (item): item is Extract<
+          ViewerItem,
+          | { kind: 'dicom-series' }
+          | { kind: 'dicom-pdf-series' }
+          | { kind: 'questionnaire-dicom-series' }
+          | { kind: 'questionnaire-dicom-pdf-series' }
+        > =>
+          item.kind === 'dicom-series' ||
+          item.kind === 'dicom-pdf-series' ||
+          item.kind === 'questionnaire-dicom-series' ||
+          item.kind === 'questionnaire-dicom-pdf-series',
+      )
+      .map((item) => ({ id: item.id, groupId: item.groupId }))
+    if (candidates.length === 0) return
+    const matchId = resolveSeriesDeepLinkId(seriesDeepLink, candidates)
+    if (!matchId) return
+    deepLinkAppliedRef.current = true
+    void openViewer(matchId)
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById('patient-documents-section')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [loading, seriesDeepLink, items, openViewer])
 
   const selectedItem = selectedId ? resolveItemById(selectedId) : null
   const selectedIndex = selectedId ? items.findIndex((item) => item.id === selectedId) : -1

@@ -31,6 +31,8 @@ const ASSETS_SRC = path.join(SRC, "assets");
 
 const args = process.argv.slice(2);
 const checkOnly = args.includes("--check");
+/** Skip questionnaires pin even if sibling checkout exists (CI / parallel lanes). */
+const trackerOnly = args.includes("--tracker-only");
 const targetIdx = args.indexOf("--target");
 const qRootArg =
   targetIdx >= 0 && args[targetIdx + 1]
@@ -224,7 +226,7 @@ if (checkOnly) {
   const srcHash = hashTree(SRC);
   const trackerAssetCount = checkAssets(TRACKER_ROOT, "tracker");
 
-  if (qExists) {
+  if (qExists && !trackerOnly) {
     if (!existsSync(DEST)) fail(`questionnaires copy missing: ${DEST}`);
     const destVersion = readVersion(DEST);
     if (srcVersion !== destVersion) {
