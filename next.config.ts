@@ -1,24 +1,16 @@
 import type { NextConfig } from "next";
+import { DWV_NEXT_CONFIG_REWRITES } from '@franchir/imaging-viewer/worker-rewrite';
 
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV,
   },
-  transpilePackages: ['@franchir/synthesis-contract'],
-  // dwv (DICOM viewer) charge ses codec web workers depuis `./assets/workers/`.
-  // Fichiers vendored dans `public/dwv-workers/` (JPEG-LS, J2K, etc.).
+  transpilePackages: ['@franchir/synthesis-contract', '@franchir/imaging-viewer'],
+  // dwv workers : rewrites SoT `@franchir/imaging-viewer/worker-rewrite`.
+  // Les chemins sous `/_next/*` restent au middleware (`proxy.ts`).
   async rewrites() {
     return {
-      afterFiles: [
-        {
-          source: '/:prefix*/assets/workers/:file',
-          destination: '/dwv-workers/:file',
-        },
-        {
-          source: '/assets/workers/:file',
-          destination: '/dwv-workers/:file',
-        },
-      ],
+      afterFiles: [...DWV_NEXT_CONFIG_REWRITES],
       beforeFiles: [],
       fallback: [],
     }

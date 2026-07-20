@@ -1,13 +1,19 @@
 import { createServerClient } from '@supabase/ssr'
 import { isStaffProfile } from '@/lib/access-control'
+import {
+  DWV_NEXT_WORKER_MATCHER,
+  DWV_PUBLIC_PATH_PREFIXES,
+  dwvWorkerRewriteTarget,
+} from '@/lib/imaging/dwv-worker-rewrite'
 import { NextResponse, type NextRequest } from 'next/server'
+
+// Re-export pour les tests (lib/proxy.test.ts) — logique SoT package.
+export { dwvWorkerRewriteTarget }
 
 // `/api/integrations` = endpoints machine-à-machine (callback questionnaires →
 // tracker) authentifiés par service-token, SANS session navigateur : ils ne
 // doivent jamais être redirigés vers /login par le middleware d'auth.
-// dwv charge ses codec workers depuis /assets/workers/* (rewrite → /dwv-workers/*).
-// Ces fichiers doivent être publics : sinon le middleware redirige vers /login et
-// les DICOM JPEG Lossless (DICOMOBJ) ne se décodent pas.
+// dwv + OpenJPEG : préfixes publics SoT `@franchir/imaging-viewer/worker-rewrite`.
 // `/api/internal/bridge` = healthcheck pont M2M (Bearer sync/return token),
 // sans session navigateur — même fail-closed que `/api/integrations`.
 const PUBLIC_PATHS = [
@@ -15,8 +21,7 @@ const PUBLIC_PATHS = [
   '/auth',
   '/api/integrations',
   '/api/internal/bridge',
-  '/dwv-workers',
-  '/assets/workers',
+  ...DWV_PUBLIC_PATH_PREFIXES,
 ]
 
 export async function updateSession(request: NextRequest) {
@@ -113,23 +118,8 @@ export async function updateSession(request: NextRequest) {
   }
 }
 
-// dwv 0.36 charge ses codec workers via `new Worker(new URL("./"+i.u(557), i.b))`
-// où `i.b` = import.meta.url du chunk dwv, c.-à-d. `/_next/static/chunks/…`. L'URL
-// résolue est donc `/_next/static/chunks/assets/workers/jpeg2000.worker.min.js`.
-// Les rewrites de next.config NE s'appliquent PAS sous `/_next/*` → le worker
-// renvoyait 404, le décodage JPEG 2000 échouait en silence et le canvas restait
-// noir. Le middleware, lui, peut réécrire les chemins `/_next/*` : on aiguille
-// toute requête `.../assets/workers/<fichier>` vers les workers vendored publics.
-const WORKER_PATH_RE = /\/assets\/workers\/([^/]+)$/
-
-/** Mappe un chemin de worker dwv (`.../assets/workers/<fichier>`) vers le worker
- *  vendored public, ou `null` si le chemin n'en est pas un. Pur → testable. */
-export function dwvWorkerRewriteTarget(pathname: string): string | null {
-  const match = pathname.match(WORKER_PATH_RE)
-  if (!match) return null
-  return `/dwv-workers/${match[1]}`
-}
-
+// Rewrite workers sous `/_next/.../assets/workers/*` → `/dwv-workers/*`
+// (SoT : `@franchir/imaging-viewer/worker-rewrite`). next.config ne couvre pas `/_next/*`.
 function rewriteDwvWorker(request: NextRequest): NextResponse | null {
   const target = dwvWorkerRewriteTarget(request.nextUrl.pathname)
   if (!target) return null
@@ -147,9 +137,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|dwv-workers|assets/workers|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|map)$).*)',
-    // dwv réclame ses workers sous `/_next/static/chunks/assets/workers/*` :
-    // ce matcher additionnel laisse le middleware les réécrire (cf. ci-dessus).
-    '/_next/:path*/assets/workers/:file',
+    '/((?!_next/static|_next/image|favicon.ico|dwv-workers|assets/workers|openjpeg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|map)$).*)',
+    // dwv réclame ses workers sous `/_next/static/chunks/assets/workers/*`.
+    DWV_NEXT_WORKER_MATCHER,
   ],
 }

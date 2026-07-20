@@ -1,8 +1,10 @@
 /**
  * Décodage JPEG 2000 via OpenJPEG (WebAssembly), chargé comme asset
- * `/openjpeg/openjpegjs.js` (pas d'import bundlé — branche Node du glue Emscripten).
+ * public (pas d'import bundlé — branche Node du glue Emscripten).
  * Module client uniquement.
  */
+
+import { OPENJPEG_SCRIPT_URL } from '../../worker-rewrite'
 
 export type DecodedFrame = {
   pixels: Uint16Array | Int16Array | Uint8Array
@@ -29,8 +31,6 @@ type J2KDecoder = {
 
 type OpenJpegModule = { J2KDecoder: new () => J2KDecoder }
 type OpenJpegFactory = (moduleArg?: object) => Promise<OpenJpegModule>
-
-const OPENJPEG_SCRIPT_URL = '/openjpeg/openjpegjs.js'
 
 let modulePromise: Promise<OpenJpegModule> | null = null
 let scriptPromise: Promise<OpenJpegFactory> | null = null

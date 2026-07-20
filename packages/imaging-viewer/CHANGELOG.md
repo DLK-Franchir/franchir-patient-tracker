@@ -1,5 +1,17 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.5.0
+
+- P2.2a : helpers rewrite Next partagés sous
+  `@franchir/imaging-viewer/worker-rewrite` (`dwvWorkerRewriteTarget`,
+  préfixes publics workers + OpenJPEG, matcher middleware,
+  `DWV_NEXT_CONFIG_REWRITES`).
+- Apps = thin adapters (`proxy.ts` / `dwv-worker-rewrite.ts`) ; plus de
+  duplication de la regex rewrite entre tracker et questionnaires.
+- `OPENJPEG_SCRIPT_URL` SoT consommé par le fallback J2K `/ui`.
+- Residual P2.2b+ : listing documents / auth signed URL / golden tour — hors
+  package.
+
 ## 0.4.0
 
 - Extraction P2.1 : host React portable `DicomViewer` sous `/ui` (lifecycle
