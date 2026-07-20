@@ -40,6 +40,11 @@ export type ImagingTelemetryEvent = {
 
 export type ImagingTelemetryHandler = (event: ImagingTelemetryEvent) => void
 
+/** Horloge ms — à appeler hors render (effects / handlers), pas dans useRef(…). */
+export function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
 const NAME_SET = new Set<string>(IMAGING_TELEMETRY_EVENT_NAMES)
 
 const REASON_RE = /^[a-z][a-z0-9_]{0,63}$/
