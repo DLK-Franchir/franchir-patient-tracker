@@ -1,5 +1,6 @@
 /**
- * Classification DICOM (image vs PDF encapsulé) et extraction du flux PDF.
+ * Classification DICOM (image vs PDF encapsulé) et métadonnées persistées.
+ * Extract PDF encapsulé : SoT `@franchir/imaging-viewer`.
  */
 
 import {
@@ -12,18 +13,26 @@ import {
   ENCAPSULATED_PDF_BAND_MAX_BYTES,
   isLikelyEncapsulatedPdfBand,
 } from '@franchir/imaging'
+import {
+  ENCAPSULATED_PDF_SOP_CLASS,
+  classifyDicomContentFromHeader,
+  extractEncapsulatedPdf,
+  fetchEncapsulatedPdfBlobUrl,
+  type DicomContentKind,
+} from '@franchir/imaging-viewer'
 
 export { ENCAPSULATED_PDF_BAND_MAX_BYTES, isLikelyEncapsulatedPdfBand }
-
-export type DicomContentKind = 'image' | 'encapsulated-pdf' | 'unknown'
-
-/** SOP Class UID — Encapsulated PDF Storage. */
-export const ENCAPSULATED_PDF_SOP_CLASS = '1.2.840.10008.5.1.4.1.1.104.1'
+export {
+  ENCAPSULATED_PDF_SOP_CLASS,
+  classifyDicomContentFromHeader,
+  extractEncapsulatedPdf,
+  fetchEncapsulatedPdfBlobUrl,
+  type DicomContentKind,
+}
 
 const TAG_SOP_CLASS_UID = 0x00160008
 const TAG_MODALITY = 0x00600008
 const TAG_MIME_TYPE = 0x00120042
-const TAG_ENCAPSULATED_DOCUMENT = 0x00110042
 
 // Tags encodés `group | (element << 16)` (cf. readTag).
 const TAG_SOP_INSTANCE_UID = 0x00180008 // (0008,0018)
@@ -236,19 +245,6 @@ export function extractDicomPersistedMetadata(
   }
 }
 
-export function classifyDicomContentFromHeader(info: {
-  modality: string | null
-  sopClassUid: string | null
-  mimeType: string | null
-}): DicomContentKind {
-  if (info.sopClassUid === ENCAPSULATED_PDF_SOP_CLASS) return 'encapsulated-pdf'
-  if (info.modality === 'DOC') return 'encapsulated-pdf'
-  if (info.mimeType?.toLowerCase().includes('pdf')) return 'encapsulated-pdf'
-  if (info.modality && info.modality !== 'DOC') return 'image'
-  if (info.sopClassUid?.includes('1.1.7') || info.sopClassUid?.includes('1.1.2')) return 'image'
-  return 'unknown'
-}
-
 export function parseDicomContentInfo(bytes: ArrayBuffer | Uint8Array): DicomContentInfo | null {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
 
@@ -347,64 +343,4 @@ export function parseDicomContentInfo(bytes: ArrayBuffer | Uint8Array): DicomCon
 
   info.contentKind = classifyDicomContentFromHeader(info)
   return info
-}
-
-/** Extrait le PDF encapsulé (0042,0011). Pour les petits DOC le scan couvre tout le fichier. */
-export function extractEncapsulatedPdf(bytes: ArrayBuffer | Uint8Array): Uint8Array | null {
-  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-
-  let offset = 0
-  let transferSyntax = EXPLICIT_VR_LITTLE_ENDIAN
-  let inMeta = false
-
-  if (hasDicomPreamble(view)) {
-    offset = 132
-    inMeta = true
-  } else if (!hasLikelyRawDicomStructure(view)) {
-    return null
-  }
-
-  const scanLimit = view.length
-
-  while (offset + 8 <= scanLimit) {
-    const implicit = inMeta ? false : isImplicitVrTransferSyntax(transferSyntax)
-    const parsed = readTag(view, offset, implicit)
-    if (!parsed || parsed.valueLength < 0 || parsed.nextOffset <= offset) break
-
-    if (inMeta) {
-      if ((parsed.tag & 0xffff) !== 0x0002) {
-        inMeta = false
-        continue
-      }
-      if (parsed.tag === 0x00100002) {
-        transferSyntax = readUidValue(view, parsed.valueOffset, parsed.valueLength)
-      }
-    } else if (parsed.tag === TAG_ENCAPSULATED_DOCUMENT) {
-      const slice = view.subarray(parsed.valueOffset, parsed.valueOffset + parsed.valueLength)
-      if (slice.length >= 4 && slice[0] === 0x25 && slice[1] === 0x50 && slice[2] === 0x44 && slice[3] === 0x46) {
-        return slice
-      }
-      return slice.length > 0 ? slice : null
-    }
-
-    offset = parsed.nextOffset
-  }
-
-  return null
-}
-
-export async function fetchEncapsulatedPdfBlobUrl(signedUrl: string): Promise<string> {
-  const response = await fetch(signedUrl)
-  if (!response.ok) {
-    throw new Error('Impossible de telecharger le DICOM PDF encapsule')
-  }
-  const buffer = await response.arrayBuffer()
-  const pdfBytes = extractEncapsulatedPdf(buffer)
-  if (!pdfBytes || pdfBytes.length === 0) {
-    throw new Error('PDF encapsule introuvable dans le DICOM')
-  }
-  const copy = new Uint8Array(pdfBytes.byteLength)
-  copy.set(pdfBytes)
-  const blob = new Blob([copy], { type: 'application/pdf' })
-  return URL.createObjectURL(blob)
 }

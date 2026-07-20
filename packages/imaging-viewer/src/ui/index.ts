@@ -1,5 +1,5 @@
 /**
- * @franchir/imaging-viewer/ui — shell React partagé (chrome + fallback OpenJPEG).
+ * @franchir/imaging-viewer/ui — shell React + host dwv + PDF DOC + fallback OpenJPEG.
  * Import client-only. Barrel `.` et `/engine` restent sans ce chrome.
  */
 
@@ -28,6 +28,12 @@ export {
   DicomJpeg2000FallbackViewer,
   type DicomJpeg2000FallbackViewerProps,
 } from './jpeg2000-fallback-viewer'
+export {
+  DicomEncapsulatedPdfViewer,
+  type DicomEncapsulatedPdfViewerProps,
+} from './dicom-encapsulated-pdf-viewer'
+export { DicomViewer, type DicomViewerProps } from './dicom-viewer'
+export { useDwvViewportResize } from './use-dwv-viewport-resize'
 
 export {
   autoWindowLevel,

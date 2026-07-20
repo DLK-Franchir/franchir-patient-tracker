@@ -1,7 +1,7 @@
 /**
  * Contrat public visionneuse — types stables pour tracker + questionnaires.
  * Orchestration dwv (stack/pool/sequential) : `/engine` (P1).
- * Chrome React (toolbar, overlays, fallback OpenJPEG) : `/ui` (P2).
+ * Host React + chrome + PDF DOC + fallback OpenJPEG : `/ui` (P2 / P2.1).
  */
 
 /** Une série affichable (URLs signées déjà résolues). */

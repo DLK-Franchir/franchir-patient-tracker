@@ -1,5 +1,16 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.4.0
+
+- Extraction P2.1 : host React portable `DicomViewer` sous `/ui` (lifecycle
+  stack/pool + chrome + `useDwvViewportResize`).
+- Viewer PDF encapsulé DOC partagé : `DicomEncapsulatedPdfViewer` + helpers
+  purs `extractEncapsulatedPdf` / `fetchEncapsulatedPdfBlobUrl` /
+  `classifyDicomContentFromHeader` (barrel `.`, sans React).
+- Apps = adapters minces (dynamic import, auth, URLs signées).
+- Residual P2.2 : rewrite workers Next (`proxy.ts`), listing documents /
+  grouping wiring, auth boundaries — hors package.
+
 ## 0.3.0
 
 - Extraction P2 : shell React partagé sous `@franchir/imaging-viewer/ui`

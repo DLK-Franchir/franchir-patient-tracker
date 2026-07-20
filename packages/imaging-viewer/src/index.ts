@@ -1,7 +1,7 @@
 /**
  * @franchir/imaging-viewer — contrat + policy (sans dwv / sans React UI).
  * Engine dwv : `@franchir/imaging-viewer/engine`.
- * Shell React + fallback OpenJPEG : `@franchir/imaging-viewer/ui`.
+ * Host React + chrome + PDF DOC + fallback OpenJPEG : `@franchir/imaging-viewer/ui`.
  * SoT = franchir-patient-tracker. Sync → questionnaires via `npm run imaging-viewer:sync`.
  */
 
@@ -59,3 +59,11 @@ export {
 } from './layout'
 
 export { hasPixelSignal } from './pixel-signal'
+
+export {
+  ENCAPSULATED_PDF_SOP_CLASS,
+  classifyDicomContentFromHeader,
+  extractEncapsulatedPdf,
+  fetchEncapsulatedPdfBlobUrl,
+  type DicomContentKind,
+} from './encapsulated-pdf'

@@ -31,6 +31,10 @@ const REQUIRED_EXPORTS = [
   'scheduleLayoutRetries',
   'setPoolContainerVisible',
   'shouldPumpParallelLoads',
+  'ENCAPSULATED_PDF_SOP_CLASS',
+  'classifyDicomContentFromHeader',
+  'extractEncapsulatedPdf',
+  'fetchEncapsulatedPdfBlobUrl',
 ] as const
 
 const REQUIRED_ENGINE_EXPORTS = [
@@ -47,12 +51,15 @@ const REQUIRED_ENGINE_EXPORTS = [
 ] as const
 
 const REQUIRED_UI_EXPORTS = [
+  'DicomViewer',
+  'DicomEncapsulatedPdfViewer',
   'DicomJpeg2000FallbackViewer',
   'DicomSeriesHeader',
   'DicomViewerToolbar',
   'DicomViewportErrorOverlay',
   'DicomViewportLoadingOverlay',
   'ViewerInfoBubble',
+  'useDwvViewportResize',
   'viewportLoadingMessage',
   'viewerToolHint',
   'viewerMobileHint',
