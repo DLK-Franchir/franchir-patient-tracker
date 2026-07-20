@@ -64,7 +64,8 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 | **P2.1** | done (0.4.0) | Host `DicomViewer` + PDF DOC sous `/ui` ; residual app = auth/URLs/workers rewrite (P2.2) |
 | **P3a** | done (0.6.0) | Télémétrie produit non-PHI |
 | **P4** | done (0.7.0) | Capabilities flags (openjpeg / pdf / mp4) + adapters allégés |
-| **P4∥** | sibling | Export / ZIP DICOM — ne pas mélanger |
+| **P4∥ / P4+** | done (0.8–0.9.x) | Export ZIP chrome + grid card-actions |
+| **P5** | done (0.10.0) | `dicom_export` telemetry ; apps plan + study ZIP multi-parties |
 
 ## Workflow quand invoqué
 

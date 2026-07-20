@@ -11,6 +11,8 @@ export const IMAGING_TELEMETRY_EVENT_NAMES = [
   'ready_without_pixels',
   'series_open_ms',
   'worker_asset_fail',
+  /** Export ZIP série / étude (adapters app ; pas de PHI / pas d’URL). */
+  'dicom_export',
 ] as const
 
 export type ImagingTelemetryEventName = (typeof IMAGING_TELEMETRY_EVENT_NAMES)[number]

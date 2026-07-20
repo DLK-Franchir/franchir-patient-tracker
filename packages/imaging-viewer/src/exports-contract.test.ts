@@ -52,6 +52,7 @@ const REQUIRED_EXPORTS = [
   'isImagingTelemetryEvent',
   'isImagingTelemetryEventName',
   'looksLikeWorkerAssetFailure',
+  'nowMs',
 ] as const
 
 const REQUIRED_ENGINE_EXPORTS = [

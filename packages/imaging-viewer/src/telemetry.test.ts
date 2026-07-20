@@ -10,9 +10,10 @@ import {
 } from './telemetry'
 
 describe('imaging telemetry event shapes', () => {
-  it('expose les 5 noms produit stables', () => {
+  it('expose les noms produit stables', () => {
     expect([...IMAGING_TELEMETRY_EVENT_NAMES].sort()).toEqual(
       [
+        'dicom_export',
         'openjpeg_fallback',
         'ready_without_pixels',
         'series_open_ms',
@@ -20,6 +21,18 @@ describe('imaging telemetry event shapes', () => {
         'worker_asset_fail',
       ].sort(),
     )
+  })
+
+  it('valide dicom_export (download) sans PHI', () => {
+    expect(
+      isImagingTelemetryEvent({
+        name: 'dicom_export',
+        durationMs: 4200,
+        fileCount: 900,
+        outcome: 'ready',
+        reason: 'study_chunked',
+      }),
+    ).toBe(true)
   })
 
   it('valide un événement TTFP complet', () => {

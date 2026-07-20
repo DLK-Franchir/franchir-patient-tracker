@@ -23,6 +23,7 @@ apps forward to existing analytics (gtag / plausible).
 | `openjpeg_fallback` | dwv unsupported JPEG 2000 → app switches to OpenJPEG | `reason=unsupported_j2k` |
 | `ready_without_pixels` | Geometry present, pixel buffer empty/uniform (blank canvas gate) | `reason=empty_pixel_buffer` |
 | `worker_asset_fail` | Load error looks like worker script failure | `reason=worker_script` |
+| `dicom_export` | ZIP série / étude (single ou multi-parties) | `duration_ms`, `file_count`, `outcome`, `reason` (`series`, `study_single`, `study_chunked`, `*_fail`) |
 
 Analytics event name in apps: `imaging_<name>` (e.g. `imaging_time_to_first_paint`).
 

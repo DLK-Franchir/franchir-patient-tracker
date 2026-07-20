@@ -213,36 +213,183 @@ export function resolveSeriesExport(
   }
 }
 
+type ImageExportGroup = {
+  groupId: string
+  label: string
+  isEncapsulatedPdf: boolean
+  files: ExportableFile[]
+}
+
+function listImageExportGroups(rows: DicomExportRow[]): ImageExportGroup[] {
+  const exportable = toExportable(rows)
+  if (exportable.length === 0) return []
+  return groupDicomFilesByMetadata(exportable).filter((g) => !g.isEncapsulatedPdf)
+}
+
+function groupFileStats(group: ImageExportGroup): { fileCount: number; totalBytes: number } {
+  const fileCount = group.files.length
+  const totalBytes = group.files.reduce((sum, f) => sum + f.sizeBytes, 0)
+  return { fileCount, totalBytes }
+}
+
+/**
+ * Empaquette les séries image en parties ZIP (greedy) sous les plafonds sync.
+ * Une série seule peut dépasser le plafond étude → partie mono-série (plafond série).
+ */
+export function buildStudyExportParts(rows: DicomExportRow[]): ResolvedDicomExport[] {
+  const groups = listImageExportGroups(rows)
+  if (groups.length === 0) return []
+
+  const parts: ResolvedDicomExport[] = []
+  let batch: ImageExportGroup[] = []
+  let batchFiles = 0
+  let batchBytes = 0
+
+  const flush = () => {
+    if (batch.length === 0) return
+    const { entries, seriesCount } = buildZipEntriesForGroups(batch, {
+      excludeEncapsulatedPdf: true,
+    })
+    const totalBytes = entries.reduce((sum, e) => sum + e.sizeBytes, 0)
+    parts.push({
+      entries,
+      fileCount: entries.length,
+      totalBytes,
+      seriesCount,
+      seriesUidHash: null,
+      groupId: `study-part-${parts.length}`,
+      exportKind: 'study',
+    })
+    batch = []
+    batchFiles = 0
+    batchBytes = 0
+  }
+
+  for (const group of groups) {
+    const { fileCount, totalBytes } = groupFileStats(group)
+    const wouldExceed =
+      batch.length > 0 &&
+      (batchFiles + fileCount > MAX_STUDY_EXPORT_FILES ||
+        batchBytes + totalBytes > MAX_STUDY_EXPORT_BYTES)
+
+    if (wouldExceed) flush()
+
+    batch.push(group)
+    batchFiles += fileCount
+    batchBytes += totalBytes
+
+    // Série seule au-delà du plafond étude : flush immédiat (export partie mono-série).
+    if (
+      batch.length === 1 &&
+      (batchFiles > MAX_STUDY_EXPORT_FILES || batchBytes > MAX_STUDY_EXPORT_BYTES)
+    ) {
+      flush()
+    }
+  }
+  flush()
+
+  if (parts.length === 1 && parts[0]) {
+    parts[0].groupId = 'study'
+  }
+  return parts
+}
+
+export type StudyExportPlanPart = {
+  index: number
+  fileCount: number
+  seriesCount: number
+  totalBytes: number
+}
+
+export type StudyExportPlan =
+  | {
+      mode: 'single'
+      fileCount: number
+      seriesCount: number
+      totalBytes: number
+      partCount: 1
+    }
+  | {
+      mode: 'chunked'
+      fileCount: number
+      seriesCount: number
+      totalBytes: number
+      partCount: number
+      maxFiles: number
+      parts: StudyExportPlanPart[]
+    }
+  | { error: 'empty' }
+
+/** Plan d'export étude : sync unique ou multi-parties (Fatima-scale). */
+export function planStudyExport(rows: DicomExportRow[]): StudyExportPlan {
+  const parts = buildStudyExportParts(rows)
+  if (parts.length === 0) return { error: 'empty' }
+
+  const fileCount = parts.reduce((sum, p) => sum + p.fileCount, 0)
+  const totalBytes = parts.reduce((sum, p) => sum + p.totalBytes, 0)
+  const seriesCount = parts.reduce((sum, p) => sum + p.seriesCount, 0)
+
+  if (parts.length === 1) {
+    const only = parts[0]!
+    if (only.fileCount <= MAX_STUDY_EXPORT_FILES && only.totalBytes <= MAX_STUDY_EXPORT_BYTES) {
+      return {
+        mode: 'single',
+        fileCount: only.fileCount,
+        seriesCount: only.seriesCount,
+        totalBytes: only.totalBytes,
+        partCount: 1,
+      }
+    }
+  }
+
+  return {
+    mode: 'chunked',
+    fileCount,
+    seriesCount,
+    totalBytes,
+    partCount: parts.length,
+    maxFiles: MAX_STUDY_EXPORT_FILES,
+    parts: parts.map((p, index) => ({
+      index,
+      fileCount: p.fileCount,
+      seriesCount: p.seriesCount,
+      totalBytes: p.totalBytes,
+    })),
+  }
+}
+
+/**
+ * Résout une partie d'export étude (partIndex 0 = première / unique).
+ */
+export function resolveStudyExportPart(
+  rows: DicomExportRow[],
+  partIndex = 0,
+): ResolvedDicomExport | { error: 'empty' | 'part_out_of_range'; partCount?: number } {
+  const parts = buildStudyExportParts(rows)
+  if (parts.length === 0) return { error: 'empty' }
+  if (!Number.isInteger(partIndex) || partIndex < 0 || partIndex >= parts.length) {
+    return { error: 'part_out_of_range', partCount: parts.length }
+  }
+  return parts[partIndex]!
+}
+
 /**
  * Résout toutes les séries image (exclut DOC PDF encapsulé).
+ * Si trop volumineux → `too_large` (+ plan multi-parties via `planStudyExport`).
  */
 export function resolveStudyExport(
   rows: DicomExportRow[],
 ): ResolvedDicomExport | { error: 'empty' | 'too_large'; fileCount?: number; totalBytes?: number } {
-  const exportable = toExportable(rows)
-  if (exportable.length === 0) return { error: 'empty' }
+  const plan = planStudyExport(rows)
+  if ('error' in plan) return { error: 'empty' }
 
-  const groups = groupDicomFilesByMetadata(exportable)
-  const { entries, seriesCount } = buildZipEntriesForGroups(groups, {
-    excludeEncapsulatedPdf: true,
-  })
-
-  if (entries.length === 0) return { error: 'empty' }
-
-  const totalBytes = entries.reduce((sum, e) => sum + e.sizeBytes, 0)
-  if (entries.length > MAX_STUDY_EXPORT_FILES || totalBytes > MAX_STUDY_EXPORT_BYTES) {
-    return { error: 'too_large', fileCount: entries.length, totalBytes }
+  if (plan.mode === 'chunked') {
+    return { error: 'too_large', fileCount: plan.fileCount, totalBytes: plan.totalBytes }
   }
 
-  return {
-    entries,
-    fileCount: entries.length,
-    totalBytes,
-    seriesCount,
-    seriesUidHash: null,
-    groupId: 'study',
-    exportKind: 'study',
-  }
+  const part = resolveStudyExportPart(rows, 0)
+  if ('error' in part) return { error: 'empty' }
+  return part
 }
 
 /** Charge les lignes DICOM patient (chemins Storage, sans URLs signées). */
