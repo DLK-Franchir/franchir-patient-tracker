@@ -17,6 +17,7 @@
 - **Contrat synthèse (P1)** : `packages/synthesis-contract` vendored — ne pas éditer ici ; sync depuis Q (`npm run contract:sync`)
 - **Imagerie grouping (P0)** : `packages/imaging` (`@franchir/imaging`) — **SoT = ce repo** ; après edit : `npm run imaging:sync` → questionnaires ; CI `imaging:check`
 - **Visionneuse produit (P2.1 / 0.4.0)** : `packages/imaging-viewer` (`@franchir/imaging-viewer`) — contrat + policy + engine + `/ui` (host `DicomViewer`, chrome, PDF DOC, fallback OpenJPEG) + assets codec ; **SoT = ce repo** ; `npm run imaging-viewer:sync` / `imaging-viewer:check` ; residual app = auth / URLs / rewrite workers (P2.2)
+- **Adapters listing / signed URLs (P2.2b)** : `docs/ops/IMAGING_ADAPTERS.md` — soft-refresh TTL, fast-open, DOC PDF routing, pas d’enrich Range×N au clic
 - Docs ops / matrice / blueprint : **repo questionnaires**
 - Agent pont : `.cursor/agents/franchir-anamneze-bridge.md`
 - Agent imaging : `.cursor/agents/franchir-imaging.md` — DICOM viewer / packages imaging* / sync / parité Marcel↔clinicien
