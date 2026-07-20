@@ -5,17 +5,22 @@
 export type ExportProgressLike = {
   completed: number
   total: number
-  mode: 'single' | 'chunked'
+  /** `async` = job Storage P7 (même UX multi-lots que chunked). */
+  mode: 'single' | 'chunked' | 'async'
 }
 
-/** Message pendant un export étude (plan + ZIP ou lots). */
+/** Message pendant un export étude (plan + ZIP ou lots / async). */
 export function studyDownloadProgressMessage(progress: ExportProgressLike): string {
   const { completed, total, mode } = progress
-  if (mode === 'chunked' && total > 1) {
+  if ((mode === 'chunked' || mode === 'async') && total > 1) {
     if (completed === 0) {
-      return `Étude volumineuse : préparation de ${total} fichiers ZIP…`
+      return mode === 'async'
+        ? `Étude volumineuse : préparation durable de ${total} fichiers ZIP…`
+        : `Étude volumineuse : préparation de ${total} fichiers ZIP…`
     }
-    return `Téléchargement de l'étude — lot ${completed}/${total}…`
+    return mode === 'async'
+      ? `Préparation de l'étude — lot ${completed}/${total}…`
+      : `Téléchargement de l'étude — lot ${completed}/${total}…`
   }
   if (completed === 0) return "Préparation du téléchargement de l'étude…"
   return "Téléchargement de l'étude en cours…"

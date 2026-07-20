@@ -28,6 +28,23 @@ export const MAX_STUDY_EXPORT_FILES = 400
 /** Estimation octets max pour une étude sync (~1.5 Go soft). */
 export const MAX_STUDY_EXPORT_BYTES = 1_500_000_000
 
+/**
+ * Plafonds parties **async** (P7) — plus petits que le sync pour tenir
+ * maxDuration + mémoire serverless, puis ZIP matérialisé en Storage.
+ */
+export const MAX_ASYNC_PART_FILES = 80
+
+/** Soft cap octets bruts DCM par partie async (~90 Mo). */
+export const MAX_ASYNC_PART_BYTES = 90_000_000
+
+/** Au-delà de ce nombre de parties sync → préférer le job async Storage. */
+export const ASYNC_EXPORT_RECOMMEND_MIN_PARTS = 2
+
+export type StudyExportPartLimits = {
+  maxFiles: number
+  maxBytes: number
+}
+
 export type DicomExportRow = {
   id: string
   filePath: string
@@ -233,10 +250,16 @@ function groupFileStats(group: ImageExportGroup): { fileCount: number; totalByte
 }
 
 /**
- * Empaquette les séries image en parties ZIP (greedy) sous les plafonds sync.
- * Une série seule peut dépasser le plafond étude → partie mono-série (plafond série).
+ * Empaquette les séries image en parties ZIP (greedy) sous les plafonds donnés.
+ * Une série seule peut dépasser le plafond → partie mono-série.
  */
-export function buildStudyExportParts(rows: DicomExportRow[]): ResolvedDicomExport[] {
+export function buildStudyExportParts(
+  rows: DicomExportRow[],
+  limits: StudyExportPartLimits = {
+    maxFiles: MAX_STUDY_EXPORT_FILES,
+    maxBytes: MAX_STUDY_EXPORT_BYTES,
+  },
+): ResolvedDicomExport[] {
   const groups = listImageExportGroups(rows)
   if (groups.length === 0) return []
 
@@ -269,8 +292,7 @@ export function buildStudyExportParts(rows: DicomExportRow[]): ResolvedDicomExpo
     const { fileCount, totalBytes } = groupFileStats(group)
     const wouldExceed =
       batch.length > 0 &&
-      (batchFiles + fileCount > MAX_STUDY_EXPORT_FILES ||
-        batchBytes + totalBytes > MAX_STUDY_EXPORT_BYTES)
+      (batchFiles + fileCount > limits.maxFiles || batchBytes + totalBytes > limits.maxBytes)
 
     if (wouldExceed) flush()
 
@@ -278,11 +300,8 @@ export function buildStudyExportParts(rows: DicomExportRow[]): ResolvedDicomExpo
     batchFiles += fileCount
     batchBytes += totalBytes
 
-    // Série seule au-delà du plafond étude : flush immédiat (export partie mono-série).
-    if (
-      batch.length === 1 &&
-      (batchFiles > MAX_STUDY_EXPORT_FILES || batchBytes > MAX_STUDY_EXPORT_BYTES)
-    ) {
+    // Série seule au-delà du plafond : flush immédiat (export partie mono-série).
+    if (batch.length === 1 && (batchFiles > limits.maxFiles || batchBytes > limits.maxBytes)) {
       flush()
     }
   }
@@ -292,6 +311,14 @@ export function buildStudyExportParts(rows: DicomExportRow[]): ResolvedDicomExpo
     parts[0].groupId = 'study'
   }
   return parts
+}
+
+/** Parties pour job async Storage (plafonds plus serrés, Vercel-safe). */
+export function buildAsyncStudyExportParts(rows: DicomExportRow[]): ResolvedDicomExport[] {
+  return buildStudyExportParts(rows, {
+    maxFiles: MAX_ASYNC_PART_FILES,
+    maxBytes: MAX_ASYNC_PART_BYTES,
+  })
 }
 
 export type StudyExportPlanPart = {
@@ -308,6 +335,8 @@ export type StudyExportPlan =
       seriesCount: number
       totalBytes: number
       partCount: 1
+      /** Toujours false en single — sync stream suffit. */
+      recommendAsync: false
     }
   | {
       mode: 'chunked'
@@ -317,6 +346,13 @@ export type StudyExportPlan =
       partCount: number
       maxFiles: number
       parts: StudyExportPlanPart[]
+      /**
+       * true quand Fatima-scale : préférer job Storage (P7) plutôt que
+       * multi-stream sync longs.
+       */
+      recommendAsync: boolean
+      /** Nombre de parties si découpe async (plafonds plus serrés). */
+      asyncPartCount: number
     }
   | { error: 'empty' }
 
@@ -338,9 +374,13 @@ export function planStudyExport(rows: DicomExportRow[]): StudyExportPlan {
         seriesCount: only.seriesCount,
         totalBytes: only.totalBytes,
         partCount: 1,
+        recommendAsync: false,
       }
     }
   }
+
+  const asyncParts = buildAsyncStudyExportParts(rows)
+  const recommendAsync = parts.length >= ASYNC_EXPORT_RECOMMEND_MIN_PARTS
 
   return {
     mode: 'chunked',
@@ -355,6 +395,8 @@ export function planStudyExport(rows: DicomExportRow[]): StudyExportPlan {
       seriesCount: p.seriesCount,
       totalBytes: p.totalBytes,
     })),
+    recommendAsync,
+    asyncPartCount: asyncParts.length,
   }
 }
 
@@ -476,4 +518,23 @@ export function dicomZipResponseHeaders(filename: string): HeadersInit {
     'Content-Disposition': `attachment; filename="${safe}.zip"`,
     'Cache-Control': 'no-store',
   }
+}
+
+/**
+ * Matérialise un ZIP en Buffer (parties async sous plafond mémoire).
+ * Réutilise le même packing store que le stream sync.
+ */
+export async function bufferDicomZip(
+  entries: DicomExportZipEntry[],
+  download: DownloadStorageObject,
+): Promise<Buffer> {
+  const stream = streamDicomZip(entries, download)
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) chunks.push(value)
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)))
 }

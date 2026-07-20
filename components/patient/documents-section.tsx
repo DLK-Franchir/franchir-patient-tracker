@@ -41,6 +41,7 @@ import {
   downloadSeriesDicomExport,
   downloadStudyDicomExport,
   seriesExportZipUrl,
+  studyExportAsyncUrls,
   studyExportPlanUrl,
   studyExportZipUrl,
 } from '@/lib/imaging/trigger-dicom-zip-download'
@@ -520,12 +521,16 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       const result = await downloadStudyDicomExport({
         planUrl: studyExportPlanUrl(patientId),
         studyZipUrl: (partIndex) => studyExportZipUrl(patientId, partIndex),
+        asyncUrls: studyExportAsyncUrls(patientId),
         onProgress: setDownloadProgress,
         onTelemetry: reportImagingTelemetry,
       })
       if (!result.ok) {
         alert(result.message)
-      } else if (result.mode === 'chunked' && (result.partCount ?? 0) > 1) {
+      } else if (
+        (result.mode === 'chunked' || result.mode === 'async') &&
+        (result.partCount ?? 0) > 1
+      ) {
         alert(studyChunkedSuccessMessage(result.partCount ?? 0))
       }
     } finally {

@@ -42,7 +42,7 @@ export function ImagingDownloadStatus({
   const showParts =
     scope === 'study' &&
     progress &&
-    progress.mode === 'chunked' &&
+    (progress.mode === 'chunked' || progress.mode === 'async') &&
     progress.total > 1 &&
     progress.completed > 0
 
