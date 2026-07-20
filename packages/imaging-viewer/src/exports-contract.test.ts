@@ -15,24 +15,34 @@ const REQUIRED_EXPORTS = [
   'STACK_PROGRESS_FALLBACK_MS',
   'STACK_RENDER_READY_MS',
   'WL_PRESETS',
+  'addWindowLevelPresets',
   'clearLayoutTimers',
+  'createDwvApp',
+  'destroyDwvApp',
   'ensureDwvVisible',
   'formatDicomLoadError',
   'hasPixelSignal',
+  'hasRenderableImage',
   'isStackOrientationMismatch',
   'isUnsupportedJpeg2000Error',
   'nextLayerGroupId',
   'nextPoolLoadIndex',
   'orientationFallbackMessage',
+  'readSliceCount',
+  'readSliceIndex',
   'refreshDwvLayout',
   'resolveViewerInfoKind',
   'scheduleLayoutRetries',
   'setPoolContainerVisible',
   'shouldPumpParallelLoads',
+  'useDicomSequentialNavigation',
+  'useDicomSequentialPool',
+  'useDicomStackMode',
+  'waitForRenderableImage',
 ] as const
 
 describe('@franchir/imaging-viewer exports contract', () => {
-  it('expose la surface P0 attendue', () => {
+  it('expose la surface P1 attendue', () => {
     for (const key of REQUIRED_EXPORTS) {
       expect(pkg, key).toHaveProperty(key)
     }

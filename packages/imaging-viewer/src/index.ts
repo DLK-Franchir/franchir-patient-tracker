@@ -1,5 +1,5 @@
 /**
- * @franchir/imaging-viewer — contrat + policy + helpers purs visionneuse DICOM.
+ * @franchir/imaging-viewer — contrat + policy + orchestration dwv partagée.
  * SoT = franchir-patient-tracker. Sync → questionnaires via `npm run imaging-viewer:sync`.
  */
 
@@ -57,3 +57,17 @@ export {
 } from './layout'
 
 export { hasPixelSignal } from './pixel-signal'
+
+export {
+  addWindowLevelPresets,
+  createDwvApp,
+  destroyDwvApp,
+  hasRenderableImage,
+  readSliceCount,
+  readSliceIndex,
+  waitForRenderableImage,
+} from './dwv-app'
+
+export { useDicomStackMode, type StackModeParams } from './stack'
+export { useDicomSequentialPool, type PoolModeParams } from './pool'
+export { useDicomSequentialNavigation, type SequentialNavParams } from './sequential'

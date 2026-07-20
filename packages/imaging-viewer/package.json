@@ -1,10 +1,15 @@
 {
   "name": "@franchir/imaging-viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Shared DICOM viewer contract, codec/UX policy, and pure engine helpers — SoT = franchir-patient-tracker, vendored into questionnaires",
+  "description": "Shared DICOM viewer contract, policy, dwv orchestration, and codec assets — SoT = franchir-patient-tracker, vendored into questionnaires",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "dwv": "^0.36.0",
+    "react": ">=18",
+    "react-dom": ">=18"
   }
 }
