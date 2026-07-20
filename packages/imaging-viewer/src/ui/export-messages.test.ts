@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   seriesDownloadProgressMessage,
+  studyAsyncExpiredMessage,
   studyChunkedSuccessMessage,
   studyDownloadProgressMessage,
   studyTooLargeFallbackMessage,
@@ -41,5 +42,10 @@ describe('export-messages', () => {
 
   it('fournit un fallback study_too_large', () => {
     expect(studyTooLargeFallbackMessage()).toMatch(/lots/)
+  })
+
+  it('explique un job async expire', () => {
+    expect(studyAsyncExpiredMessage()).toMatch(/expiré/)
+    expect(studyAsyncExpiredMessage()).toMatch(/2 h/)
   })
 })

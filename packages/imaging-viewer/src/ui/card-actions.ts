@@ -26,6 +26,7 @@ export {
 } from './imaging-download-status'
 export {
   seriesDownloadProgressMessage,
+  studyAsyncExpiredMessage,
   studyChunkedSuccessMessage,
   studyDownloadProgressMessage,
   studyTooLargeFallbackMessage,

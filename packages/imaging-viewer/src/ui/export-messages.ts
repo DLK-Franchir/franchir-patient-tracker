@@ -53,3 +53,8 @@ export function studyTooLargeFallbackMessage(): string {
     'Téléchargement par lots (plusieurs ZIP)…'
   )
 }
+
+/** Message 410 job async expiré (TTL Storage 2 h). */
+export function studyAsyncExpiredMessage(): string {
+  return "L'export a expiré (délai 2 h). Relancez le téléchargement de l'étude."
+}

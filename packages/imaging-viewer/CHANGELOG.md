@@ -1,6 +1,13 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.13.1
+
+- P7 residual polish (lane A) :
+  - `studyAsyncExpiredMessage()` (410 / TTL 2 h)
+  - `ImagingDownloadStatus` : barre dès le début multi-lots (async / chunked)
+
 ## 0.13.0
+
 
 - P7 (apps + docs package) :
   - Export étude **async durable** — job Storage + poll/build + signed URL TTL

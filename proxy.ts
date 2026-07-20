@@ -14,12 +14,14 @@ export { dwvWorkerRewriteTarget }
 // doivent jamais être redirigés vers /login par le middleware d'auth.
 // dwv + OpenJPEG : préfixes publics SoT `@franchir/imaging-viewer/worker-rewrite`.
 // `/api/internal/bridge` = healthcheck pont M2M (Bearer sync/return token),
-// sans session navigateur — même fail-closed que `/api/integrations`.
+// `/api/internal/imaging` = ops Imaging (Bearer sync / CRON_SECRET) — cleanup
+// async exports, telemetry-summary, backfill. Auth dans la route (fail-closed).
 const PUBLIC_PATHS = [
   '/login',
   '/auth',
   '/api/integrations',
   '/api/internal/bridge',
+  '/api/internal/imaging',
   ...DWV_PUBLIC_PATH_PREFIXES,
 ]
 

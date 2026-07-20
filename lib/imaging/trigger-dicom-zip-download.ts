@@ -22,7 +22,10 @@ type SyncExportReason = Extract<
   | 'study_plan_fail'
   | 'study_download_fail'
 >
-import { studyTooLargeFallbackMessage } from '@franchir/imaging-viewer/ui/card-actions'
+import {
+  studyAsyncExpiredMessage,
+  studyTooLargeFallbackMessage,
+} from '@franchir/imaging-viewer/ui/card-actions'
 
 export type DicomZipDownloadResult =
   | { ok: true; mode?: 'single' | 'chunked' | 'async'; partCount?: number }
@@ -59,6 +62,7 @@ type AsyncJobPublic = {
 }
 
 const STUDY_TOO_LARGE_MSG = studyTooLargeFallbackMessage()
+const STUDY_ASYNC_EXPIRED_MSG = studyAsyncExpiredMessage()
 
 const PART_GAP_MS = 350
 const ASYNC_TIMEOUT_MS = 10 * 60 * 1000
@@ -67,6 +71,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+function asyncFailMessage(
+  status: number,
+  data: { error?: string; message?: string },
+  fallback: string,
+): string {
+  if (status === 410 || data.error === 'expired') return STUDY_ASYNC_EXPIRED_MSG
+  return data.message || data.error || fallback
 }
 
 function saveBlobDownload(blob: Blob, filename: string): void {
@@ -224,7 +237,7 @@ export async function downloadStudyDicomExportAsync(options: {
         return {
           ok: false,
           status: buildRes.status,
-          message: data.message || data.error || `Échec build partie ${i + 1}`,
+          message: asyncFailMessage(buildRes.status, data, `Échec build partie ${i + 1}`),
         }
       }
       onProgress?.({ completed: i + 1, total: partCount, mode: 'async' })
@@ -243,10 +256,18 @@ export async function downloadStudyDicomExportAsync(options: {
         outcome: 'error',
         reason: 'study_async_fail',
       })
+      const data = (await statusRes.json().catch(() => ({}))) as {
+        error?: string
+        message?: string
+      }
       return {
         ok: false,
         status: statusRes.status,
-        message: 'Impossible de récupérer les liens de téléchargement.',
+        message: asyncFailMessage(
+          statusRes.status,
+          data,
+          'Impossible de récupérer les liens de téléchargement.',
+        ),
       }
     }
 
