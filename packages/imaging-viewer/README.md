@@ -20,9 +20,11 @@ Voir aussi [`PRODUCT.md`](./PRODUCT.md).
 
 ## Scope P1 (ce package)
 
-- Types contrat + policy (P0)
-- Engine dwv : `dwv-app`, `stack`, `pool`, `sequential`
+- Types contrat + policy (P0) — `@franchir/imaging-viewer`
+- Engine dwv : `@franchir/imaging-viewer/engine` (`dwv-app`, `stack`, `pool`, `sequential`)
 - Assets : `assets/dwv-workers/*`, `assets/openjpeg/openjpegjs.js` + MANIFEST
+
+Le barrel principal **n’importe pas** `dwv` (chemins SSR / upload-guidance).
 
 ## Hors scope (P2)
 

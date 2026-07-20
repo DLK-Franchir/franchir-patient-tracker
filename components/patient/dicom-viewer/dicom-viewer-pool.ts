@@ -1,2 +1,2 @@
-/** Re-export SoT `@franchir/imaging-viewer` (pool séquentiel). */
-export { useDicomSequentialPool, type PoolModeParams } from '@franchir/imaging-viewer'
+/** Re-export SoT `@franchir/imaging-viewer/engine` (pool séquentiel). */
+export { useDicomSequentialPool, type PoolModeParams } from '@franchir/imaging-viewer/engine'

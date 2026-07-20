@@ -4,6 +4,8 @@
 
 - Extraction P1 : orchestration dwv partagée (`createDwvApp`, `useDicomStackMode`,
   `useDicomSequentialPool`, `useDicomSequentialNavigation`, helpers render/slice).
+- Subpath `@franchir/imaging-viewer/engine` pour le code dwv ; le barrel `.`
+  reste sans dwv (évite de tirer dwv.node dans des chemins SSR).
 - Packaging codec : `assets/dwv-workers` + `assets/openjpeg` + `MANIFEST.json`
   (sha256) ; `imaging-viewer:sync` installe dans les deux `public/` ;
   `imaging-viewer:check` échoue sur drift binaire.

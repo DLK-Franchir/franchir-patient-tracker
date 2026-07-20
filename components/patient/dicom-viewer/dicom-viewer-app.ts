@@ -1,4 +1,4 @@
-/** Re-export SoT `@franchir/imaging-viewer` (orchestration dwv App). */
+/** Re-export SoT `@franchir/imaging-viewer/engine` (orchestration dwv App). */
 export {
   addWindowLevelPresets,
   createDwvApp,
@@ -7,4 +7,4 @@ export {
   readSliceCount,
   readSliceIndex,
   waitForRenderableImage,
-} from '@franchir/imaging-viewer'
+} from '@franchir/imaging-viewer/engine'

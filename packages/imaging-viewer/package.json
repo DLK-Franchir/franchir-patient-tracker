@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Shared DICOM viewer contract, policy, dwv orchestration, and codec assets — SoT = franchir-patient-tracker, vendored into questionnaires",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./engine": "./src/engine.ts"
   },
   "peerDependencies": {
     "dwv": "^0.36.0",

@@ -58,7 +58,7 @@ SoT binaire : `packages/imaging-viewer/assets/{dwv-workers,openjpeg}`.
 |--------|-----------|
 | Messages, plafonds pool, détection JPEG 2000 / orientation | `packages/imaging-viewer/src/policy.ts` |
 | Gate pixels / layout retries | `pixel-signal.ts`, `layout.ts`, `pool-plan.ts` |
-| Création App dwv, stack, pool, nav séquentielle | `dwv-app.ts`, `stack.ts`, `pool.ts`, `sequential.ts` |
+| Création App dwv, stack, pool, nav séquentielle | `@franchir/imaging-viewer/engine` (`dwv-app`, `stack`, `pool`, `sequential`) — pas le barrel `.` |
 | Workers / OpenJPEG (binaires) | `packages/imaging-viewer/assets/` puis sync |
 | Toolbar, overlays, URLs signées, auth, routing | apps (`components/.../dicom-viewer.tsx`, documents) |
 | Grouping séries | `@franchir/imaging` |
