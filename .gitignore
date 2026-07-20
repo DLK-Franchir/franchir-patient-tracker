@@ -52,8 +52,17 @@ next-env.d.ts
 # Local patient DICOM CDs (PHI)
 IMAGES_Husain/
 
+# Local OneDrive / patient DICOM dumps (PHI)
+docs/OneDrive_*/
+
+# Local CD vs prod verify dumps (may contain PHI paths/metadata)
+tania-cd-vs-prod-verify.json
+
 # Figma V3 prototype export (local reference — screenshots may contain PHI)
 docs/Design responsive UI_UX_Tracker_V3/
 
 # Sauvegardes locales de la déduplication DICOM (PHI : métadonnées patient)
 .dicom-dedupe-backups/
+
+# Finder duplicate copies ("foo 2.ts") — never commit
+* 2.*
