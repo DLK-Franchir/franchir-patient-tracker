@@ -111,6 +111,14 @@ export type DicomViewerProps = {
    * Les apps branchent gtag / plausible / etc. — le package reste sans vendor analytics.
    */
   onImagingTelemetry?: ImagingTelemetryHandler
+  /**
+   * Export ZIP DICOM brut (série ouverte) — auth / Storage restent app-local.
+   * Horos / RadiAnt / OsiriX / Weasis.
+   */
+  onDownloadSeries?: () => void | Promise<void>
+  /** Export ZIP étude (toutes séries image). */
+  onDownloadStudy?: () => void | Promise<void>
+  downloadBusy?: boolean
 }
 
 /** Surface dwv minimale pour les helpers layout (pas d'import `dwv`). */

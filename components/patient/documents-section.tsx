@@ -26,6 +26,11 @@ import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
 import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
 import { reportImagingTelemetry } from '@/lib/imaging/report-imaging-telemetry'
 import { getAppViewerCapabilities } from '@/lib/imaging/viewer-capabilities'
+import {
+  seriesExportZipUrl,
+  studyExportZipUrl,
+  triggerDicomZipDownload,
+} from '@/lib/imaging/trigger-dicom-zip-download'
 import type { ViewerSeries } from '@/components/patient/dicom-viewer'
 
 const VIEWER_CAPS = getAppViewerCapabilities()
@@ -240,6 +245,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [downloadBusy, setDownloadBusy] = useState(false)
 
   const items = useMemo(() => {
     // Forward patient-images = copie du tracker : masquer les doublons Q.
@@ -424,6 +430,26 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     },
     [dicomItems, items, openViewer, selectedId],
   )
+
+  const handleDownloadSeries = useCallback(() => {
+    const item = items.find((i) => i.id === selectedId)
+    if (!item || item.kind !== 'dicom-series') return
+    setDownloadBusy(true)
+    try {
+      triggerDicomZipDownload(seriesExportZipUrl(patientId, item.groupId))
+    } finally {
+      window.setTimeout(() => setDownloadBusy(false), 1500)
+    }
+  }, [items, patientId, selectedId])
+
+  const handleDownloadStudy = useCallback(() => {
+    setDownloadBusy(true)
+    try {
+      triggerDicomZipDownload(studyExportZipUrl(patientId))
+    } finally {
+      window.setTimeout(() => setDownloadBusy(false), 1500)
+    }
+  }, [patientId])
 
   useEffect(() => {
     if (!selectedId) {
@@ -706,6 +732,14 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   onPrevSeries={() => navigateDicomSeries('prev')}
                   onClose={() => setSelectedId(null)}
                   onImagingTelemetry={reportImagingTelemetry}
+                  capabilities={VIEWER_CAPS}
+                  onDownloadSeries={
+                    selectedItem.kind === 'dicom-series' ? handleDownloadSeries : undefined
+                  }
+                  onDownloadStudy={
+                    selectedItem.kind === 'dicom-series' ? handleDownloadStudy : undefined
+                  }
+                  downloadBusy={downloadBusy}
                   onJpeg2000Unsupported={() => {
                     const seriesId = selectedItem.id
                     setJpeg2000Fallbacks((prev) => {

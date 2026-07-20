@@ -15,6 +15,7 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 | Legacy backfill (P3b) | `POST /api/internal/imaging/backfill-dicom-metadata` + `scripts/backfill-dicom-metadata.mjs` |
 | Workers rewrite | `proxy.ts` (lane A — not this doc) |
 | Product telemetry (P3a) | `onImagingTelemetry` → `lib/imaging/report-imaging-telemetry.ts` — see `IMAGING_TELEMETRY.md` |
+| DICOM export ZIP (P0/P1) | `GET …/imaging/series/[seriesUid]/export.zip` + `…/study/export.zip` — stream Storage ; UI `onDownloadSeries` / `onDownloadStudy` |
 | Capabilities / feature flags (P4) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from env; openjpeg/pdf defaults package) |
 
 Export / ZIP DICOM download = **lane sibling** (hors ce doc / hors P4 capabilities).
