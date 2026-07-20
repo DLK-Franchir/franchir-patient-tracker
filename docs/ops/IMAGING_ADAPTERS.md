@@ -24,7 +24,7 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 fichiers / ~90 Mo) puis signed download TTL. Fallback sync chunked si async
 indisponible. Delete clinicien = différé (SoT Marcel only).
 
-**Async cleanup** — objets job TTL **2 h** ; cron horaire tracker
+**Async cleanup** — objets job TTL **2 h** ; cron quotidien tracker
 (`vercel.json` → `/api/internal/imaging/cleanup-async-exports`) + delete
 best-effort sur GET/build **410**. Auth : `CRON_SECRET` (Vercel Cron) ou
 `TRACKER_SYNC_SERVICE_TOKEN`. Réponse = compteurs only (pas de PHI). Détail :

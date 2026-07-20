@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/internal/imaging/cleanup-async-exports",
-      "schedule": "15 * * * *"
+      "schedule": "15 3 * * *"
     }
   ]
 }

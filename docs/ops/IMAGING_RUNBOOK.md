@@ -157,7 +157,7 @@ expirent après **2 h** (`ASYNC_EXPORT_JOB_TTL_MS`). Nettoyage :
 
 | Mécanisme | Détail |
 |-----------|--------|
-| Cron Vercel | `vercel.json` → `GET /api/internal/imaging/cleanup-async-exports` à `:15` chaque heure (prod only) |
+| Cron Vercel | `vercel.json` → `GET /api/internal/imaging/cleanup-async-exports` quotidien `15 3 * * *` UTC (Hobby-safe ; prod only) |
 | Opportuniste | GET/build job expiré → **410** + delete best-effort du préfixe |
 | Auth | Bearer `CRON_SECRET` (injecté par Vercel Cron) **ou** `TRACKER_SYNC_SERVICE_TOKEN` (ops manuel) |
 | Middleware | `/api/internal/imaging` est public-path (auth dans la route) — sinon redirect login |
