@@ -62,6 +62,9 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 | **P1** | done (0.2.0) | Engine dwv + assets checksums |
 | **P2** | done (0.3.0) | Shell React `@franchir/imaging-viewer/ui` + fallback OpenJPEG |
 | **P2.1** | done (0.4.0) | Host `DicomViewer` + PDF DOC sous `/ui` ; residual app = auth/URLs/workers rewrite (P2.2) |
+| **P3a** | done (0.6.0) | Télémétrie produit non-PHI |
+| **P4** | done (0.7.0) | Capabilities flags (openjpeg / pdf / mp4) + adapters allégés |
+| **P4∥** | sibling | Export / ZIP DICOM — ne pas mélanger |
 
 ## Workflow quand invoqué
 

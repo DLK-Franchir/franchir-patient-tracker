@@ -27,6 +27,7 @@ const REQUIRED_EXPORTS = [
   'nextPoolLoadIndex',
   'orientationFallbackMessage',
   'refreshDwvLayout',
+  'resolveViewerCapabilities',
   'resolveViewerInfoKind',
   'scheduleLayoutRetries',
   'setPoolContainerVisible',
@@ -113,5 +114,16 @@ describe('@franchir/imaging-viewer exports contract', () => {
     expect(pkg.DEFAULT_VIEWER_CAPABILITIES.maxPoolLoadConcurrency).toBe(
       pkg.MAX_POOL_LOAD_CONCURRENCY,
     )
+    expect(pkg.DEFAULT_VIEWER_CAPABILITIES.jpeg2000OpenJpegFallback).toBe(true)
+    expect(pkg.DEFAULT_VIEWER_CAPABILITIES.encapsulatedPdf).toBe(true)
+    expect(pkg.DEFAULT_VIEWER_CAPABILITIES.mp4Native).toBe(false)
+  })
+
+  it('resolveViewerCapabilities fusionne les overrides', () => {
+    const caps = pkg.resolveViewerCapabilities({ mp4Native: true, encapsulatedPdf: false })
+    expect(caps.mp4Native).toBe(true)
+    expect(caps.encapsulatedPdf).toBe(false)
+    expect(caps.jpeg2000OpenJpegFallback).toBe(true)
+    expect(caps.pixelSignalGate).toBe(true)
   })
 })

@@ -1,5 +1,15 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.7.0
+
+- P4 : feature flags capabilities documentés —
+  `encapsulatedPdf`, `mp4Native` (+ openjpeg / pixel gate déjà présents).
+- Helper `resolveViewerCapabilities(overrides?)` pour fusion shallow app/package.
+- Prop optionnelle `capabilities` sur `DicomViewer` : si
+  `jpeg2000OpenJpegFallback: false`, le callback OpenJPEG n’est pas branché.
+- Roadmap PRODUCT : P3 done, P4 landed ; export/ZIP = lane sibling ; `/host`
+  différé (pas de gain clair vs barrel `/ui`).
+
 ## 0.6.0
 
 - P3a : couche télémétrie produit non-PHI (`telemetry.ts`) — événements

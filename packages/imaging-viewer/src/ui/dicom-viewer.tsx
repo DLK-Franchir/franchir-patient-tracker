@@ -17,6 +17,7 @@ import {
   type WlPresetId,
   WL_PRESETS,
   nextLayerGroupId,
+  resolveViewerCapabilities,
   resolveViewerInfoKind,
 } from '../policy'
 import { useDicomStackMode } from '../stack'
@@ -49,6 +50,7 @@ export function DicomViewer({
   onPrevSeries,
   onClose,
   onSliceCountResolved,
+  capabilities: capabilitiesOverride,
   onJpeg2000Unsupported,
   onImagingTelemetry,
 }: DicomViewerProps) {
@@ -66,14 +68,17 @@ export function DicomViewer({
   const paintedRef = useRef(false)
   const openReportedRef = useRef(false)
   const [layerGroupId] = useState(nextLayerGroupId)
+  const capabilities = resolveViewerCapabilities(capabilitiesOverride)
 
   useEffect(() => {
     onSliceCountResolvedRef.current = onSliceCountResolved
   }, [onSliceCountResolved])
 
   useEffect(() => {
-    onJpeg2000UnsupportedRef.current = onJpeg2000Unsupported
-  }, [onJpeg2000Unsupported])
+    onJpeg2000UnsupportedRef.current = capabilities.jpeg2000OpenJpegFallback
+      ? onJpeg2000Unsupported
+      : undefined
+  }, [onJpeg2000Unsupported, capabilities.jpeg2000OpenJpegFallback])
 
   useEffect(() => {
     onImagingTelemetryRef.current = onImagingTelemetry

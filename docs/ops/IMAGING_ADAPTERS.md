@@ -1,4 +1,4 @@
-# Imaging adapters (P2.2b / P3b) — tracker Marcel
+# Imaging adapters (P2.2b / P3b / P4) — tracker Marcel
 
 App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put auth / listing / signed-URL TTL in the package.
 
@@ -15,6 +15,9 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 | Legacy backfill (P3b) | `POST /api/internal/imaging/backfill-dicom-metadata` + `scripts/backfill-dicom-metadata.mjs` |
 | Workers rewrite | `proxy.ts` (lane A — not this doc) |
 | Product telemetry (P3a) | `onImagingTelemetry` → `lib/imaging/report-imaging-telemetry.ts` — see `IMAGING_TELEMETRY.md` |
+| Capabilities / feature flags (P4) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from env; openjpeg/pdf defaults package) |
+
+Export / ZIP DICOM download = **lane sibling** (hors ce doc / hors P4 capabilities).
 
 ## Rules
 

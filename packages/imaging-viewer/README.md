@@ -22,10 +22,12 @@ Voir aussi [`PRODUCT.md`](./PRODUCT.md).
 
 | Subpath | Contenu | SSR-safe |
 |---------|---------|----------|
-| `@franchir/imaging-viewer` | Contrat + policy + helpers purs (+ extract PDF + worker-rewrite + telemetry) | oui |
+| `@franchir/imaging-viewer` | Contrat + policy + capabilities + helpers purs (+ extract PDF + worker-rewrite + telemetry) | oui |
 | `@franchir/imaging-viewer/engine` | Hooks / App dwv | client (peer dwv) |
 | `@franchir/imaging-viewer/ui` | Host `DicomViewer`, chrome, PDF DOC, fallback OpenJPEG | **client only** |
 | `@franchir/imaging-viewer/worker-rewrite` | Chemins publics + rewrite middleware / next.config | oui (Edge-safe) |
+
+Subpath `/host` : **différé** (voir PRODUCT.md) — le host compose déjà le chrome.
 
 ## Import paths (apps)
 
@@ -51,10 +53,11 @@ import {
 } from '@franchir/imaging-viewer/ui'
 ```
 
-## Hors scope (P2.2b+)
+## Hors scope (P2.2b+ / lanes)
 
 - Listing documents, auth, signed URL TTL
 - Golden tour / smokes e2e host
+- Export / ZIP DICOM download (lane sibling apps)
 
 Peer deps : `react`, `react-dom`, `dwv` (^0.36), `lucide-react` (UI).
 

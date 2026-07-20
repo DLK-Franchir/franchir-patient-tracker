@@ -72,26 +72,17 @@ questionnaires (`questionnaire.franchir.eu/clinician`).
 
 ### Visionneuse DICOM (dwv 0.36.3)
 
-Orchestrateur : `components/patient/dicom-viewer.tsx` (~528 lignes).
-Modules sous `components/patient/dicom-viewer/` (**parité fonctionnelle** avec
-le portail clinicien questionnaires — pas de package partagé) :
-
-| Module | Rôle |
-|--------|------|
-| `dicom-viewer-types.ts` | Types, presets fenêtrage, erreurs codec (FR) |
-| `dicom-viewer-app.ts` | App dwv, outils WindowLevel / Zoom / Scroll |
-| `dicom-viewer-layout.ts` | Layout canvas (retries) |
-| `dicom-viewer-info.tsx` | Bulle d'état utilisateur |
-| `dicom-viewer-stack.ts` | Mode **stack** (volume homogène) |
-| `dicom-viewer-pool.ts` | Préchargement parallèle (concurrence max **4**) |
-| `dicom-viewer-sequential.ts` | Mode **séquentiel** (séries hétérogènes) |
+SoT : `@franchir/imaging-viewer` (`packages/imaging-viewer`, sync → questionnaires).
+Adapters minces Marcel : `components/patient/dicom-viewer.tsx` (host),
+`dicom-encapsulated-pdf-viewer.tsx`, `dicom-jpeg2000-fallback-viewer.tsx`,
+`lib/imaging/dwv-worker-rewrite.ts`, `lib/imaging/viewer-capabilities.ts` (P4 flags).
 
 Intégration : `components/patient/documents-section.tsx` (grille + visionneuse
 plein écran, lazy-load SSR-off). UI française, états chargement/rendu, messages
 explicites transfer syntax non supportée.
 
-**Dev** : workers codec dans `public/dwv-workers/` ; rewrites `next.config.ts` +
-chemins publics `proxy.ts` (`/dwv-workers`, `/assets/workers`). Pool précharge
+**Dev** : workers codec dans `public/dwv-workers/` (installés depuis le package) ;
+rewrites `proxy.ts` (`/_next/.../assets/workers` → `/dwv-workers`). Pool précharge
 avec `visibility:hidden` (pas `display:none`).
 
 ### Pont imagerie Marcel ↔ cockpit chir

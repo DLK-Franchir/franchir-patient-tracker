@@ -28,6 +28,16 @@ export const DEFAULT_VIEWER_CAPABILITIES: ViewerCapabilities = {
   sequentialMode: true,
   jpeg2000OpenJpegFallback: true,
   pixelSignalGate: true,
+  encapsulatedPdf: true,
+  mp4Native: false,
+}
+
+/** Fusion shallow des overrides app sur les defaults produit. */
+export function resolveViewerCapabilities(
+  overrides?: Partial<ViewerCapabilities> | null,
+): ViewerCapabilities {
+  if (!overrides) return { ...DEFAULT_VIEWER_CAPABILITIES }
+  return { ...DEFAULT_VIEWER_CAPABILITIES, ...overrides }
 }
 
 /** dwv refuse d'empiler des coupes dont l'orientation ImageOrientationPatient diffère. */

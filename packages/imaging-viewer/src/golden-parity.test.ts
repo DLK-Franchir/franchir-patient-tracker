@@ -68,6 +68,8 @@ describe('golden Fatima — ImagingSeries + pool bootstrap', () => {
     expect(shouldPumpParallelLoads(false, poolSize)).toBe(poolSize <= 1)
     expect(nextPoolLoadIndex(0, poolSize, false)).toBe(POOL_BOOTSTRAP_INDEX)
     expect(DEFAULT_VIEWER_CAPABILITIES.pixelSignalGate).toBe(true)
+    expect(DEFAULT_VIEWER_CAPABILITIES.jpeg2000OpenJpegFallback).toBe(true)
+    expect(DEFAULT_VIEWER_CAPABILITIES.encapsulatedPdf).toBe(true)
   })
 })
 
