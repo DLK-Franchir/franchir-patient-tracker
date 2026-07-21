@@ -47,4 +47,25 @@ describe('case_closed workflow', () => {
     const actions = getAvailableActions({ globalStatus: 'medical_review', role: 'marcel' })
     expect(actions.secondaryActions.some((a) => a.id === 'reject_medical')).toBe(true)
   })
+
+  it('expose Passer en mode refusé pour marcel en phase commerciale', () => {
+    const actions = getAvailableActions({
+      globalStatus: 'commercial_in_progress',
+      role: 'marcel',
+      quoteAccepted: false,
+      dateAccepted: false,
+    })
+    expect(actions.secondaryActions.some((a) => a.id === 'reject_medical')).toBe(true)
+    expect(actions.secondaryActions.some((a) => a.id === 'close_case')).toBe(true)
+  })
+
+  it('mappe validated_medical vers commercial_in_progress', () => {
+    expect(
+      globalStatusFromWorkflowStatus({
+        id: '1',
+        code: 'validated_medical',
+        label: 'Validé médicalement',
+      }),
+    ).toBe('commercial_in_progress')
+  })
 })

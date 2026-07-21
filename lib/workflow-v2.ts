@@ -481,6 +481,26 @@ export function getAvailableActions({
         result.primaryAction = actions[0]
         result.secondaryActions = actions.slice(1)
       }
+
+      // Coordinateur / admin : retrait possible aussi en phase commerciale
+      // (devis/date pas encore saisis — panneau sinon perçu comme « vide »).
+      if (role === 'marcel' || role === 'admin') {
+        result.secondaryActions.push({
+          id: 'reject_medical',
+          label: 'Passer en mode refusé',
+          description:
+            'Retirer le dossier du circuit — reste visible sous Refusé, réactivable ensuite',
+          variant: 'danger',
+          targetGlobalStatus: 'rejected',
+          requiresInput: [
+            {
+              type: 'justification',
+              label: 'Motif du refus',
+              required: true,
+            },
+          ],
+        })
+      }
     }
   }
 

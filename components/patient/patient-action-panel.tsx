@@ -494,13 +494,11 @@ export function PatientActionPanel({
           </div>
         )}
 
-        {(userRole === 'marcel' || userRole === 'admin') &&
-          (budgetVal || dateVal) &&
-          (showBudgetInput || showDateInput) && (
+        {(userRole === 'marcel' || userRole === 'admin') && (showBudgetInput || showDateInput) && (
             <PanelButton
-              label="Enregistrer"
+              label="Enregistrer devis / date"
               variant="navy"
-              disabled={loading}
+              disabled={loading || (!budgetVal.trim() && !dateVal)}
               icon={<Check size={15} />}
               onClick={() =>
                 saveCommercialField({
@@ -644,8 +642,16 @@ export function PatientActionPanel({
     }
 
     if (globalStatus === 'commercial_in_progress') {
+      const needsQuoteOrDate = !quoteAmount || !proposedDate
       return (
         <div className="space-y-3">
+          {needsQuoteOrDate && (
+            <p className="text-base leading-relaxed" style={{ color: BRAND.ink }}>
+              Dossier validé médicalement
+              {assignedSurgeonId ? ' — chirurgien déjà assigné' : ''}. Saisissez le devis et/ou la
+              date d&apos;intervention, puis enregistrez.
+            </p>
+          )}
           {renderCommercialFields()}
           {renderRefuseSecondary()}
           {renderCloseSecondary()}
