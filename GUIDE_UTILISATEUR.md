@@ -17,10 +17,10 @@ Vous êtes le chef d'orchestre du dossier.
 *   **Vos actions principales :**
     *   Créer un nouveau patient.
     *   Soumettre le dossier à validation médicale (au Dr Gilles).
-    *   **Passer en mode refusé** un dossier (retrait du circuit — reste visible sous l’onglet Refusé).
+    *   **Passer en mode refusé** un dossier (retrait du circuit — reste visible sous l’onglet Refusé). Ce bouton reste **toujours visible et actionnable** sur un dossier non terminal ; sur un dossier déjà refusé/fermé, il est remplacé par **Réouvrir**.
     *   **Réouvrir** un dossier refusé ou fermé pour le remettre en circuit.
-    *   Saisir les données commerciales (Montant du devis, Date proposée).
-    *   Marquer le devis et la date comme "Confirmés" une fois validés par le patient.
+    *   Saisir les données commerciales (Montant du devis, Date proposée) — le bouton **Enregistrer** reste visible (désactivé tant qu’aucune valeur n’est saisie).
+    *   Marquer le devis et la date comme "Confirmés" une fois validés par le patient (boutons visibles dès la phase commerciale, activés après saisie).
 
 ### 2. Dr Gilles Dubois (Validation Médicale)
 Vous garantissez la faisabilité médicale.

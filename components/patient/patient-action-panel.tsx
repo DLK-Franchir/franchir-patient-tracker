@@ -17,6 +17,7 @@ import { BRAND } from '@/lib/brand-tokens'
 import {
   getAvailableActions,
   isMedicallyValidated,
+  type Action,
   type GlobalStatus,
   type UserRole,
 } from '@/lib/workflow-v2'
@@ -57,6 +58,7 @@ function PanelButton({
   onClick,
   variant = 'navy',
   disabled = false,
+  disabledReason,
   icon,
   full = true,
 }: {
@@ -64,6 +66,7 @@ function PanelButton({
   onClick: () => void
   variant?: 'navy' | 'coral' | 'green' | 'red' | 'orange' | 'ghost'
   disabled?: boolean
+  disabledReason?: string
   icon?: React.ReactNode
   full?: boolean
 }) {
@@ -78,24 +81,32 @@ function PanelButton({
   const v = variants[variant]
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold text-sm sm:text-base transition-all min-h-[44px] ${
-        full ? 'w-full' : ''
-      } ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-      style={{ background: v.bg, color: v.color }}
-      onMouseEnter={(e) => {
-        if (!disabled) e.currentTarget.style.background = v.hover
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled) e.currentTarget.style.background = v.bg
-      }}
-    >
-      {icon}
-      {label}
-    </button>
+    <div className={full ? 'w-full space-y-1' : 'space-y-1'}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        title={disabled && disabledReason ? disabledReason : undefined}
+        className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold text-sm sm:text-base transition-all min-h-[44px] ${
+          full ? 'w-full' : ''
+        } ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+        style={{ background: v.bg, color: v.color }}
+        onMouseEnter={(e) => {
+          if (!disabled) e.currentTarget.style.background = v.hover
+        }}
+        onMouseLeave={(e) => {
+          if (!disabled) e.currentTarget.style.background = v.bg
+        }}
+      >
+        {icon}
+        {label}
+      </button>
+      {disabled && disabledReason ? (
+        <p className="text-xs leading-snug" style={{ color: BRAND.slate }}>
+          {disabledReason}
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -133,7 +144,16 @@ export function PatientActionPanel({
     role: userRole,
     quoteAccepted,
     dateAccepted,
+    hasQuoteAmount: Boolean(quoteAmount),
+    hasProposedDate: Boolean(proposedDate),
   })
+
+  const findAction = (id: string): Action | undefined => {
+    if (primaryAction?.id === id) return primaryAction
+    return secondaryActions.find((a) => a.id === id)
+  }
+
+  const hasAction = (id: string) => Boolean(findAction(id))
 
   const runAction = async (actionId: string, data?: Record<string, unknown>) => {
     setLoading(true)
@@ -146,7 +166,10 @@ export function PatientActionPanel({
     }
   }
 
-  const saveCommercialField = async (payload: { quoteAmount?: number | null; proposedDate?: string | null }) => {
+  const saveCommercialField = async (payload: {
+    quoteAmount?: number | null
+    proposedDate?: string | null
+  }) => {
     setLoading(true)
     try {
       const response = await fetch(`/api/patients/${patientId}/commercial-data`, {
@@ -165,9 +188,6 @@ export function PatientActionPanel({
     }
   }
 
-  const hasAction = (id: string) =>
-    primaryAction?.id === id || secondaryActions.some((a) => a.id === id && !a.disabled)
-
   const renderGillesPanel = () => {
     if (globalStatus !== 'medical_review') {
       return (
@@ -179,6 +199,8 @@ export function PatientActionPanel({
         </div>
       )
     }
+
+    const canValidate = surgeons.length > 0 && medChirIds.length > 0
 
     return (
       <div className="space-y-4">
@@ -229,7 +251,14 @@ export function PatientActionPanel({
           <PanelButton
             label="Valider"
             variant="green"
-            disabled={loading || surgeons.length === 0 || medChirIds.length === 0}
+            disabled={loading || !canValidate}
+            disabledReason={
+              !canValidate
+                ? surgeons.length === 0
+                  ? 'Ajoutez un chirurgien dans l’annuaire'
+                  : 'Sélectionnez au moins un chirurgien'
+                : undefined
+            }
             icon={<CheckCircle size={15} />}
             onClick={() =>
               runAction('approve_medical', { surgeonIds: medChirIds, message: medComment || undefined })
@@ -265,6 +294,7 @@ export function PatientActionPanel({
             label="Envoyer la demande"
             variant="ghost"
             disabled={loading || !moreInfoText.trim()}
+            disabledReason={!moreInfoText.trim() ? 'Précisez les éléments manquants' : undefined}
             icon={<Send size={14} />}
             onClick={() => runAction('request_more_info', { message: moreInfoText })}
           />
@@ -298,14 +328,24 @@ export function PatientActionPanel({
         label="Réouvrir le dossier"
         variant="orange"
         disabled={loading || !reopenText.trim()}
+        disabledReason={!reopenText.trim() ? 'Indiquez la raison de la réouverture' : undefined}
         icon={<RotateCcw size={15} />}
         onClick={() => runAction('reopen_case', { message: reopenText })}
       />
     </div>
   )
 
+  /** Refus toujours visible + actionnable (motif requis au clic). Terminal → Réouvrir. */
   const renderRefuseSecondary = () => {
+    if (globalStatus === 'rejected' || globalStatus === 'closed') return null
     if (!hasAction('reject_medical')) return null
+    // Revue médicale admin/Gilles : le bouton Refuser est déjà dans le panneau médical.
+    if (
+      globalStatus === 'medical_review' &&
+      (userRole === 'gilles' || userRole === 'admin')
+    ) {
+      return null
+    }
     return (
       <div className="pt-3 border-t space-y-2" style={{ borderColor: BRAND.cream }}>
         <label className="block text-sm font-semibold" style={{ color: BRAND.ink }}>
@@ -358,31 +398,149 @@ export function PatientActionPanel({
     )
   }
 
-  const renderAdminPanel = () => (
-    <div className="space-y-3">
-      {(globalStatus === 'rejected' || globalStatus === 'closed') && hasAction('reopen_case') &&
-        renderReopenPanel(
-          globalStatus === 'rejected'
-            ? 'Dossier refusé. Réouvrez pour le remettre en circuit.'
-            : 'Dossier fermé. Réouvrez pour reprendre le suivi.',
-        )}
-      {globalStatus !== 'rejected' && globalStatus !== 'closed' && (
-        <p className="text-sm" style={{ color: BRAND.slate }}>
-          Supervision — utilisez les actions ci-dessous selon le statut du dossier.
-        </p>
-      )}
-      {primaryAction && primaryAction.id !== 'reopen_case' && (
+  const renderAssignSurgeonControl = () => {
+    const assign = findAction('assign_surgeon')
+    if (!assign || assignedSurgeonId) return null
+
+    const workflowBlocked = Boolean(assign.disabled)
+    const needsSelection = !chirVal
+    const disabled = loading || workflowBlocked || needsSelection
+    const disabledReason = workflowBlocked
+      ? assign.disabledReason
+      : needsSelection
+        ? 'Sélectionnez un chirurgien'
+        : undefined
+
+    return (
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold" style={{ color: BRAND.ink }}>
+          Assigner un chirurgien
+        </label>
+        <select
+          value={chirVal}
+          onChange={(e) => setChirVal(e.target.value)}
+          disabled={workflowBlocked || loading}
+          className={inputClass}
+          style={inputStyle}
+        >
+          <option value="">— Sélectionner —</option>
+          {surgeons.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.full_name}
+            </option>
+          ))}
+        </select>
         <PanelButton
-          label={primaryAction.label}
+          label="Assigner le chirurgien"
           variant="navy"
-          disabled={loading}
-          onClick={() => runAction(primaryAction.id)}
+          disabled={disabled}
+          disabledReason={disabledReason}
+          onClick={() => runAction('assign_surgeon', { surgeonId: chirVal })}
         />
-      )}
-      {globalStatus !== 'medical_review' && renderRefuseSecondary()}
-      {renderCloseSecondary()}
-    </div>
-  )
+      </div>
+    )
+  }
+
+  const renderConfirmQuote = () => {
+    const action = findAction('confirm_quote')
+    if (!action || quoteAccepted) return null
+
+    const ready = Boolean(quoteAmount)
+    const disabled = loading || action.disabled || !ready
+    const disabledReason =
+      action.disabledReason || (!ready ? 'Enregistrez d’abord le devis' : undefined)
+
+    if (ready) {
+      return (
+        <div
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-xl p-3.5 gap-3"
+          style={{ background: '#EBF0FA', border: `1px solid ${BRAND.navy}30` }}
+        >
+          <div>
+            <div className="text-sm font-bold" style={{ color: BRAND.navy }}>
+              Devis : {quoteAmount!.toLocaleString('fr-FR')} €
+            </div>
+            <div className="text-xs" style={{ color: BRAND.slate }}>
+              Le patient a-t-il confirmé ?
+            </div>
+          </div>
+          <PanelButton
+            label="Confirmer"
+            variant="green"
+            full={false}
+            disabled={disabled}
+            disabledReason={disabledReason}
+            icon={<CheckCircle size={13} />}
+            onClick={() => runAction('confirm_quote')}
+          />
+        </div>
+      )
+    }
+
+    return (
+      <PanelButton
+        label="Confirmer le devis"
+        variant="green"
+        disabled={disabled}
+        disabledReason={disabledReason}
+        icon={<CheckCircle size={15} />}
+        onClick={() => runAction('confirm_quote')}
+      />
+    )
+  }
+
+  const renderConfirmDate = () => {
+    const action = findAction('confirm_date')
+    if (!action || dateAccepted) return null
+
+    const ready = Boolean(proposedDate)
+    const disabled = loading || action.disabled || !ready
+    const disabledReason =
+      action.disabledReason || (!ready ? 'Enregistrez d’abord la date' : undefined)
+
+    if (ready) {
+      return (
+        <div
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-xl p-3.5 gap-3"
+          style={{ background: '#EBF0FA', border: `1px solid ${BRAND.navy}30` }}
+        >
+          <div>
+            <div className="text-sm font-bold" style={{ color: BRAND.navy }}>
+              Date :{' '}
+              {new Date(proposedDate!).toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </div>
+            <div className="text-xs" style={{ color: BRAND.slate }}>
+              Date confirmée par le patient ?
+            </div>
+          </div>
+          <PanelButton
+            label="Confirmer"
+            variant="green"
+            full={false}
+            disabled={disabled}
+            disabledReason={disabledReason}
+            icon={<Check size={13} />}
+            onClick={() => runAction('confirm_date')}
+          />
+        </div>
+      )
+    }
+
+    return (
+      <PanelButton
+        label="Confirmer la date"
+        variant="green"
+        disabled={disabled}
+        disabledReason={disabledReason}
+        icon={<Check size={15} />}
+        onClick={() => runAction('confirm_date')}
+      />
+    )
+  }
 
   const renderCommercialFields = () => {
     const canEditCommercial =
@@ -391,7 +549,9 @@ export function PatientActionPanel({
 
     const showBudgetInput = !quoteAmount
     const showDateInput = !proposedDate
-    const showSurgeonInput = !assignedSurgeonId && isMedicallyValidated(globalStatus)
+    const canSaveCommercial =
+      (userRole === 'marcel' || userRole === 'admin') && (showBudgetInput || showDateInput)
+    const saveDisabled = loading || (!budgetVal.trim() && !dateVal)
 
     return (
       <div className="space-y-4">
@@ -414,6 +574,7 @@ export function PatientActionPanel({
                   label="Enregistrer le budget"
                   variant="navy"
                   disabled={loading || !franchirBudget.trim()}
+                  disabledReason={!franchirBudget.trim() ? 'Saisissez un budget' : undefined}
                   onClick={() => runAction('add_budget', { budget: franchirBudget })}
                 />
               </div>
@@ -435,6 +596,7 @@ export function PatientActionPanel({
                   label="Proposer les dates"
                   variant="navy"
                   disabled={loading || !franchirDates.trim()}
+                  disabledReason={!franchirDates.trim() ? 'Saisissez au moins une date' : undefined}
                   onClick={() => runAction('propose_dates', { dates: franchirDates })}
                 />
               </div>
@@ -473,105 +635,27 @@ export function PatientActionPanel({
           </div>
         )}
 
-        {showSurgeonInput && hasAction('assign_surgeon') && (
-          <div className="space-y-1.5">
-            <label className="block text-sm font-semibold" style={{ color: BRAND.ink }}>
-              Assigner un chirurgien
-            </label>
-            <select
-              value={chirVal}
-              onChange={(e) => setChirVal(e.target.value)}
-              className={inputClass}
-              style={inputStyle}
-            >
-              <option value="">— Sélectionner —</option>
-              {surgeons.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {(userRole === 'marcel' || userRole === 'admin') &&
-          (budgetVal || dateVal) &&
-          (showBudgetInput || showDateInput) && (
-            <PanelButton
-              label="Enregistrer"
-              variant="navy"
-              disabled={loading}
-              icon={<Check size={15} />}
-              onClick={() =>
-                saveCommercialField({
-                  quoteAmount: budgetVal ? parseFloat(budgetVal) : null,
-                  proposedDate: dateVal ? new Date(dateVal).toISOString() : null,
-                })
-              }
-            />
-          )}
-
-        {chirVal && !assignedSurgeonId && hasAction('assign_surgeon') && (
+        {canSaveCommercial && (
           <PanelButton
-            label="Assigner le chirurgien"
+            label="Enregistrer devis / date"
             variant="navy"
-            disabled={loading}
-            onClick={() => runAction('assign_surgeon', { surgeonId: chirVal })}
+            disabled={saveDisabled}
+            disabledReason={
+              saveDisabled && !loading ? 'Saisissez un devis ou une date' : undefined
+            }
+            icon={<Check size={15} />}
+            onClick={() =>
+              saveCommercialField({
+                quoteAmount: budgetVal ? parseFloat(budgetVal) : null,
+                proposedDate: dateVal ? new Date(dateVal).toISOString() : null,
+              })
+            }
           />
         )}
 
-        {quoteAmount && !quoteAccepted && hasAction('confirm_quote') && (
-          <div
-            className="flex items-center justify-between rounded-xl p-3.5 gap-3"
-            style={{ background: '#EBF0FA', border: `1px solid ${BRAND.navy}30` }}
-          >
-            <div>
-              <div className="text-sm font-bold" style={{ color: BRAND.navy }}>
-                Devis : {quoteAmount.toLocaleString('fr-FR')} €
-              </div>
-              <div className="text-xs" style={{ color: BRAND.slate }}>
-                Le patient a-t-il confirmé ?
-              </div>
-            </div>
-            <PanelButton
-              label="Confirmer"
-              variant="green"
-              full={false}
-              disabled={loading}
-              icon={<CheckCircle size={13} />}
-              onClick={() => runAction('confirm_quote')}
-            />
-          </div>
-        )}
-
-        {proposedDate && !dateAccepted && hasAction('confirm_date') && (
-          <div
-            className="flex items-center justify-between rounded-xl p-3.5 gap-3"
-            style={{ background: '#EBF0FA', border: `1px solid ${BRAND.navy}30` }}
-          >
-            <div>
-              <div className="text-sm font-bold" style={{ color: BRAND.navy }}>
-                Date :{' '}
-                {new Date(proposedDate).toLocaleDateString('fr-FR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </div>
-              <div className="text-xs" style={{ color: BRAND.slate }}>
-                Date confirmée par le patient ?
-              </div>
-            </div>
-            <PanelButton
-              label="Confirmer"
-              variant="green"
-              full={false}
-              disabled={loading}
-              icon={<Check size={13} />}
-              onClick={() => runAction('confirm_date')}
-            />
-          </div>
-        )}
+        {isMedicallyValidated(globalStatus) && renderAssignSurgeonControl()}
+        {renderConfirmQuote()}
+        {renderConfirmDate()}
       </div>
     )
   }
@@ -590,6 +674,8 @@ export function PatientActionPanel({
             icon={<Send size={15} />}
             onClick={() => runAction('submit_to_medical')}
           />
+          {renderAssignSurgeonControl()}
+          {renderRefuseSecondary()}
           {renderCloseSecondary()}
         </div>
       )
@@ -612,6 +698,7 @@ export function PatientActionPanel({
             icon={<FilePlus size={15} />}
             onClick={() => runAction('resubmit_to_medical')}
           />
+          {renderAssignSurgeonControl()}
           {renderRefuseSecondary()}
           {renderCloseSecondary()}
         </div>
@@ -637,6 +724,7 @@ export function PatientActionPanel({
             icon={<Bell size={14} />}
             onClick={() => alert('Rappel — fonctionnalité à venir')}
           />
+          {renderAssignSurgeonControl()}
           {renderRefuseSecondary()}
           {renderCloseSecondary()}
         </div>
@@ -644,8 +732,16 @@ export function PatientActionPanel({
     }
 
     if (globalStatus === 'commercial_in_progress') {
+      const needsQuoteOrDate = !quoteAmount || !proposedDate
       return (
         <div className="space-y-3">
+          {needsQuoteOrDate && (
+            <p className="text-base leading-relaxed" style={{ color: BRAND.ink }}>
+              Dossier validé médicalement
+              {assignedSurgeonId ? ' — chirurgien déjà assigné' : ''}. Saisissez le devis et/ou la
+              date d&apos;intervention, puis enregistrez.
+            </p>
+          )}
           {renderCommercialFields()}
           {renderRefuseSecondary()}
           {renderCloseSecondary()}
@@ -653,30 +749,23 @@ export function PatientActionPanel({
       )
     }
 
-    if (globalStatus === 'scheduled' && !dateAccepted && hasAction('confirm_date')) {
+    if (globalStatus === 'scheduled') {
       return (
         <div className="space-y-3">
-          <p className="text-base leading-relaxed" style={{ color: BRAND.ink }}>
-            L&apos;intervention est planifiée. Confirmez la date définitive avec le patient.
-          </p>
-          <PanelButton
-            label="Confirmer la date"
-            variant="green"
-            disabled={loading}
-            onClick={() => runAction('confirm_date')}
-          />
-          {renderCloseSecondary()}
-        </div>
-      )
-    }
-
-    if (globalStatus === 'scheduled' && dateAccepted) {
-      return (
-        <div className="space-y-3">
-          <div className="text-center py-4 space-y-2">
-            <CheckCircle size={36} color={BRAND.green} style={{ margin: '0 auto' }} />
-            <p className="text-base font-extrabold text-[#0A4A28]">Intervention confirmée</p>
-          </div>
+          {!dateAccepted && hasAction('confirm_date') ? (
+            <>
+              <p className="text-base leading-relaxed" style={{ color: BRAND.ink }}>
+                L&apos;intervention est planifiée. Confirmez la date définitive avec le patient.
+              </p>
+              {renderConfirmDate()}
+            </>
+          ) : (
+            <div className="text-center py-4 space-y-2">
+              <CheckCircle size={36} color={BRAND.green} style={{ margin: '0 auto' }} />
+              <p className="text-base font-extrabold text-[#0A4A28]">Intervention confirmée</p>
+            </div>
+          )}
+          {renderRefuseSecondary()}
           {renderCloseSecondary()}
         </div>
       )
@@ -704,20 +793,67 @@ export function PatientActionPanel({
       )
     }
 
-    return null
+    // Filet de sécurité : jamais de panneau vide — surface refus / fermeture.
+    return (
+      <div className="space-y-3">
+        <p className="text-sm" style={{ color: BRAND.slate }}>
+          Actions disponibles pour ce dossier.
+        </p>
+        {renderAssignSurgeonControl()}
+        {renderRefuseSecondary()}
+        {renderCloseSecondary()}
+      </div>
+    )
   }
+
+  const renderAdminPanel = () => (
+    <div className="space-y-3">
+      {(globalStatus === 'rejected' || globalStatus === 'closed') && hasAction('reopen_case') &&
+        renderReopenPanel(
+          globalStatus === 'rejected'
+            ? 'Dossier refusé. Réouvrez pour le remettre en circuit.'
+            : 'Dossier fermé. Réouvrez pour reprendre le suivi.',
+        )}
+      {globalStatus !== 'rejected' && globalStatus !== 'closed' && (
+        <p className="text-sm" style={{ color: BRAND.slate }}>
+          Supervision — utilisez les actions ci-dessous selon le statut du dossier.
+        </p>
+      )}
+      {primaryAction &&
+        primaryAction.id !== 'reopen_case' &&
+        primaryAction.id !== 'confirm_quote' &&
+        primaryAction.id !== 'confirm_date' &&
+        primaryAction.id !== 'reject_medical' && (
+          <PanelButton
+            label={primaryAction.label}
+            variant="navy"
+            disabled={loading || Boolean(primaryAction.disabled)}
+            disabledReason={primaryAction.disabledReason}
+            onClick={() => {
+              if (primaryAction.disabled) return
+              runAction(primaryAction.id)
+            }}
+          />
+        )}
+      {renderAssignSurgeonControl()}
+      {renderConfirmQuote()}
+      {renderConfirmDate()}
+      {renderRefuseSecondary()}
+      {renderCloseSecondary()}
+    </div>
+  )
 
   const renderBody = () => {
     if (userRole === 'gilles') return renderGillesPanel()
     if (userRole === 'admin') {
-      // Revue médicale : mêmes actions que Gilles (valider / refuser / complément).
       if (globalStatus === 'medical_review') return renderGillesPanel()
       if (globalStatus === 'commercial_in_progress') {
         return (
-          <>
+          <div className="space-y-3">
             {renderCommercialFields()}
-            {renderAdminPanel()}
-          </>
+            {renderRefuseSecondary()}
+            {renderCloseSecondary()}
+          </div>
         )
       }
       if (['draft', 'medical_more_info', 'scheduled'].includes(globalStatus)) {
@@ -743,10 +879,12 @@ export function PatientActionPanel({
         )
       }
       return (
-        <div className="text-center py-6">
+        <div className="space-y-3">
           <p className="text-sm" style={{ color: BRAND.slate }}>
-            Aucune action requise de votre part à cette étape.
+            Aucune action commerciale requise à cette étape.
           </p>
+          {renderAssignSurgeonControl()}
+          {renderCloseSecondary()}
         </div>
       )
     }
