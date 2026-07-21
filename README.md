@@ -258,7 +258,8 @@ surgery_scheduled     Chirurgie programmée (devis + date confirmés)
 | Confirmer le devis | `marcel`, `franchir`, `admin` |
 | Confirmer la date | `marcel`, `franchir`, `admin` |
 | Proposer des dates / budget | `gilles` |
-| Réouvrir le dossier | `admin`, `franchir` |
+| Réouvrir le dossier | `admin`, `marcel`, `franchir` |
+| Passer en mode refusé | `gilles`, `marcel`, `admin` |
 
 ## Déploiement
 

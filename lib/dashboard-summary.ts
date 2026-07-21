@@ -170,7 +170,9 @@ export function getShortPendingActionLabel(globalStatus: GlobalStatus, role: Use
     case 'commercial_in_progress':
       return role === 'franchir' ? 'Gérer devis/dates' : 'Confirmer devis/date'
     case 'rejected':
-      return role === 'admin' ? 'Réouvrir dossier' : null
+      return role === 'admin' || role === 'marcel' || role === 'franchir'
+        ? 'Réouvrir dossier'
+        : null
     default:
       return null
   }

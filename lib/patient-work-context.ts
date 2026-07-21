@@ -142,6 +142,24 @@ export function getWorkContext(input: PatientWorkContextInput): PatientWorkConte
     }
   }
 
+  if ((role === 'marcel' || role === 'franchir') && globalStatus === 'rejected') {
+    return {
+      type: 'action',
+      title: 'Dossier refusé',
+      desc: progressDetail?.trim() || 'Vous pouvez réouvrir ce dossier pour le remettre en circuit.',
+      actionTitle: 'Réouvrir le dossier',
+    }
+  }
+
+  if ((role === 'marcel' || role === 'franchir') && globalStatus === 'closed') {
+    return {
+      type: 'action',
+      title: 'Dossier fermé',
+      desc: 'Historique conservé. Vous pouvez réouvrir si nécessaire.',
+      actionTitle: 'Réouvrir le dossier',
+    }
+  }
+
   if (globalStatus === 'draft') {
     return {
       type: 'action',
@@ -207,7 +225,7 @@ export function getWorkContext(input: PatientWorkContextInput): PatientWorkConte
       type: 'urgent',
       title: 'Dossier refusé',
       desc: progressDetail?.trim() || 'Ce dossier a été refusé et est en lecture seule.',
-      actionTitle: 'Dossier clôturé',
+      actionTitle: 'Dossier refusé',
     }
   }
 

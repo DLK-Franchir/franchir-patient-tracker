@@ -299,7 +299,7 @@ export async function POST(
     case 'reopen_case':
       newStatusCode = 'prospect_created'
       messageTitle = 'Dossier réouvert'
-      messageBody = data?.message || 'Le dossier a été réouvert par un administrateur.'
+      messageBody = data?.message || 'Le dossier a été réouvert.'
       break
 
     case 'close_case':

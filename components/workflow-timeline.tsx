@@ -91,7 +91,7 @@ export default function WorkflowTimeline({ currentStatus }: WorkflowTimelineProp
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-red-900">Dossier refusé</h3>
-            <p className="text-xs sm:text-sm text-red-700">Ce dossier a été refusé. Seul un administrateur peut le réouvrir.</p>
+            <p className="text-xs sm:text-sm text-red-700">Ce dossier a été refusé. Réouverture possible depuis le panneau d’actions.</p>
           </div>
         </div>
       </div>

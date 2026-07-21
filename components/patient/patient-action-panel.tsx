@@ -281,32 +281,91 @@ export function PatientActionPanel({
     )
   }
 
+  const renderReopenPanel = (intro: string) => (
+    <div className="space-y-3">
+      <p className="text-base leading-relaxed" style={{ color: BRAND.ink }}>
+        {intro}
+      </p>
+      <textarea
+        value={reopenText}
+        onChange={(e) => setReopenText(e.target.value)}
+        placeholder="Raison de la réouverture"
+        rows={2}
+        className={inputClass}
+        style={{ ...inputStyle, resize: 'none' }}
+      />
+      <PanelButton
+        label="Réouvrir le dossier"
+        variant="orange"
+        disabled={loading || !reopenText.trim()}
+        icon={<RotateCcw size={15} />}
+        onClick={() => runAction('reopen_case', { message: reopenText })}
+      />
+    </div>
+  )
+
+  const renderRefuseSecondary = () => {
+    if (!hasAction('reject_medical')) return null
+    return (
+      <div className="pt-3 border-t space-y-2" style={{ borderColor: BRAND.cream }}>
+        <label className="block text-sm font-semibold" style={{ color: BRAND.ink }}>
+          Passer en mode refusé
+        </label>
+        <p className="text-xs" style={{ color: BRAND.slate }}>
+          Le dossier reste visible dans la liste (onglet Refusé) et pourra être réouvert.
+        </p>
+        <textarea
+          value={refusalText}
+          onChange={(e) => setRefusalText(e.target.value)}
+          placeholder="Motif du refus (requis)"
+          rows={2}
+          className={inputClass}
+          style={{ ...inputStyle, resize: 'none' }}
+        />
+        <PanelButton
+          label="Passer en mode refusé"
+          variant="red"
+          disabled={loading}
+          icon={<XCircle size={15} />}
+          onClick={() => {
+            if (!refusalText.trim()) {
+              alert('Veuillez saisir un motif de refus.')
+              return
+            }
+            runAction('reject_medical', { justification: refusalText })
+          }}
+        />
+      </div>
+    )
+  }
+
+  const renderCloseSecondary = () => {
+    if (!hasAction('close_case')) return null
+    return (
+      <div className="pt-3 border-t space-y-2" style={{ borderColor: BRAND.cream }}>
+        <PanelButton
+          label="Fermer le dossier"
+          variant="ghost"
+          disabled={loading}
+          icon={<XCircle size={14} />}
+          onClick={() => {
+            const motif = window.prompt('Motif de clôture (optionnel) :')
+            if (motif === null) return
+            runAction('close_case', { message: motif.trim() || undefined })
+          }}
+        />
+      </div>
+    )
+  }
+
   const renderAdminPanel = () => (
     <div className="space-y-3">
-      {(globalStatus === 'rejected' || globalStatus === 'closed') && hasAction('reopen_case') && (
-        <>
-          <p className="text-base leading-relaxed" style={{ color: BRAND.ink }}>
-            {globalStatus === 'rejected'
-              ? 'Dossier refusé. Réouvrez pour le remettre en circuit.'
-              : 'Dossier fermé. Réouvrez pour reprendre le suivi.'}
-          </p>
-          <textarea
-            value={reopenText}
-            onChange={(e) => setReopenText(e.target.value)}
-            placeholder="Raison de la réouverture"
-            rows={2}
-            className={inputClass}
-            style={{ ...inputStyle, resize: 'none' }}
-          />
-          <PanelButton
-            label="Réouvrir le dossier"
-            variant="orange"
-            disabled={loading || !reopenText.trim()}
-            icon={<RotateCcw size={15} />}
-            onClick={() => runAction('reopen_case', { message: reopenText })}
-          />
-        </>
-      )}
+      {(globalStatus === 'rejected' || globalStatus === 'closed') && hasAction('reopen_case') &&
+        renderReopenPanel(
+          globalStatus === 'rejected'
+            ? 'Dossier refusé. Réouvrez pour le remettre en circuit.'
+            : 'Dossier fermé. Réouvrez pour reprendre le suivi.',
+        )}
       {globalStatus !== 'rejected' && globalStatus !== 'closed' && (
         <p className="text-sm" style={{ color: BRAND.slate }}>
           Supervision — utilisez les actions ci-dessous selon le statut du dossier.
@@ -320,6 +379,8 @@ export function PatientActionPanel({
           onClick={() => runAction(primaryAction.id)}
         />
       )}
+      {globalStatus !== 'medical_review' && renderRefuseSecondary()}
+      {renderCloseSecondary()}
     </div>
   )
 
@@ -529,6 +590,7 @@ export function PatientActionPanel({
             icon={<Send size={15} />}
             onClick={() => runAction('submit_to_medical')}
           />
+          {renderCloseSecondary()}
         </div>
       )
     }
@@ -550,6 +612,8 @@ export function PatientActionPanel({
             icon={<FilePlus size={15} />}
             onClick={() => runAction('resubmit_to_medical')}
           />
+          {renderRefuseSecondary()}
+          {renderCloseSecondary()}
         </div>
       )
     }
@@ -573,12 +637,20 @@ export function PatientActionPanel({
             icon={<Bell size={14} />}
             onClick={() => alert('Rappel — fonctionnalité à venir')}
           />
+          {renderRefuseSecondary()}
+          {renderCloseSecondary()}
         </div>
       )
     }
 
     if (globalStatus === 'commercial_in_progress') {
-      return renderCommercialFields()
+      return (
+        <div className="space-y-3">
+          {renderCommercialFields()}
+          {renderRefuseSecondary()}
+          {renderCloseSecondary()}
+        </div>
+      )
     }
 
     if (globalStatus === 'scheduled' && !dateAccepted && hasAction('confirm_date')) {
@@ -593,26 +665,40 @@ export function PatientActionPanel({
             disabled={loading}
             onClick={() => runAction('confirm_date')}
           />
+          {renderCloseSecondary()}
         </div>
       )
     }
 
     if (globalStatus === 'scheduled' && dateAccepted) {
       return (
-        <div className="text-center py-4 space-y-2">
-          <CheckCircle size={36} color={BRAND.green} style={{ margin: '0 auto' }} />
-          <p className="text-base font-extrabold text-[#0A4A28]">Intervention confirmée</p>
+        <div className="space-y-3">
+          <div className="text-center py-4 space-y-2">
+            <CheckCircle size={36} color={BRAND.green} style={{ margin: '0 auto' }} />
+            <p className="text-base font-extrabold text-[#0A4A28]">Intervention confirmée</p>
+          </div>
+          {renderCloseSecondary()}
         </div>
       )
     }
 
-    if (globalStatus === 'rejected') {
+    if ((globalStatus === 'rejected' || globalStatus === 'closed') && hasAction('reopen_case')) {
+      return renderReopenPanel(
+        globalStatus === 'rejected'
+          ? 'Dossier refusé. Réouvrez pour le remettre en circuit.'
+          : 'Dossier fermé. Réouvrez pour reprendre le suivi.',
+      )
+    }
+
+    if (globalStatus === 'rejected' || globalStatus === 'closed') {
       return (
         <div className="text-center py-5 space-y-2">
           <XCircle size={28} color="#D04040" style={{ margin: '0 auto' }} />
-          <p className="text-sm font-bold text-[#5A1010]">Dossier clôturé</p>
+          <p className="text-sm font-bold text-[#5A1010]">
+            {globalStatus === 'rejected' ? 'Dossier refusé' : 'Dossier fermé'}
+          </p>
           <p className="text-xs" style={{ color: BRAND.slate }}>
-            Contactez l&apos;administrateur pour réouvrir.
+            Aucune action de réouverture pour votre rôle.
           </p>
         </div>
       )
@@ -624,6 +710,8 @@ export function PatientActionPanel({
   const renderBody = () => {
     if (userRole === 'gilles') return renderGillesPanel()
     if (userRole === 'admin') {
+      // Revue médicale : mêmes actions que Gilles (valider / refuser / complément).
+      if (globalStatus === 'medical_review') return renderGillesPanel()
       if (globalStatus === 'commercial_in_progress') {
         return (
           <>
@@ -632,14 +720,28 @@ export function PatientActionPanel({
           </>
         )
       }
-      if (['draft', 'medical_more_info', 'medical_review', 'scheduled'].includes(globalStatus)) {
+      if (['draft', 'medical_more_info', 'scheduled'].includes(globalStatus)) {
         const coord = renderCoordinatorPanel()
         if (coord) return coord
       }
       return renderAdminPanel()
     }
     if (userRole === 'franchir') {
-      if (globalStatus === 'commercial_in_progress') return renderCommercialFields()
+      if (globalStatus === 'commercial_in_progress') {
+        return (
+          <div className="space-y-3">
+            {renderCommercialFields()}
+            {renderCloseSecondary()}
+          </div>
+        )
+      }
+      if ((globalStatus === 'rejected' || globalStatus === 'closed') && hasAction('reopen_case')) {
+        return renderReopenPanel(
+          globalStatus === 'rejected'
+            ? 'Dossier refusé. Réouvrez pour le remettre en circuit.'
+            : 'Dossier fermé. Réouvrez pour reprendre le suivi.',
+        )
+      }
       return (
         <div className="text-center py-6">
           <p className="text-sm" style={{ color: BRAND.slate }}>
