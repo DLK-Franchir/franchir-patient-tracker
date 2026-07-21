@@ -59,7 +59,7 @@ export function PatientPipelineHeader({
           <div>
             <h3 className="text-base sm:text-lg font-bold text-[#5A1010]">Dossier refusé</h3>
             <p className="text-sm text-[#7A3030]">
-              {progressDetail?.trim() || 'Seul un administrateur peut réouvrir ce dossier.'}
+              {progressDetail?.trim() || 'Réouverture possible depuis le panneau d’actions.'}
             </p>
           </div>
         </div>

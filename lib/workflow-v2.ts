@@ -53,8 +53,11 @@ export function canPerformWorkflowAction(
   switch (actionId) {
     case 'approve_medical':
     case 'request_more_info':
-    case 'reject_medical':
       return role === 'gilles' || role === 'admin'
+    case 'reject_medical':
+      // Gilles (avis médical) ; Marcel/admin peuvent aussi passer en mode refusé
+      // (retrait / non-éligibilité) — le dossier reste listé sous « Refusé ».
+      return role === 'gilles' || role === 'marcel' || role === 'admin'
     case 'submit_to_medical':
     case 'resubmit_to_medical':
     case 'confirm_quote':
@@ -69,7 +72,8 @@ export function canPerformWorkflowAction(
       }
       return role === 'marcel' || role === 'franchir' || role === 'admin'
     case 'reopen_case':
-      return role === 'admin'
+      // Aligné README + usage opérationnel : réactivation hors terminal.
+      return role === 'admin' || role === 'marcel' || role === 'franchir'
     case 'close_case':
       if (globalStatus === 'rejected' || globalStatus === 'closed') {
         return false
@@ -203,11 +207,15 @@ export function getWorkflowHandoff(globalStatus: GlobalStatus, role: UserRole): 
   }
 
   if (globalStatus === 'rejected') {
-    const guidance =
-      role === 'admin'
-        ? 'Ce dossier est refusé. Vous pouvez le réouvrir si nécessaire.'
-        : 'Ce dossier a été refusé et est en lecture seule.'
-    return { pendingActor: role === 'admin' ? role : null, pendingActorLabel: ROLE_LABELS.admin, guidance }
+    const canReopen = role === 'admin' || role === 'marcel' || role === 'franchir'
+    const guidance = canReopen
+      ? 'Ce dossier est refusé. Vous pouvez le réouvrir si nécessaire.'
+      : 'Ce dossier a été refusé et est en lecture seule.'
+    return {
+      pendingActor: canReopen ? role : null,
+      pendingActorLabel: ROLE_LABELS[role] ?? ROLE_LABELS.admin,
+      guidance,
+    }
   }
 
   if (globalStatus === 'draft') {
@@ -359,27 +367,8 @@ export function getAvailableActions({
     futureSteps: [],
   }
 
-  if (globalStatus === 'rejected') {
-    if (role === 'admin') {
-      result.primaryAction = {
-        id: 'reopen_case',
-        label: 'Réouvrir le dossier',
-        variant: 'primary',
-        targetGlobalStatus: 'draft',
-        requiresInput: [
-          {
-            type: 'message',
-            label: 'Raison de la réouverture',
-            required: true,
-          },
-        ],
-      }
-    }
-    return result
-  }
-
-  if (globalStatus === 'closed') {
-    if (role === 'admin') {
+  if (globalStatus === 'rejected' || globalStatus === 'closed') {
+    if (role === 'admin' || role === 'marcel' || role === 'franchir') {
       result.primaryAction = {
         id: 'reopen_case',
         label: 'Réouvrir le dossier',
@@ -430,10 +419,43 @@ export function getAvailableActions({
         { label: 'Revue médicale (Dr Dubois)', reason: 'Après renvoi du dossier complété' },
         { label: 'Proposition commerciale', reason: 'Après validation médicale' },
       ]
+      if (role === 'marcel') {
+        result.secondaryActions.push({
+          id: 'reject_medical',
+          label: 'Passer en mode refusé',
+          description: 'Retirer le dossier du circuit — reste visible sous Refusé, réactivable ensuite',
+          variant: 'danger',
+          targetGlobalStatus: 'rejected',
+          requiresInput: [
+            {
+              type: 'justification',
+              label: 'Motif du refus',
+              required: true,
+            },
+          ],
+        })
+      }
     } else if (globalStatus === 'medical_review') {
       result.futureSteps = [
         { label: 'Décision médicale', reason: 'En cours chez le Dr Dubois' },
       ]
+      // Coordinateur : peut retirer le dossier (mode refusé) sans attendre Gilles.
+      if (role === 'marcel') {
+        result.secondaryActions.push({
+          id: 'reject_medical',
+          label: 'Passer en mode refusé',
+          description: 'Retirer le dossier du circuit — reste visible sous Refusé, réactivable ensuite',
+          variant: 'danger',
+          targetGlobalStatus: 'rejected',
+          requiresInput: [
+            {
+              type: 'justification',
+              label: 'Motif du refus',
+              required: true,
+            },
+          ],
+        })
+      }
     } else if (globalStatus === 'commercial_in_progress') {
       const actions: Action[] = []
 

@@ -74,7 +74,7 @@ function PipelineSteps({
         <XCircle size={20} color="#D04040" className="shrink-0" aria-hidden />
         <span className="text-base font-bold text-[#5A1010]">Dossier refusé</span>
         <span className="text-[15px]" style={{ color: BRAND.slate }}>
-          — {progressDetail?.trim() || 'Seul un administrateur peut réouvrir ce dossier.'}
+          — {progressDetail?.trim() || 'Réouverture possible depuis le panneau d’actions.'}
         </span>
       </div>
     )

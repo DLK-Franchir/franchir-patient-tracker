@@ -17,6 +17,8 @@ Vous êtes le chef d'orchestre du dossier.
 *   **Vos actions principales :**
     *   Créer un nouveau patient.
     *   Soumettre le dossier à validation médicale (au Dr Gilles).
+    *   **Passer en mode refusé** un dossier (retrait du circuit — reste visible sous l’onglet Refusé).
+    *   **Réouvrir** un dossier refusé ou fermé pour le remettre en circuit.
     *   Saisir les données commerciales (Montant du devis, Date proposée).
     *   Marquer le devis et la date comme "Confirmés" une fois validés par le patient.
 
@@ -38,7 +40,8 @@ Vous supervisez l'ensemble de l'activité.
 *   **Votre rôle :** Administrateur global et supervision.
 *   **Vos actions principales :**
     *   Accès en lecture/écriture sur tous les dossiers.
-    *   Possibilité de **réouvrir** un dossier clôturé ou refusé.
+    *   **Réouvrir** un dossier clôturé ou refusé (également possible pour Marcel / Franchir).
+    *   En revue médicale : valider, refuser ou demander un complément (comme Gilles).
     *   Gestion des utilisateurs et vue d'ensemble de l'activité.
 
 ---

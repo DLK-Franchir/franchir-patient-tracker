@@ -20,9 +20,10 @@ describe('case_closed workflow', () => {
     expect(canPerformWorkflowAction('marcel', 'close_case', 'closed')).toBe(false)
   })
 
-  it('bloque les actions workflow sur un dossier fermé sauf réouverture admin', () => {
+  it('bloque les actions workflow sur un dossier fermé sauf réouverture', () => {
     expect(canPerformWorkflowAction('marcel', 'confirm_quote', 'closed')).toBe(false)
     expect(canPerformWorkflowAction('admin', 'reopen_case', 'closed')).toBe(true)
+    expect(canPerformWorkflowAction('marcel', 'reopen_case', 'closed')).toBe(true)
   })
 
   it('expose Fermer le dossier pour marcel sur dossier validé', () => {
@@ -33,8 +34,17 @@ describe('case_closed workflow', () => {
     expect(actions.secondaryActions.some((a) => a.id === 'close_case')).toBe(true)
   })
 
-  it('expose Réouvrir pour admin sur dossier fermé', () => {
-    const actions = getAvailableActions({ globalStatus: 'closed', role: 'admin' })
-    expect(actions.primaryAction?.id).toBe('reopen_case')
+  it('expose Réouvrir pour admin et marcel sur dossier fermé / refusé', () => {
+    expect(getAvailableActions({ globalStatus: 'closed', role: 'admin' }).primaryAction?.id).toBe(
+      'reopen_case',
+    )
+    expect(getAvailableActions({ globalStatus: 'rejected', role: 'marcel' }).primaryAction?.id).toBe(
+      'reopen_case',
+    )
+  })
+
+  it('expose Passer en mode refusé pour marcel en revue médicale', () => {
+    const actions = getAvailableActions({ globalStatus: 'medical_review', role: 'marcel' })
+    expect(actions.secondaryActions.some((a) => a.id === 'reject_medical')).toBe(true)
   })
 })
