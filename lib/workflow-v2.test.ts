@@ -59,6 +59,64 @@ describe('case_closed workflow', () => {
     expect(actions.secondaryActions.some((a) => a.id === 'close_case')).toBe(true)
   })
 
+  it('expose Passer en mode refusé pour marcel/admin sur tout dossier non terminal', () => {
+    for (const globalStatus of [
+      'draft',
+      'medical_review',
+      'medical_more_info',
+      'commercial_in_progress',
+      'scheduled',
+    ] as const) {
+      for (const role of ['marcel', 'admin'] as const) {
+        const actions = getAvailableActions({ globalStatus, role })
+        const hasRefuse =
+          actions.primaryAction?.id === 'reject_medical' ||
+          actions.secondaryActions.some((a) => a.id === 'reject_medical')
+        expect(hasRefuse).toBe(true)
+      }
+    }
+  })
+
+  it('n’expose pas le refus sur dossier refusé/fermé (réouverture à la place)', () => {
+    for (const globalStatus of ['rejected', 'closed'] as const) {
+      const actions = getAvailableActions({ globalStatus, role: 'marcel' })
+      expect(actions.primaryAction?.id).toBe('reopen_case')
+      expect(actions.secondaryActions.some((a) => a.id === 'reject_medical')).toBe(false)
+    }
+  })
+
+  it('désactive Confirmer le devis/date tant que les valeurs ne sont pas saisies', () => {
+    const actions = getAvailableActions({
+      globalStatus: 'commercial_in_progress',
+      role: 'marcel',
+      quoteAccepted: false,
+      dateAccepted: false,
+      hasQuoteAmount: false,
+      hasProposedDate: false,
+    })
+    expect(actions.primaryAction?.id).toBe('confirm_quote')
+    expect(actions.primaryAction?.disabled).toBe(true)
+    expect(actions.primaryAction?.disabledReason).toMatch(/devis/i)
+    const confirmDate = actions.secondaryActions.find((a) => a.id === 'confirm_date')
+    expect(confirmDate?.disabled).toBe(true)
+    expect(confirmDate?.disabledReason).toMatch(/date/i)
+  })
+
+  it('active Confirmer le devis/date une fois les valeurs présentes', () => {
+    const actions = getAvailableActions({
+      globalStatus: 'commercial_in_progress',
+      role: 'marcel',
+      quoteAccepted: false,
+      dateAccepted: false,
+      hasQuoteAmount: true,
+      hasProposedDate: true,
+    })
+    expect(actions.primaryAction?.id).toBe('confirm_quote')
+    expect(actions.primaryAction?.disabled).toBeFalsy()
+    const confirmDate = actions.secondaryActions.find((a) => a.id === 'confirm_date')
+    expect(confirmDate?.disabled).toBeFalsy()
+  })
+
   it('mappe validated_medical vers commercial_in_progress', () => {
     expect(
       globalStatusFromWorkflowStatus({

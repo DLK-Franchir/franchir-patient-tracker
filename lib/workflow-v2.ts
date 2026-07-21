@@ -350,16 +350,37 @@ export interface AvailableActions {
   }>
 }
 
+const REFUSE_ACTION: Action = {
+  id: 'reject_medical',
+  label: 'Passer en mode refusé',
+  description: 'Retirer le dossier du circuit — reste visible sous Refusé, réactivable ensuite',
+  variant: 'danger',
+  targetGlobalStatus: 'rejected',
+  requiresInput: [
+    {
+      type: 'justification',
+      label: 'Motif du refus',
+      required: true,
+    },
+  ],
+}
+
 export function getAvailableActions({
   globalStatus,
   role,
   quoteAccepted = false,
   dateAccepted = false,
+  hasQuoteAmount,
+  hasProposedDate,
 }: {
   globalStatus: GlobalStatus
   role: UserRole
   quoteAccepted?: boolean
   dateAccepted?: boolean
+  /** Si fourni : désactive « Confirmer le devis » tant que le montant n'est pas saisi. */
+  hasQuoteAmount?: boolean
+  /** Si fourni : désactive « Confirmer la date » tant que la date n'est pas saisie. */
+  hasProposedDate?: boolean
 }): AvailableActions {
   const result: AvailableActions = {
     secondaryActions: [],
@@ -419,52 +440,26 @@ export function getAvailableActions({
         { label: 'Revue médicale (Dr Dubois)', reason: 'Après renvoi du dossier complété' },
         { label: 'Proposition commerciale', reason: 'Après validation médicale' },
       ]
-      if (role === 'marcel') {
-        result.secondaryActions.push({
-          id: 'reject_medical',
-          label: 'Passer en mode refusé',
-          description: 'Retirer le dossier du circuit — reste visible sous Refusé, réactivable ensuite',
-          variant: 'danger',
-          targetGlobalStatus: 'rejected',
-          requiresInput: [
-            {
-              type: 'justification',
-              label: 'Motif du refus',
-              required: true,
-            },
-          ],
-        })
-      }
     } else if (globalStatus === 'medical_review') {
       result.futureSteps = [
         { label: 'Décision médicale', reason: 'En cours chez le Dr Dubois' },
       ]
-      // Coordinateur : peut retirer le dossier (mode refusé) sans attendre Gilles.
-      if (role === 'marcel') {
-        result.secondaryActions.push({
-          id: 'reject_medical',
-          label: 'Passer en mode refusé',
-          description: 'Retirer le dossier du circuit — reste visible sous Refusé, réactivable ensuite',
-          variant: 'danger',
-          targetGlobalStatus: 'rejected',
-          requiresInput: [
-            {
-              type: 'justification',
-              label: 'Motif du refus',
-              required: true,
-            },
-          ],
-        })
-      }
     } else if (globalStatus === 'commercial_in_progress') {
       const actions: Action[] = []
 
       if (!quoteAccepted) {
+        const quoteReady = hasQuoteAmount !== false
         actions.push({
           id: 'confirm_quote',
           label: 'Confirmer le devis',
           variant: 'primary',
           targetGlobalStatus: 'stay',
+          disabled: hasQuoteAmount === false,
+          disabledReason:
+            hasQuoteAmount === false ? 'Enregistrez d’abord le devis' : undefined,
+          description: quoteReady
+            ? undefined
+            : 'Visible dès la phase commerciale — activé après saisie du devis',
         })
       }
 
@@ -474,32 +469,15 @@ export function getAvailableActions({
           label: 'Confirmer la date',
           variant: 'primary',
           targetGlobalStatus: 'stay',
+          disabled: hasProposedDate === false,
+          disabledReason:
+            hasProposedDate === false ? 'Enregistrez d’abord la date' : undefined,
         })
       }
 
       if (actions.length > 0) {
         result.primaryAction = actions[0]
         result.secondaryActions = actions.slice(1)
-      }
-
-      // Coordinateur / admin : retrait possible aussi en phase commerciale
-      // (devis/date pas encore saisis — panneau sinon perçu comme « vide »).
-      if (role === 'marcel' || role === 'admin') {
-        result.secondaryActions.push({
-          id: 'reject_medical',
-          label: 'Passer en mode refusé',
-          description:
-            'Retirer le dossier du circuit — reste visible sous Refusé, réactivable ensuite',
-          variant: 'danger',
-          targetGlobalStatus: 'rejected',
-          requiresInput: [
-            {
-              type: 'justification',
-              label: 'Motif du refus',
-              required: true,
-            },
-          ],
-        })
       }
     }
   }
@@ -620,6 +598,17 @@ export function getAvailableActions({
         },
       ],
     })
+  }
+
+  // Marcel / admin : refus toujours proposé sur dossier non terminal
+  // (évite un panneau « vide » ; le bouton reste actionnable avec motif).
+  if (role === 'marcel' || role === 'admin') {
+    const hasRefuse =
+      result.primaryAction?.id === 'reject_medical' ||
+      result.secondaryActions.some((a) => a.id === 'reject_medical')
+    if (!hasRefuse) {
+      result.secondaryActions.push({ ...REFUSE_ACTION })
+    }
   }
 
   if (role === 'marcel' || role === 'franchir' || role === 'admin') {
