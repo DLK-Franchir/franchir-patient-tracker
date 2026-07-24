@@ -25,14 +25,15 @@ Confirmer que la prod questionnaires = `Franchir_Questionnaires_Patients` → `q
 
 **Typo classique :** tracker corrigé, `neuro_patients.email` figé sur l'ancienne valeur → Resend envoie au mauvais destinataire.
 
-### 3. Resend (API ou dashboard)
+### 3. Resend (API, dashboard, ou MCP `https://mcp.resend.com/mcp`)
 
 Filtrer :
 - **From :** `questionnaire@franchir.eu`
 - **Subject :** « Votre questionnaire médical Franchir »
 - **To :** adresse attendue vs typo
 
-Interpréter `last_event` : `delivered` OK ; `bounced` adresse invalide ; `suppressed` liste de suppression après bounce antérieur.
+Interpréter `last_event` / `neuro_patient_links.resend_last_event` : `delivered` OK ; `bounced` adresse invalide ; `suppressed` liste de suppression après bounce antérieur.  
+Corréler avec tags `kind=patient_link` + `link_id`, et `resend_message_id` si support mailbox. Runbook : `docs/ops/RESEND.md` (tracker) + Q `docs/ops/RESEND.md`.
 
 ### 4. Code déployé
 

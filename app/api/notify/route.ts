@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { EMAIL_FROM } from '@/lib/email-config'
+import { staffEmailTags } from '@/lib/email-tags'
 import { isStaffEmail, isStaffProfile } from '@/lib/access-control'
 import { createServerClient } from '@/lib/supabase/server'
 
@@ -43,7 +44,8 @@ export async function POST(request: NextRequest) {
       from: EMAIL_FROM,
       to,
       subject,
-      html
+      html,
+      tags: staffEmailTags('notify_api'),
     })
 
     if (error) {

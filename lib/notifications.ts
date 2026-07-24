@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 import { staffRecipients } from '@/lib/access-control'
 import { EMAIL_FROM, getEmailForProfile } from '@/lib/email-config'
+import { staffEmailTags } from '@/lib/email-tags'
 import { Logger } from '@/lib/logger'
 import {
   newPatientEmailHtml,
@@ -73,6 +74,7 @@ export async function sendNewPatientNotifications(
         to: p.realEmail!,
         subject: `Nouveau dossier créé — ${patient.patient_name}`,
         html: newPatientEmailHtml(p.full_name, actor.full_name, patient.patient_name, link),
+        tags: staffEmailTags('new_patient', { patient_id: patient.id }),
       })
     )
 
@@ -122,6 +124,7 @@ export async function sendNewMessageNotifications(
         to: p.realEmail!,
         subject: `Nouveau message de ${actor.full_name} — ${patient.patient_name}`,
         html: newMessageEmailHtml(p.full_name, actor.full_name, patient.patient_name, message, link),
+        tags: staffEmailTags('new_message', { patient_id: patient.id }),
       })
     )
 
@@ -168,6 +171,7 @@ export async function sendSurgeonAssignmentEmail(
           Le dossier n'est visible que des praticiens qui y sont rattachés.</p>
         </div>
       `,
+      tags: staffEmailTags('surgeon_assignment'),
     })
   } catch (error) {
     log.error('Échec envoi email assignation chirurgien', error)
@@ -268,6 +272,10 @@ export async function sendCommercialActionNotifications(
         to: u.realEmail!,
         subject: `Action commerciale — ${patient.patient_name}`,
         html: statusChangeEmailHtml(u.full_name, statusMessage, link),
+        tags: staffEmailTags('commercial_action', {
+          patient_id: patient.id,
+          action: actionId,
+        }),
       }),
     )
 
@@ -325,6 +333,10 @@ export async function sendStatusChangeNotifications(
         to: u.realEmail!,
         subject: `Mise à jour dossier — ${patient.patient_name}`,
         html: statusChangeEmailHtml(u.full_name, statusMessage, link),
+        tags: staffEmailTags('status_change', {
+          patient_id: patient.id,
+          status: newStatusCode,
+        }),
       })
     )
 
