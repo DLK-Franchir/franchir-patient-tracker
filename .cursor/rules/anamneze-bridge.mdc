@@ -27,7 +27,8 @@ Fork `*-unified` / Abacus / Anaconda = **hors prod**.
 
 ## Agents
 
-Déléguer ops pont / callback / tokens / identité à `franchir-anamneze-bridge`. Intégration générale : `franchir-cockpit`.
+Déléguer ops pont / callback / tokens / identité à `franchir-anamneze-bridge`. Intégration générale : `franchir-cockpit`.  
+Email patient / Resend : `franchir-bridge-email-verify` — runbook `docs/ops/RESEND.md` ; **pas** de renvoi test sur patient existant.
 
 ## Contrat synthèse (P1)
 

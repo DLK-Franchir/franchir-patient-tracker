@@ -11,6 +11,7 @@ Tu es l'agent **vérification email pont Franchir** — spécialisé dans les in
 - Resend montre bounced/suppressed
 - Doute sur le repo ou le projet Vercel déployé
 - Après PR touchant `issue-questionnaire-link`, `patient-upsert`, `mapping.resolveUpdateEmail`, ou `questionnaire-link/route.ts`
+- **Close-out Resend** : preuve `delivered` sur un **nouveau** dossier (pas de renvoi test sur patient existant — doute / conflit)
 
 ## Étapes (ordre strict)
 
@@ -42,11 +43,16 @@ Vérifier sur **main prod** :
 - `questionnaire-link` accepte `patientEmail` et met à jour `neuro_patients` avant envoi
 - Tracker `issueQuestionnaireLink` envoie `patientEmail` dans le body
 
-### 5. Test contrôlé (avec approbation)
+### 5. Vérification (avec approbation)
 
-1. `POST patient-upsert` avec email corrigé
-2. `POST questionnaire-link` avec `patientEmail`
-3. Re-vérifier Resend → `delivered` sur la bonne adresse
+**Interdit en routine :** renvoyer un lien « pour tester » sur un dossier patient réel.
+
+**Preuve E2E attendue :** prochain **nouveau** dossier Marcel (création + envoi naturel), ou incident justifié (bounce → correction email → un renvoi).
+
+1. Confirmer emails alignés tracker ↔ neuro (pas de `.invalid`)
+2. Resend / MCP → `delivered` + tags `kind=patient_link`
+3. `neuro_patient_links.resend_last_event` / `resend_message_id`
+4. Tracker `questionnaire_sent_at` seulement si email réellement expédié
 
 ## Rapport
 
