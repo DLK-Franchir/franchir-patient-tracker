@@ -1,7 +1,7 @@
 # Resend — tracker Marcel
 
-Voir aussi le runbook détaillé côté questionnaires :  
-`Franchir_Questionnaires_Patients/docs/ops/RESEND.md`.
+**Statut prod (2026-07-24) : LIVE** — détail + close-out :  
+repo questionnaires `docs/ops/RESEND.md`.
 
 ## Ce repo envoie
 
@@ -12,18 +12,33 @@ Voir aussi le runbook détaillé côté questionnaires :
 Expéditeur : `FRANCHIR <yves.merillon@franchir.eu>` (`lib/email-config.ts`).  
 Env : `RESEND_API_KEY`.
 
-Les **emails patient** (lien questionnaire) partent **uniquement** de l’app questionnaires (`RESEND_API_KEY` + `EMAIL_FROM_ADDRESS` là-bas).
+Les **emails patient** (lien questionnaire) partent **uniquement** de l’app questionnaires.
 
 ## Tags
 
-Tous les envois tracker portent `app=tracker` + `kind=…` (+ `patient_id` quand pertinent) pour filtrage MCP / dashboard.
+`app=tracker` + `kind=…` (+ `patient_id` quand pertinent).
 
 ## MCP
 
-`.cursor/mcp.json` → server `resend` = `https://mcp.resend.com/mcp` (OAuth, pas de clé en repo).
+`.cursor/mcp.json` → `resend` = `https://mcp.resend.com/mcp` (OAuth, pas de clé en repo).
+
+## Vérification
+
+- **Ne pas** renvoyer un lien questionnaire « pour tester » sur un dossier existant.
+- Preuve E2E patient : **prochain nouveau dossier** (création normale) — voir Q `docs/ops/RESEND.md`.
+- Staff : tags visibles dans Resend dashboard / MCP.
+
+## Sécurité (tracker)
+
+| Contrôle | État |
+|----------|------|
+| GitHub secret scanning | Enabled |
+| Push protection | Enabled |
+| Pas de `re_` dans mcp.json | OAuth MCP |
+| Pas de PHI dans logs email | Règle agents |
 
 ## Ne pas faire
 
-- Migrer le compte prod vers **Vercel Marketplace Resend** (domaine déjà vérifié hors Vercel Domains)
-- Mettre une `re_` key dans `mcp.json` (préférer OAuth)
-- Logger destinataires patient / corps d’email (PHI)
+- Migrer vers Vercel Marketplace Resend
+- Coller une clé `re_` dans Cursor MCP
+- Logger destinataires patient / corps d’email
