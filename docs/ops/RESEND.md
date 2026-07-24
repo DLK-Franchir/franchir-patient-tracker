@@ -32,8 +32,8 @@ Les **emails patient** (lien questionnaire) partent **uniquement** de l’app qu
 
 | Contrôle | État |
 |----------|------|
-| GitHub secret scanning | Enabled |
-| Push protection | Enabled |
+| GitHub secret scanning | Enabled (tracker + Q, confirmé ops) |
+| Push protection | Enabled (tracker + Q, confirmé ops) |
 | Pas de `re_` dans mcp.json | OAuth MCP |
 | Pas de PHI dans logs email | Règle agents |
 
