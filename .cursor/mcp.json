@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "supabase-tracker": {
+      "url": "https://mcp.supabase.com/mcp?project_ref=zdmeidekszdrzmjuasee&features=account%2Cdocs%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching"
+    },
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp?project_ref=vsnjahkrsqxbvspwhaka"
+    },
+    "resend": {
+      "url": "https://mcp.resend.com/mcp"
+    }
+  }
+}

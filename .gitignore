@@ -66,3 +66,4 @@ docs/Design responsive UI_UX_Tracker_V3/
 
 # Finder duplicate copies ("foo 2.ts") — never commit
 * 2.*
+.firecrawl/
