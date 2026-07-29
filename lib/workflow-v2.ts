@@ -575,15 +575,15 @@ export function getAvailableActions({
     role === 'franchir' ||
     role === 'admin'
 
-  if (
-    canAssignViaWorkflow &&
-    globalStatus !== 'scheduled'
-  ) {
+  // Assignation / réassignation disponible après validation médicale,
+  // y compris une fois le dossier programmé (scheduled).
+  if (canAssignViaWorkflow) {
     const assignEnabled = isMedicallyValidated(globalStatus)
     result.secondaryActions.push({
       id: 'assign_surgeon',
       label: 'Assigner un chirurgien',
-      description: 'Désigner le chirurgien qui prend en charge le dossier (transmet le dossier au chirurgien)',
+      description:
+        'Désigner ou modifier le chirurgien qui prend en charge le dossier (transmet le dossier au chirurgien)',
       variant: 'secondary',
       targetGlobalStatus: 'stay',
       disabled: !assignEnabled,

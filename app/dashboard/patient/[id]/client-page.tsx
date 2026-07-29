@@ -393,6 +393,9 @@ export default function PatientDetailClient({
           </div>
         )}
 
+        {/* Mobile: actions (dont réassignation chirurgien) avant Anamneze */}
+        <div className="xl:hidden mb-5">{rightColumn}</div>
+
         {viewConfig.showAnamnezeDashboard && (
           <div className="mb-5">
             <AnamnezeSection
@@ -405,9 +408,6 @@ export default function PatientDetailClient({
             />
           </div>
         )}
-
-        {/* Mobile: action panel first */}
-        <div className="xl:hidden mb-5">{rightColumn}</div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-5">
           <div className="space-y-5">

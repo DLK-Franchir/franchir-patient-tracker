@@ -32,6 +32,13 @@ describe('getAvailableActions assign_surgeon', () => {
     expect(assign?.disabled).toBe(false)
   })
 
+  it('conserve l\'assignation / réassignation pour marcel une fois programmé', () => {
+    const actions = getAvailableActions({ globalStatus: 'scheduled', role: 'marcel' })
+    const assign = actions.secondaryActions.find((a) => a.id === 'assign_surgeon')
+    expect(assign).toBeDefined()
+    expect(assign?.disabled).toBe(false)
+  })
+
   it('ne propose pas l\'assignation pour gilles en brouillon', () => {
     const actions = getAvailableActions({ globalStatus: 'draft', role: 'gilles' })
     expect(actions.secondaryActions.some((a) => a.id === 'assign_surgeon')).toBe(false)

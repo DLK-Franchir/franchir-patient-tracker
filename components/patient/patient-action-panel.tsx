@@ -400,22 +400,32 @@ export function PatientActionPanel({
 
   const renderAssignSurgeonControl = () => {
     const assign = findAction('assign_surgeon')
-    if (!assign || assignedSurgeonId) return null
+    if (!assign) return null
 
+    const isReassign = Boolean(assignedSurgeonId)
+    const currentSurgeon = surgeons.find((s) => s.id === assignedSurgeonId)
     const workflowBlocked = Boolean(assign.disabled)
     const needsSelection = !chirVal
-    const disabled = loading || workflowBlocked || needsSelection
+    const sameAsCurrent = Boolean(assignedSurgeonId && chirVal === assignedSurgeonId)
+    const disabled = loading || workflowBlocked || needsSelection || sameAsCurrent
     const disabledReason = workflowBlocked
       ? assign.disabledReason
       : needsSelection
         ? 'Sélectionnez un chirurgien'
-        : undefined
+        : sameAsCurrent
+          ? 'Ce chirurgien est déjà assigné'
+          : undefined
 
     return (
       <div className="space-y-1.5">
         <label className="block text-sm font-semibold" style={{ color: BRAND.ink }}>
-          Assigner un chirurgien
+          {isReassign ? 'Modifier le chirurgien' : 'Assigner un chirurgien'}
         </label>
+        {isReassign && currentSurgeon ? (
+          <p className="text-xs leading-snug" style={{ color: BRAND.slate }}>
+            Actuellement : {currentSurgeon.full_name}
+          </p>
+        ) : null}
         <select
           value={chirVal}
           onChange={(e) => setChirVal(e.target.value)}
@@ -431,7 +441,7 @@ export function PatientActionPanel({
           ))}
         </select>
         <PanelButton
-          label="Assigner le chirurgien"
+          label={isReassign ? 'Modifier le chirurgien' : 'Assigner le chirurgien'}
           variant="navy"
           disabled={disabled}
           disabledReason={disabledReason}
@@ -737,9 +747,8 @@ export function PatientActionPanel({
         <div className="space-y-3">
           {needsQuoteOrDate && (
             <p className="text-base leading-relaxed" style={{ color: BRAND.ink }}>
-              Dossier validé médicalement
-              {assignedSurgeonId ? ' — chirurgien déjà assigné' : ''}. Saisissez le devis et/ou la
-              date d&apos;intervention, puis enregistrez.
+              Dossier validé médicalement. Saisissez le devis et/ou la date d&apos;intervention,
+              puis enregistrez. Vous pouvez aussi modifier le chirurgien ci-dessous.
             </p>
           )}
           {renderCommercialFields()}
@@ -765,6 +774,7 @@ export function PatientActionPanel({
               <p className="text-base font-extrabold text-[#0A4A28]">Intervention confirmée</p>
             </div>
           )}
+          {renderAssignSurgeonControl()}
           {renderRefuseSecondary()}
           {renderCloseSecondary()}
         </div>
