@@ -5,7 +5,6 @@ import { canCreatePatient } from '@/lib/access-control'
 import { parseQuestionnaireLanguage } from '@/lib/integrations/questionnaire-language'
 import { parseFormTypesInput } from '@/lib/integrations/questionnaire-form-types'
 import { sendNewPatientNotifications } from '@/lib/notifications'
-import { issueQuestionnaireLink } from '@/lib/integrations/issue-questionnaire-link'
 import { logPatientAction } from '@/lib/patient-messages/log-action'
 import {
   formatPatientCreationAuditBody,
@@ -39,8 +38,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // Email patient (D1) : requis pour l'envoi automatique du questionnaire.
-    // Validation minimale (format) — la saisie complète est validée côté UI.
+    // Email patient requis pour le dispatch staff (copie / mailto) depuis la fiche.
     if (!patient_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patient_email)) {
       return NextResponse.json({ error: 'Email patient invalide ou manquant' }, { status: 400 })
     }
@@ -91,29 +89,8 @@ export async function POST(req: Request) {
       { id: patient.id, patient_name }
     )
 
-    // Envoi automatique du lien questionnaire (D1) — best-effort après sync webhook.
-    const linkResult = await issueQuestionnaireLink({
-      patientId: patient.id,
-      newSession: false,
-      language,
-    })
-    if (!linkResult.ok) {
-      log.warn('Envoi auto lien questionnaire echoue a la creation', {
-        patientId: patient.id,
-        code: linkResult.code,
-        error: linkResult.error,
-      })
-    } else if (!linkResult.emailSent) {
-      log.warn('Lien questionnaire genere sans email patient (Resend?)', {
-        patientId: patient.id,
-      })
-    }
-
-    const sendNote = formatQuestionnaireCreationNote({
-      ok: linkResult.ok,
-      emailSent: linkResult.ok ? linkResult.emailSent : undefined,
-      error: linkResult.ok ? undefined : linkResult.error,
-    })
+    // Plus d'émission auto Resend à la création — Marcel prépare depuis la fiche.
+    const sendNote = formatQuestionnaireCreationNote({ deferred: true })
 
     await logPatientAction(
       supabase,
@@ -133,7 +110,8 @@ export async function POST(req: Request) {
           action_id: 'create_patient',
           questionnaire_language: language,
           form_types: formTypes,
-          questionnaire_email_sent: linkResult.ok ? linkResult.emailSent : false,
+          questionnaire_email_sent: false,
+          questionnaire_dispatch_deferred: true,
         },
       },
       log,
@@ -143,8 +121,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       patientId: patient.id,
-      questionnaireEmailSent: linkResult.ok ? linkResult.emailSent : false,
-      questionnaireLinkError: linkResult.ok ? null : linkResult.error,
+      questionnaireEmailSent: false,
+      questionnaireLinkError: null,
+      questionnaireDispatchDeferred: true,
     })
   } catch (error) {
     log.error('Erreur création patient', error)

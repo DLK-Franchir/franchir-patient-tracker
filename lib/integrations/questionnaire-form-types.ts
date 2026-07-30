@@ -50,6 +50,16 @@ export function formTypesForPreset(preset: QuestionnaireFormTypePreset): Questio
   return [preset]
 }
 
+/** Inverse de formTypesForPreset (défaut cervical si vide / inconnu). */
+export function presetFromFormTypes(
+  types: readonly QuestionnaireFormType[],
+): QuestionnaireFormTypePreset {
+  const normalized = normalizeFormTypes([...types])
+  if (normalized.length === 2) return 'combined'
+  if (normalized[0] === 'lombaire') return 'lombaire'
+  return 'cervical'
+}
+
 export function formatFormTypesLabel(types: readonly QuestionnaireFormType[]): string {
   return formatFormTypesLabelShared(types)
 }

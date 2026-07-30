@@ -47,20 +47,13 @@ export default function NewPatientPage() {
 
       const patientId: string = data.patientId
 
-      const questionnaireWarningMessage =
-        data.questionnaireLinkError
-          ? `Le dossier a été créé, mais le lien questionnaire n'a pas pu être envoyé : ${data.questionnaireLinkError}. Renvoyez-le depuis la fiche patient.`
-          : data.questionnaireEmailSent === false
-            ? "Le dossier a été créé, mais l'email questionnaire n'a pas été expédié. Vérifiez l'adresse et renvoyez le lien depuis la fiche patient."
-            : null
-
-      if (questionnaireWarningMessage) {
-        try {
-          sessionStorage.setItem('franchir-questionnaire-create-warning', questionnaireWarningMessage)
-        } catch {
-          // sessionStorage indisponible : fallback alert minimal
-          alert(questionnaireWarningMessage)
-        }
+      try {
+        sessionStorage.setItem(
+          'franchir-questionnaire-create-warning',
+          "Dossier créé. Préparez l'envoi du questionnaire depuis la fiche (copie dans Outlook / Gmail ou WhatsApp).",
+        )
+      } catch {
+        // sessionStorage indisponible
       }
 
       // Upload OPTIONNEL : le patient n'existe qu'après création, on uploade donc
@@ -79,18 +72,10 @@ export default function NewPatientPage() {
               '. Vous pourrez les ajouter depuis la fiche patient.'
           )
         }
-        router.push(`/dashboard/patient/${patientId}`)
-        router.refresh()
-        return
       }
 
-      if (questionnaireWarningMessage) {
-        router.push(`/dashboard/patient/${patientId}`)
-        router.refresh()
-        return
-      }
-
-      router.push('/dashboard')
+      // Toujours la fiche : Marcel prépare le lien questionnaire ici.
+      router.push(`/dashboard/patient/${patientId}`)
       router.refresh()
     } catch (err: any) {
       alert('Erreur lors de la création : ' + err.message)
@@ -147,8 +132,9 @@ export default function NewPatientPage() {
               placeholder="patient@example.com"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Le questionnaire est envoyé automatiquement à cette adresse dès la création du dossier
-              (revue médicale). Aucun chirurgien n&apos;est requis à ce stade.
+              Après création, vous préparerez le message questionnaire depuis la fiche patient
+              (copie dans Outlook / Gmail, ou lien seul pour WhatsApp). Aucun chirurgien n&apos;est
+              requis à ce stade.
             </p>
           </div>
           <div>

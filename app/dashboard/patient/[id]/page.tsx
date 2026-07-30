@@ -104,6 +104,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     id,
     questionnaireStatus?.activeLink?.sentAt,
     patient.questionnaire_status,
+    Boolean(questionnaireStatus?.activeLink),
   )
   if (sentReconciled) {
     patient.questionnaire_status = null

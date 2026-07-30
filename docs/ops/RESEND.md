@@ -12,7 +12,8 @@ repo questionnaires `docs/ops/RESEND.md`.
 Expéditeur : `FRANCHIR <yves.merillon@franchir.eu>` (`lib/email-config.ts`).  
 Env : `RESEND_API_KEY`.
 
-Les **emails patient** (lien questionnaire) partent **uniquement** de l’app questionnaires.
+Les **emails patient** Resend (lien questionnaire) partent **uniquement** de l’app questionnaires (mode legacy).  
+Parcours nominal Marcel : **dispatch staff** (copie / mailto) — voir `docs/ops/QUESTIONNAIRE_DISPATCH.md`.
 
 ## Tags
 
