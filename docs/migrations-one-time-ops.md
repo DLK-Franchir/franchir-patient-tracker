@@ -12,3 +12,11 @@ Certaines corrections prod ne doivent **pas** être rejouées automatiquement vi
 **Staging / preview** : appliquer uniquement la migration schema-only.
 
 **Prod** : appliquer la migration, puis exécuter le script manuellement dans le SQL Editor Supabase si les opérations n'ont pas déjà été faites.
+
+## Réaffectation chirurgien Brauge → Teyssedou (2026-07-29)
+
+| Fichier | Rôle |
+|---------|------|
+| `supabase/scripts/one-time-prod-ops-reassign-teyssedou-53d4951e.sql` | Données prod : patient `53d4951e-…` → Simon Teyssedou + audit `patient_messages` |
+
+**Prod** : exécuter le script une fois dans le SQL Editor Supabase tracker (`zdmeidekszdrzmjuasee`). Idempotent.
