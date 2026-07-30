@@ -11,6 +11,9 @@ import { PatientWorkContextBanner } from '@/components/patient/patient-work-cont
 import { PatientActionPanel } from '@/components/patient/patient-action-panel'
 import DocumentsSection from '@/components/patient/documents-section'
 import QuestionnairePatientCard from '@/components/patient/questionnaire-patient-card'
+import QuestionnaireDispatchModal, {
+  type QuestionnaireDispatchPayload,
+} from '@/components/patient/questionnaire-dispatch-modal'
 import AnamnezeSection from '@/components/patient/synthesis/anamneze-section'
 import { globalStatusFromWorkflowStatus, type GlobalStatus, type UserRole } from '@/lib/workflow-v2'
 import { getWorkContext } from '@/lib/patient-work-context'
@@ -23,6 +26,7 @@ import {
   coercePatientFormTypes,
   normalizeFormTypes,
 } from '@/lib/integrations/questionnaire-form-types'
+import { buildQuestionnaireEmailDraft } from '@/lib/integrations/questionnaire-email-draft'
 import { useRouter } from 'next/navigation'
 
 const MessageComposer = lazy(() => import('@/components/patient/message-composer'))
@@ -97,6 +101,8 @@ export default function PatientDetailClient({
     tone: 'success' | 'warning' | 'error'
     message: string
   } | null>(null)
+  const [dispatchPayload, setDispatchPayload] = useState<QuestionnaireDispatchPayload | null>(null)
+  const [dispatchConfirming, setDispatchConfirming] = useState(false)
 
   useEffect(() => {
     setPatient(initialPatient)
@@ -118,16 +124,19 @@ export default function PatientDetailClient({
   const viewConfig = getPatientDetailViewConfig(userRole)
   const canManageQuestionnaire = viewConfig.canManageQuestionnaire
 
-  const sendQuestionnaireLink = async (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => {
+  const prepareQuestionnaireLink = async (
+    formTypes: QuestionnaireFormType[],
+    language: 'fr' | 'en',
+  ) => {
     try {
       const response = await fetch(`/api/patients/${patient.id}/questionnaire-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language, formTypes }),
+        body: JSON.stringify({ language, formTypes, sendEmail: false }),
       })
       const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.error || "Échec de l'émission du lien")
+        throw new Error(data.error || "Échec de la préparation du lien")
       }
       setQuestionnaireLanguage(language)
       setPatient((p) => ({
@@ -141,16 +150,45 @@ export default function PatientDetailClient({
               ? 'sent'
               : p.questionnaire_status,
       }))
-      if (data.emailSent) {
+
+      if (data.dispatchMode === 'staff' && typeof data.url === 'string' && data.url) {
+        const draft =
+          data.emailDraft &&
+          typeof data.emailDraft.subject === 'string' &&
+          typeof data.emailDraft.textBody === 'string'
+            ? {
+                subject: data.emailDraft.subject as string,
+                textBody: data.emailDraft.textBody as string,
+              }
+            : buildQuestionnaireEmailDraft({
+                language,
+                formTypes: normalizeFormTypes(formTypes),
+                patientName: patient.patient_name,
+                questionnaireUrl: data.url,
+              })
+        setDispatchPayload({
+          to: patient.patient_email ?? '',
+          questionnaireUrl: data.url,
+          draft,
+          expiresAt: data.expiresAt ?? null,
+        })
         setQuestionnaireLinkNotice({
           tone: 'success',
-          message: 'Lien questionnaire envoyé au patient par email.',
+          message: 'Lien prêt — copiez le message dans votre boîte mail ou WhatsApp.',
         })
-      } else {
+      } else if (data.emailSent) {
+        setDispatchPayload(null)
         setQuestionnaireLinkNotice({
           tone: 'warning',
           message:
-            "Lien questionnaire généré mais l'email n'a pas été expédié. Vérifiez l'adresse du patient et la configuration Resend côté questionnaires (RESEND_API_KEY). Réessayez avec un des boutons d'envoi.",
+            'Mode legacy : le portail a encore envoyé le mail via Resend (sans URL pour copie). Déployez la PR questionnaires pour le dispatch staff.',
+        })
+      } else {
+        setDispatchPayload(null)
+        setQuestionnaireLinkNotice({
+          tone: 'error',
+          message:
+            "Lien préparé mais URL indisponible. Vérifiez le contrat pont (sendEmail=false) côté questionnaires.",
         })
       }
       router.refresh()
@@ -160,6 +198,38 @@ export default function PatientDetailClient({
         message: error instanceof Error ? error.message : 'Une erreur est survenue',
       })
       throw error
+    }
+  }
+
+  const confirmQuestionnaireDispatch = async () => {
+    setDispatchConfirming(true)
+    try {
+      const response = await fetch(
+        `/api/patients/${patient.id}/questionnaire-dispatch-confirm`,
+        { method: 'POST' },
+      )
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || "Échec de la confirmation d'envoi")
+      }
+      setPatient((p) => ({
+        ...p,
+        questionnaire_status:
+          p.questionnaire_status === 'completed' ? 'completed' : 'sent',
+      }))
+      setDispatchPayload(null)
+      setQuestionnaireLinkNotice({
+        tone: 'success',
+        message: 'Envoi confirmé — le dossier est marqué « lien envoyé ».',
+      })
+      router.refresh()
+    } catch (error) {
+      setQuestionnaireLinkNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Une erreur est survenue',
+      })
+    } finally {
+      setDispatchConfirming(false)
     }
   }
 
@@ -295,9 +365,17 @@ export default function PatientDetailClient({
         canManage={canManageQuestionnaireEffective}
         initialLanguage={questionnaireLanguage}
         initialFormTypes={questionnaireFormTypes}
-        onSendLink={sendQuestionnaireLink}
+        onPrepareLink={prepareQuestionnaireLink}
         onRevokeLink={revokeQuestionnaireLink}
         showPdfDownload={viewConfig.showQuestionnairePdf}
+      />
+
+      <QuestionnaireDispatchModal
+        open={Boolean(dispatchPayload)}
+        payload={dispatchPayload}
+        confirming={dispatchConfirming}
+        onConfirmSent={confirmQuestionnaireDispatch}
+        onClose={() => setDispatchPayload(null)}
       />
 
       {(patient.patient_email || patient.patient_phone) && (

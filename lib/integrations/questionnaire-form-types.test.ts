@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formTypesEqual,
   formTypesForPreset,
+  presetFromFormTypes,
   normalizeFormTypes,
   parseFormTypesInput,
   coercePatientFormTypes,
@@ -31,5 +32,11 @@ describe('questionnaire-form-types', () => {
 
   it('builds combined preset', () => {
     expect(formTypesForPreset('combined')).toEqual(['cervical', 'lombaire'])
+  })
+
+  it('maps form types back to preset', () => {
+    expect(presetFromFormTypes(['cervical'])).toBe('cervical')
+    expect(presetFromFormTypes(['lombaire'])).toBe('lombaire')
+    expect(presetFromFormTypes(['lombaire', 'cervical'])).toBe('combined')
   })
 })

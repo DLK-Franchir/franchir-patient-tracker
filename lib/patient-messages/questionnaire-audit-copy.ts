@@ -7,12 +7,26 @@ export function formatQuestionnaireResendNote(emailSent: boolean): string {
   return emailSent ? 'Email envoyé au patient.' : 'Lien généré (email non confirmé).'
 }
 
+export function formatQuestionnairePrepareNote(params: {
+  dispatchMode: 'staff' | 'legacy_resend'
+  emailSent: boolean
+}): string {
+  if (params.dispatchMode === 'staff') {
+    return 'Lien prêt pour envoi staff (copie / mailto).'
+  }
+  return formatQuestionnaireResendNote(params.emailSent)
+}
+
 export function formatQuestionnaireCreationNote(params: {
-  ok: boolean
+  ok?: boolean
   emailSent?: boolean
   error?: string
+  deferred?: boolean
 }): string {
-  if (!params.ok) {
+  if (params.deferred) {
+    return 'Préparer le lien questionnaire depuis la fiche patient (copie / mailto).'
+  }
+  if (params.ok === false) {
     return `Échec envoi questionnaire : ${params.error ?? 'erreur inconnue'}`
   }
   if (params.emailSent) {

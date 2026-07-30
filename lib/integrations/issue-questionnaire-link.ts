@@ -1,7 +1,8 @@
 /**
  * Émission du lien questionnaire via le pont questionnaires (source de vérité).
- * Partagé entre POST /api/patients (envoi auto à la création) et
- * POST /api/patients/[id]/questionnaire-link (renvoi manuel).
+ * Utilisé par POST /api/patients/[id]/questionnaire-link (dispatch staff).
+ * Par défaut : sendEmail=false (Marcel copie / mailto) ; legacy Resend si le
+ * portail renvoie emailSent sans url.
  */
 
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
@@ -12,6 +13,7 @@ import {
   formTypesEqual,
   normalizeFormTypes,
 } from '@/lib/integrations/questionnaire-form-types'
+import type { QuestionnaireEmailDraft } from '@/lib/integrations/questionnaire-email-draft'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('integrations/issue-questionnaire-link')
@@ -31,6 +33,8 @@ export type QuestionnaireBridgeBody = {
   patientEmail?: string
   sessionLabel?: string | null
   ttlHours?: number
+  /** false = émettre le lien sans Resend (dispatch staff). Défaut tracker : false. */
+  sendEmail?: boolean
 }
 
 export async function postQuestionnaireBridge(
@@ -65,14 +69,20 @@ export type IssueQuestionnaireLinkResult =
       ok: true
       emailSent: boolean
       expiresAt: string | null
+      /** Lien magique patient — uniquement si le pont le renvoie (sendEmail=false). */
+      url: string | null
+      /** Brouillon email pont (optionnel) ; sinon fallback tracker. */
+      emailDraft: QuestionnaireEmailDraft | null
       /** True si une nouvelle session a été demandée (y compris forcée par changement de pathologie). */
       effectiveNewSession: boolean
+      /** Mode staff (url) vs legacy Resend auto. */
+      dispatchMode: 'staff' | 'legacy_resend'
     }
   | {
       ok: false
       httpStatus: number
       error: string
-      code?: 'bridge_not_configured' | 'sync_failed' | 'not_correlated' | 'completed' | 'upstream'
+      code?: 'bridge_not_configured' | 'sync_failed' | 'not_correlated' | 'completed' | 'upstream' | 'url_missing'
     }
 
 export type IssueQuestionnaireLinkOptions = {
@@ -82,12 +92,35 @@ export type IssueQuestionnaireLinkOptions = {
   language?: 'fr' | 'en' | null
   /** Met à jour patients.form_types avant sync + émission (fiche patient). */
   formTypes?: QuestionnaireFormType[] | null
+  /**
+   * false (défaut) : demander le lien sans Resend pour dispatch staff.
+   * true : forcer l’envoi Resend legacy côté questionnaires.
+   */
+  sendEmail?: boolean
+}
+
+function parseBridgeEmailDraft(raw: unknown): QuestionnaireEmailDraft | null {
+  if (!raw || typeof raw !== 'object') return null
+  const subject = (raw as { subject?: unknown }).subject
+  const textBody = (raw as { textBody?: unknown }).textBody
+  if (typeof subject !== 'string' || typeof textBody !== 'string') return null
+  const trimmedSubject = subject.trim()
+  const trimmedBody = textBody.trim()
+  if (!trimmedSubject || !trimmedBody) return null
+  return { subject: trimmedSubject, textBody: trimmedBody }
+}
+
+function parseBridgeUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const url = raw.trim()
+  if (!url.startsWith('https://')) return null
+  return url
 }
 
 export async function issueQuestionnaireLink(
   options: IssueQuestionnaireLinkOptions,
 ): Promise<IssueQuestionnaireLinkResult> {
-  const { patientId, language = null, formTypes = null } = options
+  const { patientId, language = null, formTypes = null, sendEmail = false } = options
   let { newSession = false } = options
   const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
   if (!token) {
@@ -170,6 +203,7 @@ export async function issueQuestionnaireLink(
   const linkBody: QuestionnaireBridgeBody = {
     trackerPatientId: patientId,
     newSession,
+    sendEmail,
     ...(existing?.patient_email ? { patientEmail: existing.patient_email } : {}),
   }
 
@@ -222,25 +256,71 @@ export async function issueQuestionnaireLink(
     }
   }
 
-  const result = (await response.json()) as { emailSent?: boolean; expiresAt?: string | null }
+  const result = (await response.json()) as {
+    emailSent?: boolean
+    expiresAt?: string | null
+    url?: unknown
+    emailDraft?: unknown
+  }
   const emailSent = result.emailSent ?? false
+  const url = parseBridgeUrl(result.url)
+  const emailDraft = parseBridgeEmailDraft(result.emailDraft)
 
-  await markQuestionnaireLinkIssued(patientId, emailSent)
+  // Mode staff : url disponible — ne pas marquer sent tant que Marcel n'a pas confirmé.
+  if (url) {
+    return {
+      ok: true,
+      emailSent: false,
+      expiresAt: result.expiresAt ?? null,
+      url,
+      emailDraft,
+      effectiveNewSession: newSession,
+      dispatchMode: 'staff',
+    }
+  }
+
+  // Legacy : portail ignore sendEmail=false et envoie encore via Resend.
+  if (emailSent) {
+    await markQuestionnaireLinkIssued(patientId, true)
+    return {
+      ok: true,
+      emailSent: true,
+      expiresAt: result.expiresAt ?? null,
+      url: null,
+      emailDraft: null,
+      effectiveNewSession: newSession,
+      dispatchMode: 'legacy_resend',
+    }
+  }
+
+  if (!sendEmail) {
+    return {
+      ok: false,
+      httpStatus: 502,
+      error:
+        "Le portail questionnaire n'a pas renvoyé le lien (contrat sendEmail=false). Déployez la PR questionnaires jumelle, ou forcez l'envoi Resend temporairement.",
+      code: 'url_missing',
+    }
+  }
 
   return {
-    ok: true,
-    emailSent,
-    expiresAt: result.expiresAt ?? null,
-    effectiveNewSession: newSession,
+    ok: false,
+    httpStatus: 502,
+    error:
+      "Lien questionnaire généré mais ni URL ni email Resend confirmé. Vérifiez Resend côté questionnaires.",
+    code: 'upstream',
   }
 }
 
-/** `sent` uniquement si l'email patient a bien été expédié (Resend côté questionnaires). */
+/**
+ * Marque le dossier `sent` après confirmation staff (copie / mailto)
+ * ou après envoi Resend legacy.
+ */
 export async function markQuestionnaireLinkIssued(
   patientId: string,
-  emailSent: boolean,
+  confirmed: boolean,
 ): Promise<void> {
-  if (!emailSent) return
+  if (!confirmed) return
 
   const service = createServiceRoleClient()
   const { data: current } = await service
@@ -258,14 +338,17 @@ export async function markQuestionnaireLinkIssued(
 }
 
 /**
- * Corrige un état tracker `sent` alors que le portail n'a jamais confirmé l'envoi email.
+ * Corrige un état tracker `sent` orphelin : pas de lien actif côté portail
+ * et pas de sentAt Resend. Ne touche pas au dispatch staff (lien actif sans
+ * Resend sentAt — Marcel a confirmé l'envoi manuellement).
  */
 export async function reconcileQuestionnaireSentStatus(
   trackerPatientId: string,
   portalSentAt: string | null | undefined,
   currentTrackerStatus: string | null | undefined,
+  hasActivePortalLink: boolean = false,
 ): Promise<boolean> {
-  if (currentTrackerStatus !== 'sent' || portalSentAt) return false
+  if (currentTrackerStatus !== 'sent' || portalSentAt || hasActivePortalLink) return false
 
   const service = createServiceRoleClient()
   const { error } = await service
@@ -293,6 +376,7 @@ export async function reconcileQuestionnaireSentStatusesForPatients(
           p.id,
           portalStatus?.activeLink?.sentAt,
           p.questionnaire_status,
+          Boolean(portalStatus?.activeLink),
         )
         if (did) corrected.push(p.id)
       }),

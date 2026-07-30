@@ -9,9 +9,9 @@ Tu es l'agent **envoi questionnaire par pathologie** (tracker → questionnaires
 
 | Couche | Fichier / endpoint |
 |--------|-------------------|
-| UI fiche patient | `components/patient/questionnaire-patient-card.tsx`, `app/dashboard/patient/[id]/client-page.tsx` |
-| API tracker | `POST /api/patients/[id]/questionnaire-link` |
-| Orchestration | `lib/integrations/issue-questionnaire-link.ts` |
+| UI fiche patient | `components/patient/questionnaire-patient-card.tsx`, modale `questionnaire-dispatch-modal.tsx`, `client-page.tsx` |
+| API tracker | `POST /api/patients/[id]/questionnaire-link` (`sendEmail: false`) + `…/questionnaire-dispatch-confirm` |
+| Orchestration | `lib/integrations/issue-questionnaire-link.ts` — dispatch staff ; voir `franchir-questionnaire-dispatch` |
 | Sync SoT | `lib/integrations/questionnaire-portal.ts` → `patient-upsert` |
 | DB tracker | `patients.form_types` (`TEXT[]`, cervical / lombaire / les deux) |
 | DB questionnaires | `neuro_patients.form_types` |

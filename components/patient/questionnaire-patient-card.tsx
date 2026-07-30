@@ -10,6 +10,7 @@ import {
   formTypesForPreset,
   formatFormTypesLabel,
   normalizeFormTypes,
+  presetFromFormTypes,
 } from '@/lib/integrations/questionnaire-form-types'
 import {
   needsQuestionnaireResyncConfirm,
@@ -32,7 +33,7 @@ interface QuestionnairePatientCardProps {
   canManage?: boolean
   initialLanguage?: 'fr' | 'en'
   initialFormTypes?: QuestionnaireFormType[]
-  onSendLink: (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => Promise<void>
+  onPrepareLink: (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => Promise<void>
   onRevokeLink?: () => Promise<void>
   showPdfDownload?: boolean
 }
@@ -86,7 +87,7 @@ export default function QuestionnairePatientCard({
   canManage = false,
   initialLanguage = 'fr',
   initialFormTypes = ['cervical'],
-  onSendLink,
+  onPrepareLink,
   onRevokeLink,
   showPdfDownload = true,
 }: QuestionnairePatientCardProps) {
@@ -94,14 +95,18 @@ export default function QuestionnairePatientCard({
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [language, setLanguage] = useState<'fr' | 'en'>(initialLanguage)
+  const [selectedPreset, setSelectedPreset] = useState<QuestionnaireFormTypePreset>(
+    () => presetFromFormTypes(initialFormTypes) ?? 'cervical',
+  )
 
   const statusKey = questionnaireStatus ?? 'draft'
   const latestCompletedSession = bridgeStatus?.sessions?.find((s) => s.status === 'completed')
   const currentFormTypes = normalizeFormTypes(initialFormTypes)
+  const selectedFormTypes = formTypesForPreset(selectedPreset)
+  const prepareVerb = questionnaireStatus ? 'Préparer un nouvel envoi' : "Préparer l'envoi"
 
-  const handleSendPreset = async (preset: QuestionnaireFormTypePreset) => {
-    const targetTypes = formTypesForPreset(preset)
-    const formTypesChanged = !formTypesEqual(currentFormTypes, targetTypes)
+  const handlePrepare = async () => {
+    const formTypesChanged = !formTypesEqual(currentFormTypes, selectedFormTypes)
     const languageDirty = language !== initialLanguage
     const hasInProgressSession = hasInProgressQuestionnaireSession(bridgeStatus)
 
@@ -119,7 +124,7 @@ export default function QuestionnairePatientCard({
           languageDirty,
           formTypesChanged,
           fromPathologyLabel: formatFormTypesLabel(currentFormTypes),
-          toPathologyLabel: formatFormTypesLabel(targetTypes),
+          toPathologyLabel: formatFormTypesLabel(selectedFormTypes),
         }),
       )
       if (!confirmed) return
@@ -127,7 +132,7 @@ export default function QuestionnairePatientCard({
 
     setLoading(true)
     try {
-      await onSendLink(targetTypes, language)
+      await onPrepareLink(selectedFormTypes, language)
     } finally {
       setLoading(false)
     }
@@ -181,8 +186,6 @@ export default function QuestionnairePatientCard({
     }
   }
 
-  const sendVerb = questionnaireStatus ? 'Renvoyer' : 'Envoyer'
-
   return (
     <section className="bg-white border-2 border-gray-200 rounded-xl p-5 shadow-sm">
       <div className="flex items-start gap-3 mb-4">
@@ -192,7 +195,8 @@ export default function QuestionnairePatientCard({
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-bold text-gray-900">Questionnaire patient</h3>
           <p className="text-sm text-gray-600 mt-1">
-            Lien patient, suivi et synthèse PDF (scores, drapeaux rouges, imagerie).
+            Choisissez le parcours, préparez le message, puis collez-le dans votre boîte mail
+            (Outlook / Gmail) ou envoyez le lien par WhatsApp.
           </p>
         </div>
       </div>
@@ -276,39 +280,51 @@ export default function QuestionnairePatientCard({
             />
             {language !== initialLanguage && (
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                Langue modifiée — le prochain envoi resynchronisera le dossier vers le questionnaire
+                Langue modifiée — la préparation resynchronisera le dossier vers le questionnaire
                 (confirmation demandée si un lien a déjà été envoyé).
               </p>
             )}
             <div>
               <p className="text-sm font-semibold text-gray-800 mb-2">Pathologie du questionnaire</p>
               <p className="text-xs text-gray-500 mb-3">
-                Choisissez le parcours à envoyer. Après un premier envoi, tout changement de langue ou
-                de pathologie demande une confirmation (resync explicite). Un changement de pathologie
-                avec questionnaire en cours ouvre une nouvelle session.
+                Sélectionnez le parcours, puis validez avec « {prepareVerb} ». Un changement de
+                pathologie avec questionnaire en cours ouvre une nouvelle session.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {PATHOLOGY_BUTTONS.map(({ preset, label, activeClass }) => {
-                  const targetTypes = formTypesForPreset(preset)
-                  const isCurrent = formTypesEqual(currentFormTypes, targetTypes)
+                  const isSelected = selectedPreset === preset
                   return (
                     <button
                       key={preset}
                       type="button"
-                      onClick={() => handleSendPreset(preset)}
+                      onClick={() => setSelectedPreset(preset)}
                       disabled={loading}
+                      aria-pressed={isSelected}
                       className={`text-sm font-bold px-3 py-3 rounded-lg border-2 transition disabled:opacity-50 ${
-                        isCurrent
+                        isSelected
                           ? activeClass
                           : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
                       }`}
                     >
-                      {loading ? 'Envoi…' : `${sendVerb} ${label}`}
+                      {label}
                     </button>
                   )
                 })}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => void handlePrepare()}
+              disabled={loading || !patientEmail}
+              className="w-full inline-flex items-center justify-center px-4 py-3 text-base font-bold rounded-lg bg-[#2563EB] text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              {loading ? 'Préparation…' : prepareVerb}
+            </button>
+            {!patientEmail && (
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Ajoutez l&apos;email du patient avant de préparer l&apos;envoi.
+              </p>
+            )}
             {bridgeStatus?.activeLink && onRevokeLink && (
               <button
                 type="button"
@@ -328,10 +344,10 @@ export default function QuestionnairePatientCard({
           {formatDateFr(bridgeStatus.activeLink.expiresAt) && (
             <p>Expire le {formatDateFr(bridgeStatus.activeLink.expiresAt)}</p>
           )}
-          {!bridgeStatus.activeLink.sentAt && statusKey !== 'completed' && (
+          {!bridgeStatus.activeLink.sentAt && statusKey !== 'completed' && statusKey !== 'sent' && (
             <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Lien actif mais email non confirmé — renvoyez le lien et vérifiez l&apos;adresse
-              patient{patientEmail ? ` (${patientEmail})` : ''}.
+              Lien prêt — préparez l&apos;envoi et confirmez une fois le message parti vers le patient
+              {patientEmail ? ` (${patientEmail})` : ''}.
             </p>
           )}
           {formatDateFr(bridgeStatus.activeLink.sentAt) && (
