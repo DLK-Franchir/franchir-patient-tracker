@@ -69,6 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const body = await req.json().catch(() => ({}))
   const newSession = Boolean(body?.newSession)
+  const forceNew = body?.forceNew === true
   const language = parseQuestionnaireLanguageFromLinkBody(body)
   const formTypes = parseFormTypesInput(body?.formTypes)
   const sendEmail = body?.sendEmail === true
@@ -86,6 +87,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       language,
       formTypes,
       sendEmail,
+      forceNew,
     })
 
     if (!result.ok) {
@@ -116,31 +118,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         },
         kind: 'action',
         title:
-          result.dispatchMode === 'staff'
-            ? 'Lien questionnaire préparé'
-            : effectiveNewSession
-              ? 'Nouveau questionnaire émis'
-              : 'Lien questionnaire renvoyé',
+          result.isReused
+            ? 'Lien questionnaire actif réutilisé'
+            : result.dispatchMode === 'staff'
+              ? 'Lien questionnaire préparé'
+              : effectiveNewSession
+                ? 'Nouveau questionnaire émis'
+                : 'Lien questionnaire renvoyé',
         body: formatQuestionnaireAuditBodyFromFormTypes({
           formTypes: resolvedFormTypes,
           language: resolvedLanguage,
-          sendNote: formatQuestionnairePrepareNote({
-            dispatchMode: result.dispatchMode,
-            emailSent: result.emailSent,
-          }),
+          sendNote: result.isReused
+            ? 'Lien actif non expiré réutilisé (zéro interruption de la session en cours).'
+            : formatQuestionnairePrepareNote({
+                dispatchMode: result.dispatchMode,
+                emailSent: result.emailSent,
+              }),
         }),
         topic: 'audit',
         meta: {
           action_id:
-            result.dispatchMode === 'staff'
-              ? 'questionnaire_prepare'
-              : effectiveNewSession
-                ? 'questionnaire_new_session'
-                : 'questionnaire_resend',
+            result.isReused
+              ? 'questionnaire_reuse_active_link'
+              : result.dispatchMode === 'staff'
+                ? 'questionnaire_prepare'
+                : effectiveNewSession
+                  ? 'questionnaire_new_session'
+                  : 'questionnaire_resend',
           questionnaire_language: resolvedLanguage,
           form_types: resolvedFormTypes,
           email_sent: result.emailSent,
           dispatch_mode: result.dispatchMode,
+          is_reused: Boolean(result.isReused),
         },
       },
       log,
@@ -165,6 +174,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       dispatchMode: result.dispatchMode,
       url: result.url,
       emailDraft,
+      isReused: Boolean(result.isReused),
     })
   } catch (error) {
     log.error('Erreur emission lien questionnaire', error)

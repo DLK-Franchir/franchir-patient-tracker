@@ -13,6 +13,7 @@ export type QuestionnaireDispatchPayload = {
   questionnaireUrl: string
   draft: QuestionnaireEmailDraft
   expiresAt?: string | null
+  isReused?: boolean
 }
 
 type QuestionnaireDispatchModalProps = {
@@ -52,12 +53,14 @@ export default function QuestionnaireDispatchModal({
     }
   }, [open, confirming, onClose])
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
     if (!open) {
       setCopied(null)
       setCopyError(null)
     }
-  }, [open])
+  }
 
   if (!open || !payload) return null
 
@@ -111,6 +114,13 @@ export default function QuestionnaireDispatchModal({
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {payload.isReused && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 flex items-center gap-2">
+              <span className="font-bold text-emerald-800">Lien actif réutilisé :</span>
+              <span>La session en cours et les réponses déjà saisies par le patient sont préservées (aucun risque de réinitialisation).</span>
+            </div>
+          )}
+
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
             <p className="text-gray-500">Destinataire</p>
             <p className="break-all font-medium text-gray-900">{payload.to}</p>
