@@ -13,7 +13,10 @@ import {
   formTypesEqual,
   normalizeFormTypes,
 } from '@/lib/integrations/questionnaire-form-types'
-import type { QuestionnaireEmailDraft } from '@/lib/integrations/questionnaire-email-draft'
+import {
+  buildQuestionnaireEmailDraft,
+  type QuestionnaireEmailDraft,
+} from '@/lib/integrations/questionnaire-email-draft'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('integrations/issue-questionnaire-link')
@@ -77,6 +80,8 @@ export type IssueQuestionnaireLinkResult =
       effectiveNewSession: boolean
       /** Mode staff (url) vs legacy Resend auto. */
       dispatchMode: 'staff' | 'legacy_resend'
+      /** True si le lien actif existant a été réutilisé sans révocation. */
+      isReused?: boolean
     }
   | {
       ok: false
@@ -97,6 +102,11 @@ export type IssueQuestionnaireLinkOptions = {
    * true : forcer l’envoi Resend legacy côté questionnaires.
    */
   sendEmail?: boolean
+  /**
+   * false (défaut) : réutilise l'URL active si déjà émise, non expirée et parcours inchangé (évite de révoquer le lien en cours de saisie par le patient).
+   * true : force la génération d'un tout nouveau token côté portail (révoque l'ancien).
+   */
+  forceNew?: boolean
 }
 
 function parseBridgeEmailDraft(raw: unknown): QuestionnaireEmailDraft | null {
@@ -120,7 +130,13 @@ function parseBridgeUrl(raw: unknown): string | null {
 export async function issueQuestionnaireLink(
   options: IssueQuestionnaireLinkOptions,
 ): Promise<IssueQuestionnaireLinkResult> {
-  const { patientId, language = null, formTypes = null, sendEmail = false } = options
+  const {
+    patientId,
+    language = null,
+    formTypes = null,
+    sendEmail = false,
+    forceNew = false,
+  } = options
   let { newSession = false } = options
   const token = process.env.TRACKER_SYNC_SERVICE_TOKEN
   if (!token) {
@@ -135,7 +151,9 @@ export async function issueQuestionnaireLink(
   const service = createServiceRoleClient()
   const { data: existing } = await service
     .from('patients')
-    .select('questionnaire_status, patient_email, form_types')
+    .select(
+      'questionnaire_status, patient_email, patient_name, form_types, questionnaire_language, last_questionnaire_url, last_questionnaire_url_expires_at',
+    )
     .eq('id', patientId)
     .maybeSingle()
 
@@ -151,9 +169,11 @@ export async function issueQuestionnaireLink(
     }
   }
 
+  let formTypesChanged = false
   if (formTypes && formTypes.length > 0) {
     const normalizedTarget = normalizeFormTypes(formTypes)
     if (!formTypesEqual(previousFormTypes, normalizedTarget)) {
+      formTypesChanged = true
       const { error: formError } = await service
         .from('patients')
         .update({ form_types: normalizedTarget })
@@ -172,19 +192,64 @@ export async function issueQuestionnaireLink(
     }
   }
 
+  let languageChanged = false
   if (language) {
-    const { error: langError } = await service
-      .from('patients')
-      .update({ questionnaire_language: language })
-      .eq('id', patientId)
-    if (langError) {
-      log.error('Mise a jour langue questionnaire echouee', { patientId, langError })
-      return {
-        ok: false,
-        httpStatus: 502,
-        error: 'Erreur mise a jour langue questionnaire',
-        code: 'upstream',
+    if (existing?.questionnaire_language !== language) {
+      languageChanged = true
+      const { error: langError } = await service
+        .from('patients')
+        .update({ questionnaire_language: language })
+        .eq('id', patientId)
+      if (langError) {
+        log.error('Mise a jour langue questionnaire echouee', { patientId, langError })
+        return {
+          ok: false,
+          httpStatus: 502,
+          error: 'Erreur mise a jour langue questionnaire',
+          code: 'upstream',
+        }
       }
+    }
+  }
+
+  // Idempotence & protection contre la révocation involontaire :
+  // Si une URL magique est déjà active, non expirée, sans changement de session/langue/pathologie
+  // et sans demande d'envoi automatique Resend ni forceNew, on la réutilise au lieu de révoquer
+  // la session en cours de remplissage par le patient.
+  const hasActiveCachedUrl =
+    !forceNew &&
+    !newSession &&
+    !formTypesChanged &&
+    !languageChanged &&
+    !sendEmail &&
+    typeof existing?.last_questionnaire_url === 'string' &&
+    existing.last_questionnaire_url.startsWith('https://') &&
+    existing.last_questionnaire_url_expires_at &&
+    new Date(existing.last_questionnaire_url_expires_at).getTime() > Date.now() + 60_000
+
+  if (hasActiveCachedUrl) {
+    const resolvedLanguage =
+      (language ?? existing?.questionnaire_language) === 'en' ? 'en' : 'fr'
+    const resolvedFormTypes = previousFormTypes
+    const activeUrl = existing.last_questionnaire_url as string
+    const emailDraft = buildQuestionnaireEmailDraft({
+      language: resolvedLanguage,
+      formTypes: resolvedFormTypes,
+      patientName: existing?.patient_name,
+      questionnaireUrl: activeUrl,
+    })
+
+    log.info('Lien questionnaire actif réutilisé sans révocation', { patientId })
+
+    return {
+      ok: true,
+      emailSent: false,
+      expiresAt: existing.last_questionnaire_url_expires_at,
+      url: activeUrl,
+      emailDraft,
+      effectiveNewSession: false,
+      dispatchMode: 'staff',
+      isReused: true,
     }
   }
 
@@ -268,6 +333,14 @@ export async function issueQuestionnaireLink(
 
   // Mode staff : url disponible — ne pas marquer sent tant que Marcel n'a pas confirmé.
   if (url) {
+    await service
+      .from('patients')
+      .update({
+        last_questionnaire_url: url,
+        last_questionnaire_url_expires_at: result.expiresAt ?? null,
+      })
+      .eq('id', patientId)
+
     return {
       ok: true,
       emailSent: false,
@@ -276,6 +349,7 @@ export async function issueQuestionnaireLink(
       emailDraft,
       effectiveNewSession: newSession,
       dispatchMode: 'staff',
+      isReused: false,
     }
   }
 

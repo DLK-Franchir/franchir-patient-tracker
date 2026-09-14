@@ -60,5 +60,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Échec de la révocation' }, { status: 502 })
   }
 
+  await supabase
+    .from('patients')
+    .update({
+      last_questionnaire_url: null,
+      last_questionnaire_url_expires_at: null,
+    })
+    .eq('id', patientId)
+
   return NextResponse.json({ success: true })
 }

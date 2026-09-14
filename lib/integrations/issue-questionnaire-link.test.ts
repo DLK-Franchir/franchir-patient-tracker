@@ -319,4 +319,122 @@ describe('issueQuestionnaireLink', () => {
       fetchMock.mock.invocationCallOrder[0],
     )
   })
+
+  it('réutilise le lien actif existant sans appeler le pont si non expiré et même parcours', async () => {
+    const futureExpiry = new Date(Date.now() + 3600_000 * 24 * 5).toISOString()
+    maybeSingleMock.mockResolvedValue({
+      data: {
+        questionnaire_status: 'sent',
+        patient_email: 'patient@example.com',
+        patient_name: 'Amy Newman',
+        form_types: ['lombaire'],
+        questionnaire_language: 'en',
+        last_questionnaire_url: 'https://questionnaire.franchir.eu/en/questionnaire/consent?token=abc&forms=lombaire',
+        last_questionnaire_url_expires_at: futureExpiry,
+      },
+    })
+
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await issueQuestionnaireLink({
+      patientId: 'patient-1',
+      language: 'en',
+      formTypes: ['lombaire'],
+      sendEmail: false,
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.isReused).toBe(true)
+      expect(result.url).toBe('https://questionnaire.franchir.eu/en/questionnaire/consent?token=abc&forms=lombaire')
+      expect(result.dispatchMode).toBe('staff')
+    }
+    // Le pont NE doit PAS être appelé (zéro révocation du lien actif)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('force un nouveau lien si forceNew: true même si un lien actif existe', async () => {
+    const futureExpiry = new Date(Date.now() + 3600_000 * 24 * 5).toISOString()
+    maybeSingleMock.mockResolvedValue({
+      data: {
+        questionnaire_status: 'sent',
+        patient_email: 'patient@example.com',
+        patient_name: 'Amy Newman',
+        form_types: ['lombaire'],
+        questionnaire_language: 'en',
+        last_questionnaire_url: 'https://questionnaire.franchir.eu/en/questionnaire/consent?token=old&forms=lombaire',
+        last_questionnaire_url_expires_at: futureExpiry,
+      },
+    })
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          emailSent: false,
+          url: 'https://questionnaire.franchir.eu/en/questionnaire/consent?token=new&forms=lombaire',
+          expiresAt: futureExpiry,
+        }),
+        { status: 201 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await issueQuestionnaireLink({
+      patientId: 'patient-1',
+      language: 'en',
+      formTypes: ['lombaire'],
+      sendEmail: false,
+      forceNew: true,
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.isReused).toBe(false)
+      expect(result.url).toBe('https://questionnaire.franchir.eu/en/questionnaire/consent?token=new&forms=lombaire')
+    }
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
+  it('appelle le pont et génère un nouveau lien si le lien en cache est expiré', async () => {
+    const pastExpiry = new Date(Date.now() - 3600_000).toISOString()
+    const newExpiry = new Date(Date.now() + 3600_000 * 24 * 7).toISOString()
+    maybeSingleMock.mockResolvedValue({
+      data: {
+        questionnaire_status: 'sent',
+        patient_email: 'patient@example.com',
+        patient_name: 'Amy Newman',
+        form_types: ['lombaire'],
+        questionnaire_language: 'en',
+        last_questionnaire_url: 'https://questionnaire.franchir.eu/en/questionnaire/consent?token=expired&forms=lombaire',
+        last_questionnaire_url_expires_at: pastExpiry,
+      },
+    })
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          emailSent: false,
+          url: 'https://questionnaire.franchir.eu/en/questionnaire/consent?token=fresh&forms=lombaire',
+          expiresAt: newExpiry,
+        }),
+        { status: 201 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await issueQuestionnaireLink({
+      patientId: 'patient-1',
+      language: 'en',
+      formTypes: ['lombaire'],
+      sendEmail: false,
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.isReused).toBe(false)
+      expect(result.url).toBe('https://questionnaire.franchir.eu/en/questionnaire/consent?token=fresh&forms=lombaire')
+    }
+    expect(fetchMock).toHaveBeenCalled()
+  })
 })

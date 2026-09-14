@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, FileText } from 'lucide-react'
+import { Check, Copy, Download, FileText, Mail } from 'lucide-react'
 import type { QuestionnaireStatus } from '@/lib/integrations/questionnaire-portal'
 import {
   type QuestionnaireFormType,
@@ -26,6 +26,8 @@ import { QuestionnaireLanguageSelector } from '@/components/questionnaire-langua
 interface QuestionnairePatientCardProps {
   patientId: string
   patientEmail?: string | null
+  lastQuestionnaireUrl?: string | null
+  lastQuestionnaireUrlExpiresAt?: string | null
   questionnaireStatus?: string | null
   questionnaireCompletedAt?: string | null
   questionnaireSummary?: string | null
@@ -33,7 +35,12 @@ interface QuestionnairePatientCardProps {
   canManage?: boolean
   initialLanguage?: 'fr' | 'en'
   initialFormTypes?: QuestionnaireFormType[]
-  onPrepareLink: (formTypes: QuestionnaireFormType[], language: 'fr' | 'en') => Promise<void>
+  onPrepareLink: (
+    formTypes: QuestionnaireFormType[],
+    language: 'fr' | 'en',
+    options?: { forceNew?: boolean },
+  ) => Promise<void>
+  onOpenActiveLink?: () => void
   onRevokeLink?: () => Promise<void>
   showPdfDownload?: boolean
 }
@@ -80,6 +87,8 @@ function hasInProgressQuestionnaireSession(bridgeStatus?: QuestionnaireStatus | 
 export default function QuestionnairePatientCard({
   patientId,
   patientEmail,
+  lastQuestionnaireUrl,
+  lastQuestionnaireUrlExpiresAt,
   questionnaireStatus,
   questionnaireCompletedAt,
   questionnaireSummary,
@@ -88,16 +97,35 @@ export default function QuestionnairePatientCard({
   initialLanguage = 'fr',
   initialFormTypes = ['cervical'],
   onPrepareLink,
+  onOpenActiveLink,
   onRevokeLink,
   showPdfDownload = true,
 }: QuestionnairePatientCardProps) {
   const [loading, setLoading] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
+  const [copiedActive, setCopiedActive] = useState(false)
   const [language, setLanguage] = useState<'fr' | 'en'>(initialLanguage)
   const [selectedPreset, setSelectedPreset] = useState<QuestionnaireFormTypePreset>(
     () => presetFromFormTypes(initialFormTypes) ?? 'cervical',
   )
+
+  const isCachedUrlActive = Boolean(
+    lastQuestionnaireUrl &&
+      lastQuestionnaireUrlExpiresAt &&
+      new Date(lastQuestionnaireUrlExpiresAt).getTime() > Date.now() + 60_000,
+  )
+
+  const copyActiveUrl = async () => {
+    if (!lastQuestionnaireUrl) return
+    try {
+      await navigator.clipboard.writeText(lastQuestionnaireUrl)
+      setCopiedActive(true)
+      window.setTimeout(() => setCopiedActive(false), 2500)
+    } catch {
+      // clipboard write failed
+    }
+  }
 
   const statusKey = questionnaireStatus ?? 'draft'
   const latestCompletedSession = bridgeStatus?.sessions?.find((s) => s.status === 'completed')
@@ -105,17 +133,22 @@ export default function QuestionnairePatientCard({
   const selectedFormTypes = formTypesForPreset(selectedPreset)
   const prepareVerb = questionnaireStatus ? 'Préparer un nouvel envoi' : "Préparer l'envoi"
 
-  const handlePrepare = async () => {
+  const handlePrepare = async (forceNew = false) => {
     const formTypesChanged = !formTypesEqual(currentFormTypes, selectedFormTypes)
     const languageDirty = language !== initialLanguage
     const hasInProgressSession = hasInProgressQuestionnaireSession(bridgeStatus)
 
-    if (
+    if (forceNew) {
+      const confirmed = window.confirm(
+        "Attention : cette action va générer un tout nouveau lien et révoquer l'ancien. Le patient ne pourra plus continuer sa session avec le lien précédent. Continuer ?",
+      )
+      if (!confirmed) return
+    } else if (
       needsQuestionnaireResyncConfirm({
         languageDirty,
         formTypesChanged,
         questionnaireStatus: statusKey,
-        hasActiveLink: Boolean(bridgeStatus?.activeLink),
+        hasActiveLink: Boolean(bridgeStatus?.activeLink || isCachedUrlActive),
         hasInProgressSession,
       })
     ) {
@@ -132,7 +165,7 @@ export default function QuestionnairePatientCard({
 
     setLoading(true)
     try {
-      await onPrepareLink(selectedFormTypes, language)
+      await onPrepareLink(selectedFormTypes, language, { forceNew })
     } finally {
       setLoading(false)
     }
@@ -225,6 +258,45 @@ export default function QuestionnairePatientCard({
         <span className="font-semibold text-gray-800">{formatFormTypesLabel(currentFormTypes)}</span>
       </p>
 
+      {isCachedUrlActive && lastQuestionnaireUrl && statusKey !== 'completed' && (
+        <div className="mt-4 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-xl space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              Lien patient actif &amp; sécurisé
+            </span>
+            {lastQuestionnaireUrlExpiresAt && (
+              <span className="text-xs font-medium text-emerald-700">
+                Expire le {formatDateFr(lastQuestionnaireUrlExpiresAt)}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-emerald-900 leading-relaxed">
+            Ce lien est actif et préserve les réponses déjà saisies par le patient. Vous pouvez le partager par WhatsApp ou email sans interruption de session.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => void copyActiveUrl()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm"
+            >
+              {copiedActive ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedActive ? 'Lien copié dans le presse-papier !' : 'Copier le lien direct'}
+            </button>
+            {onOpenActiveLink && (
+              <button
+                type="button"
+                onClick={onOpenActiveLink}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100/60 transition shadow-sm"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Message complet (Mail / WhatsApp)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {!canManage && (
         <p className="text-sm text-gray-600 mt-1">
           Langue du questionnaire :{' '}
@@ -314,7 +386,7 @@ export default function QuestionnairePatientCard({
             </div>
             <button
               type="button"
-              onClick={() => void handlePrepare()}
+              onClick={() => void handlePrepare(false)}
               disabled={loading || !patientEmail}
               className="w-full inline-flex items-center justify-center px-4 py-3 text-base font-bold rounded-lg bg-[#2563EB] text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
@@ -325,7 +397,17 @@ export default function QuestionnairePatientCard({
                 Ajoutez l&apos;email du patient avant de préparer l&apos;envoi.
               </p>
             )}
-            {bridgeStatus?.activeLink && onRevokeLink && (
+            {isCachedUrlActive && (
+              <button
+                type="button"
+                onClick={() => void handlePrepare(true)}
+                disabled={loading || !patientEmail}
+                className="w-full text-xs font-semibold text-gray-500 hover:text-red-700 py-1 transition text-center underline decoration-dotted"
+              >
+                Générer un tout nouveau lien (révoque l&apos;ancien et réinitialise la session)
+              </button>
+            )}
+            {(bridgeStatus?.activeLink || isCachedUrlActive) && onRevokeLink && (
               <button
                 type="button"
                 onClick={handleRevoke}

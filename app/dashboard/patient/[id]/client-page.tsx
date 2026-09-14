@@ -46,6 +46,8 @@ interface PatientData {
   patient_phone?: string | null
   questionnaire_language: 'fr' | 'en'
   form_types?: QuestionnaireFormType[] | null
+  last_questionnaire_url?: string | null
+  last_questionnaire_url_expires_at?: string | null
   clinical_summary: string | null
   sharepoint_link: string | null
   created_at: string
@@ -127,12 +129,18 @@ export default function PatientDetailClient({
   const prepareQuestionnaireLink = async (
     formTypes: QuestionnaireFormType[],
     language: 'fr' | 'en',
+    options?: { forceNew?: boolean },
   ) => {
     try {
       const response = await fetch(`/api/patients/${patient.id}/questionnaire-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language, formTypes, sendEmail: false }),
+        body: JSON.stringify({
+          language,
+          formTypes,
+          sendEmail: false,
+          forceNew: options?.forceNew === true,
+        }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -143,6 +151,8 @@ export default function PatientDetailClient({
         ...p,
         questionnaire_language: language,
         form_types: normalizeFormTypes(formTypes),
+        last_questionnaire_url: data.url ?? p.last_questionnaire_url,
+        last_questionnaire_url_expires_at: data.expiresAt ?? p.last_questionnaire_url_expires_at,
         questionnaire_status:
           p.questionnaire_status === 'completed'
             ? 'completed'
@@ -171,10 +181,13 @@ export default function PatientDetailClient({
           questionnaireUrl: data.url,
           draft,
           expiresAt: data.expiresAt ?? null,
+          isReused: Boolean(data.isReused),
         })
         setQuestionnaireLinkNotice({
           tone: 'success',
-          message: 'Lien prêt — copiez le message dans votre boîte mail ou WhatsApp.',
+          message: data.isReused
+            ? 'Lien actif réutilisé (zéro interruption de la session patient) — copiez le message dans votre boîte mail ou WhatsApp.'
+            : 'Lien prêt — copiez le message dans votre boîte mail ou WhatsApp.',
         })
       } else if (data.emailSent) {
         setDispatchPayload(null)
@@ -199,6 +212,29 @@ export default function PatientDetailClient({
       })
       throw error
     }
+  }
+
+  const openActiveLinkModal = () => {
+    if (!patient.last_questionnaire_url) return
+    const language = patient.questionnaire_language === 'en' ? 'en' : 'fr'
+    const formTypes = coercePatientFormTypes(patient.form_types)
+    const draft = buildQuestionnaireEmailDraft({
+      language,
+      formTypes,
+      patientName: patient.patient_name,
+      questionnaireUrl: patient.last_questionnaire_url,
+    })
+    setDispatchPayload({
+      to: patient.patient_email ?? '',
+      questionnaireUrl: patient.last_questionnaire_url,
+      draft,
+      expiresAt: patient.last_questionnaire_url_expires_at ?? null,
+      isReused: true,
+    })
+    setQuestionnaireLinkNotice({
+      tone: 'success',
+      message: 'Lien actif prêt — copiez le message ou le lien pour le patient.',
+    })
   }
 
   const confirmQuestionnaireDispatch = async () => {
@@ -243,6 +279,15 @@ export default function PatientDetailClient({
       if (!response.ok) {
         throw new Error(data.error || 'Échec de la révocation')
       }
+      setPatient((p) => ({
+        ...p,
+        last_questionnaire_url: null,
+        last_questionnaire_url_expires_at: null,
+      }))
+      setQuestionnaireLinkNotice({
+        tone: 'success',
+        message: 'Lien révoqué avec succès.',
+      })
       router.refresh()
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Une erreur est survenue')
@@ -358,6 +403,8 @@ export default function PatientDetailClient({
       <QuestionnairePatientCard
         patientId={patient.id}
         patientEmail={patient.patient_email}
+        lastQuestionnaireUrl={patient.last_questionnaire_url}
+        lastQuestionnaireUrlExpiresAt={patient.last_questionnaire_url_expires_at}
         questionnaireStatus={patient.questionnaire_status}
         questionnaireCompletedAt={patient.questionnaire_completed_at}
         questionnaireSummary={patient.questionnaire_summary}
@@ -366,6 +413,7 @@ export default function PatientDetailClient({
         initialLanguage={questionnaireLanguage}
         initialFormTypes={questionnaireFormTypes}
         onPrepareLink={prepareQuestionnaireLink}
+        onOpenActiveLink={openActiveLinkModal}
         onRevokeLink={revokeQuestionnaireLink}
         showPdfDownload={viewConfig.showQuestionnairePdf}
       />
