@@ -4,6 +4,8 @@
 
 L'application **Franchir Patient Tracker** est un système de gestion de patients médicaux avec un workflow spécifique basé sur des rôles distincts. Voici la structure complète pour configurer Supabase correctement.
 
+> **Note (septembre 2026)** : ce document est la cible RLS initiale. L'état prod effectif diffère (policies `TO authenticated USING (true)` sur la plupart des tables, garde-fou `is_active_staff()` via `supabase/migrations/20260503_guard_staff_access.sql`). Toute modification de policy passe par une migration dans `supabase/migrations/`. Les anciens scripts de correction RLS/enum sont archivés dans `supabase/legacy/` et ne doivent pas être rejoués (`supabase-fix-user-role-enum.sql` supprime toutes les policies et désactive la RLS).
+
 ---
 
 ## 1. TABLES ET LEUR FONCTION

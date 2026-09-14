@@ -20,3 +20,11 @@ Certaines corrections prod ne doivent **pas** être rejouées automatiquement vi
 | `supabase/scripts/one-time-prod-ops-reassign-teyssedou-53d4951e.sql` | Données prod : patient `53d4951e-…` → Simon Teyssedou + audit `patient_messages` |
 
 **Prod** : exécuter le script une fois dans le SQL Editor Supabase tracker (`zdmeidekszdrzmjuasee`). Idempotent.
+
+## Scripts legacy archivés (2026-09-14)
+
+Les scripts SQL ponctuels du bootstrap (diagnostics, fixes RLS/enum, tests de notifications, création de comptes, `reset_database.sql`) ont été déplacés de la racine et de `scripts/` vers `supabase/legacy/`. Ils sont conservés pour référence uniquement et ne doivent **pas** être rejoués : plusieurs sont destructeurs (suppression de toutes les policies RLS, TRUNCATE de tables métier).
+
+Classification et équivalents actuels : [`supabase/legacy/README.md`](../supabase/legacy/README.md).
+
+Règle : une opération données ponctuelle vit dans `supabase/scripts/` et est consignée ici ; une évolution de schéma vit dans `supabase/migrations/`.

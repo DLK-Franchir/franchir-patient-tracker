@@ -1,3 +1,5 @@
+-- ⚠️ ARCHIVE LEGACY — NE PAS EXÉCUTER EN PROD (destructeur : TRUNCATE CASCADE de patients,
+-- patient_messages, medical_decisions, quotes, calendar_events, audit_logs — perte totale des données métier).
 -- Script to clear all transactional data (keeps configuration and users)
 
 -- Truncate tables with cascade to handle foreign keys

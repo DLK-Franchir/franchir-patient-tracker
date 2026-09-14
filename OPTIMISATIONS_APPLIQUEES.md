@@ -126,9 +126,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ### Base de Données Supabase
 
-1. Exécuter `supabase-schema.sql` dans l'éditeur SQL Supabase
+1. Exécuter `supabase-schema.sql` dans l'éditeur SQL Supabase, puis les migrations `supabase/migrations/`
 2. Créer les utilisateurs dans Supabase Auth
 3. Vérifier que les politiques RLS sont actives
+4. Ne pas exécuter les scripts archivés dans `supabase/legacy/` (voir son `README.md`)
 
 ## 🚀 Déploiement
 

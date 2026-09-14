@@ -1,3 +1,5 @@
+-- ⚠️ ARCHIVE LEGACY — NE PAS EXÉCUTER EN PROD (destructeur : DELETE dans auth.users, supprime
+-- le compte et, par cascade, le profil et ses dépendances).
 -- Supprimer Marcel s'il existe (dans auth.users ET profiles)
 DELETE FROM auth.users WHERE email = 'marcel@example.com';
 
