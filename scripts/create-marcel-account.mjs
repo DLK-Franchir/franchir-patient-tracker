@@ -45,7 +45,9 @@ async function createMarcelAccount() {
       id: authData.user.id,
       email: 'marcel@example.com',
       full_name: 'Marcel',
-      role: 'marcel'
+      role: 'marcel',
+      // Verrou RLS (migration 20260914140000) : sans is_active, le compte ne voit rien.
+      is_active: true
     })
 
   if (profileError) {

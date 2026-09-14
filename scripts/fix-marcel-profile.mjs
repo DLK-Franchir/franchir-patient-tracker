@@ -47,7 +47,8 @@ async function fixMarcelProfile() {
       id: marcelUserId,
       email: 'marcel.mazaltarim@gmail.com',
       full_name: 'Marcel (Coordinateur)',
-      role: 'marcel'
+      role: 'marcel',
+      is_active: true
     }, {
       onConflict: 'id'
     })

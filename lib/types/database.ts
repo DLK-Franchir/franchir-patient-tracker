@@ -8,6 +8,8 @@ export interface Profile {
   email: string
   full_name: string
   role: UserRole
+  /** Verrou RLS (`is_active_staff()`) — false par défaut pour tout nouveau compte. */
+  is_active: boolean
   created_at: string
   updated_at: string
 }

@@ -102,6 +102,8 @@ async function setupPhilippeAccount() {
     email: EMAIL,
     full_name: FULL_NAME,
     role: ROLE,
+    // Verrou RLS (migration 20260914140000) : sans is_active, le compte ne voit rien.
+    is_active: true,
   })
 
   if (profileError) {
