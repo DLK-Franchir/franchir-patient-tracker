@@ -4,6 +4,16 @@ import { revalidatePath } from 'next/cache'
 import { canEditCommercialData, type StaffRole } from '@/lib/access-control'
 import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
+import { logPatientAction } from '@/lib/patient-messages/log-action'
+import { buildCommercialDataEditMeta } from '@/lib/patient-messages/action-meta'
+import { Logger } from '@/lib/logger'
+
+const log = new Logger('api/patients/commercial-data')
+
+const COMMERCIAL_FIELD_LABELS = {
+  quote_amount: 'budget indicatif',
+  proposed_date: 'date proposée',
+} as const
 
 export async function PATCH(
   request: NextRequest,
@@ -19,7 +29,7 @@ export async function PATCH(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, email')
+      .select('role, email, full_name')
       .eq('id', user.id)
       .single()
 
@@ -46,13 +56,20 @@ export async function PATCH(
     const body = await request.json()
     const { quoteAmount, proposedDate } = body
 
-    const updateData: any = {}
+    const updateData: { quote_amount?: unknown; proposed_date?: unknown } = {}
     if (quoteAmount !== undefined) {
       updateData.quote_amount = quoteAmount
     }
     if (proposedDate !== undefined) {
       updateData.proposed_date = proposedDate
     }
+
+    // État AVANT update pour tracer les anciennes valeurs dans le journal.
+    const { data: previous } = await supabase
+      .from('patients')
+      .select('quote_amount, proposed_date')
+      .eq('id', patientId)
+      .maybeSingle()
 
     const { error } = await supabase
       .from('patients')
@@ -62,6 +79,29 @@ export async function PATCH(
     if (error) {
       console.error('Error updating commercial data:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    const edit = buildCommercialDataEditMeta(
+      { quote_amount: previous?.quote_amount, proposed_date: previous?.proposed_date },
+      { quote_amount: quoteAmount, proposed_date: proposedDate },
+    )
+    if (edit) {
+      await logPatientAction(
+        supabase,
+        {
+          patientId,
+          author: { id: user.id, full_name: profile.full_name, role: profile.role },
+          kind: 'action',
+          title: 'Données commerciales modifiées',
+          body: `Champs modifiés : ${edit.fieldsChanged
+            .map((field) => COMMERCIAL_FIELD_LABELS[field])
+            .join(', ')}.`,
+          topic: 'commercial',
+          meta: edit.meta,
+        },
+        log,
+        { action: 'edit_commercial_data' },
+      )
     }
 
     revalidatePath('/dashboard')

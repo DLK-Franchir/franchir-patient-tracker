@@ -212,7 +212,13 @@ franchir-patient-tracker/
 │       └── server.ts
 ├── proxy.ts                             # auth + workers dwv publics
 ├── public/dwv-workers/                  # codecs JPEG-LS, J2K, etc.
-└── supabase-schema.sql
+├── supabase/
+│   ├── migrations/                      # évolutions de schéma versionnées (source de vérité avec la prod)
+│   ├── scripts/                         # opérations données ponctuelles documentées (docs/migrations-one-time-ops.md)
+│   ├── functions/                       # Edge Functions
+│   └── legacy/                          # archive des scripts SQL du bootstrap — NE PAS exécuter (voir README du dossier)
+├── supabase-schema.sql                  # schéma initial + seeds
+└── supabase-rls-policies.sql            # policies RLS initiales
 ```
 
 ## Utilisateurs et Rôles

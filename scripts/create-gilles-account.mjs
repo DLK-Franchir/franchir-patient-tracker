@@ -85,7 +85,9 @@ async function setupGillesAccount() {
       id: gillesUser.id,
       email: 'duboisgilles31@franchir.eu',
       full_name: 'Dr Gilles Dubois',
-      role: 'gilles'
+      role: 'gilles',
+      // Verrou RLS (migration 20260914140000) : sans is_active, le compte ne voit rien.
+      is_active: true
     })
 
   if (profileError) {

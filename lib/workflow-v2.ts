@@ -116,13 +116,28 @@ export function globalStatusFromWorkflowStatus(status: WorkflowStatus | null | u
     if (code === 'rejected_medical' || code === 'rejected' || code === 'refused') {
       return 'rejected'
     }
-    if (code === 'case_closed' || code === 'closed' || code === 'archived') {
+    // `completed` (terminal, « Dossier terminé ») existe en base mais n'est pas
+    // produit par l'application : projeté sur `closed` (sinon fallback libellé
+    // « dossier » → draft).
+    if (code === 'case_closed' || code === 'closed' || code === 'archived' || code === 'completed') {
       return 'closed'
     }
-    if (code === 'surgery_scheduled' || code === 'scheduled' || code === 'confirmed') {
+    // `surgery_done` (« Chirurgie effectuée ») existe en base, non produit par
+    // l'application : post-programmation, projeté sur `scheduled`.
+    if (code === 'surgery_scheduled' || code === 'scheduled' || code === 'confirmed' || code === 'surgery_done') {
       return 'scheduled'
     }
-    if (code === 'validated_medical' || code === 'approved_medical' || code === 'commercial' || code === 'quote_pending' || code === 'awaiting_quote') {
+    // `quote_issued` / `quote_accepted` existent en base, non produits par
+    // l'application (le devis vit sur patients.quote_amount / quote_accepted).
+    if (
+      code === 'validated_medical' ||
+      code === 'approved_medical' ||
+      code === 'commercial' ||
+      code === 'quote_pending' ||
+      code === 'awaiting_quote' ||
+      code === 'quote_issued' ||
+      code === 'quote_accepted'
+    ) {
       return 'commercial_in_progress'
     }
   }

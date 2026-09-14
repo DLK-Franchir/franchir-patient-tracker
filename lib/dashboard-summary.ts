@@ -102,7 +102,12 @@ export const DASHBOARD_TABS: Array<{
   },
 ]
 
-/** Codes DB (`workflow_statuses.code`) par GlobalStatus — aligné sur globalStatusFromWorkflowStatus. */
+/**
+ * Codes DB (`workflow_statuses.code`) par GlobalStatus — aligné sur globalStatusFromWorkflowStatus.
+ * Sert aussi aux filtres URL `status=` : conserver l'ordre, ajouter en fin de liste.
+ * `quote_issued`, `quote_accepted`, `surgery_done`, `completed` existent en base
+ * mais ne sont pas produits par l'application.
+ */
 export const GLOBAL_STATUS_DB_CODES: Record<GlobalStatus, string[]> = {
   draft: ['draft', 'prospect', 'created', 'prospect_created'],
   medical_review: ['medical_review', 'pending_medical', 'awaiting_medical'],
@@ -114,9 +119,11 @@ export const GLOBAL_STATUS_DB_CODES: Record<GlobalStatus, string[]> = {
     'commercial',
     'quote_pending',
     'awaiting_quote',
+    'quote_issued',
+    'quote_accepted',
   ],
-  scheduled: ['surgery_scheduled', 'scheduled', 'confirmed'],
-  closed: [CASE_CLOSED_STATUS_CODE, 'closed', 'archived'],
+  scheduled: ['surgery_scheduled', 'scheduled', 'confirmed', 'surgery_done'],
+  closed: [CASE_CLOSED_STATUS_CODE, 'closed', 'archived', 'completed'],
 }
 
 export const GLOBAL_STATUS_LABELS: Record<GlobalStatus, string> = {

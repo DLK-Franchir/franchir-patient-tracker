@@ -17,6 +17,7 @@ import {
   getPriorityBannerContent,
   getRoleScopedPatientIds,
   getShortPendingActionLabel,
+  getTabPatientIds,
   globalStatusToDbCodes,
   intersectPatientIds,
   isMinePatient,
@@ -26,7 +27,9 @@ import {
   pendingActionLabel,
   PIPELINE_GLOBAL_STATUSES,
   resolveDashboardListFilterIds,
+  selectedGlobalStatusFromCodes,
 } from './dashboard-summary'
+import { globalStatusFromWorkflowStatus } from './workflow-v2'
 
 const patient = (id: string, code: string) => ({
   id,
@@ -94,6 +97,50 @@ describe('dashboard-summary', () => {
   it('mappe les codes DB pour filtrage pipeline', () => {
     expect(globalStatusToDbCodes('draft')).toContain('draft')
     expect(globalStatusToDbCodes('closed')).toContain('case_closed')
+  })
+
+  it('référence les codes prod non produits par l’application (quote_*, surgery_done, completed)', () => {
+    expect(globalStatusToDbCodes('commercial_in_progress')).toContain('quote_issued')
+    expect(globalStatusToDbCodes('commercial_in_progress')).toContain('quote_accepted')
+    expect(globalStatusToDbCodes('scheduled')).toContain('surgery_done')
+    expect(globalStatusToDbCodes('closed')).toContain('completed')
+    // Ajout en fin de liste : les codes historiques gardent leur position (filtres URL status=).
+    expect(globalStatusToDbCodes('commercial_in_progress')[0]).toBe('validated_medical')
+    expect(globalStatusToDbCodes('scheduled')[0]).toBe('surgery_scheduled')
+    expect(globalStatusToDbCodes('closed')[0]).toBe('case_closed')
+  })
+
+  it('GLOBAL_STATUS_DB_CODES reste cohérent avec globalStatusFromWorkflowStatus', () => {
+    for (const globalStatus of [...PIPELINE_GLOBAL_STATUSES, 'closed'] as const) {
+      for (const code of globalStatusToDbCodes(globalStatus)) {
+        expect(globalStatusFromWorkflowStatus({ id: `ws-${code}`, code })).toBe(globalStatus)
+      }
+    }
+  })
+
+  it('projette les codes prod hors modèle applicatif dans les bons compteurs et onglets', () => {
+    const patients = [
+      patient('1', 'quote_issued'),
+      patient('2', 'quote_accepted'),
+      patient('3', 'surgery_done'),
+      patient('4', 'completed'),
+    ]
+
+    const summary = computeDashboardSummary(patients, 'marcel')
+
+    expect(summary.byGlobalStatus.commercial_in_progress).toBe(2)
+    expect(summary.byGlobalStatus.scheduled).toBe(1)
+    expect(summary.byGlobalStatus.closed).toBe(1)
+    expect(summary.byGlobalStatus.draft).toBe(0)
+    expect(summary.closed).toBe(1)
+    expect(summary.totalActive).toBe(3)
+    expect(getPipelinePatientIds(patients, 'commercial_in_progress')).toEqual(['1', '2'])
+    expect(getPipelinePatientIds(patients, 'scheduled')).toEqual(['3'])
+    expect(getTabPatientIds(patients, 'scheduled')).toEqual(['3'])
+    expect(getTabPatientIds(patients, 'actifs')).toEqual(['1', '2', '3'])
+    expect(selectedGlobalStatusFromCodes(['surgery_done'])).toBe('scheduled')
+    expect(selectedGlobalStatusFromCodes(['completed'])).toBe('closed')
+    expect(selectedGlobalStatusFromCodes(['quote_issued'])).toBe('commercial_in_progress')
   })
 
   it('ventile mineBreakdown pour admin avec plusieurs types d\'action', () => {

@@ -7,6 +7,8 @@
 
 > **Note (juillet 2026)** : ce document décrit l'architecture initiale (pré-V3). Pour l'état prod actuel (cockpit KPI V3, scoping Gilles, filtres `all=1` / `tab=revue`, pont questionnaires, imagerie DICOM), privilégier [`README.md`](README.md) et [`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md). Les recommandations « V2 » ci-dessous sont en grande partie réalisées ou remplacées par la V3.
 
+> **Note (septembre 2026)** : le schéma décrit en § « Base de données » est l'**état initial**. La source de vérité est la prod + `supabase/migrations/`. Les statuts effectifs sont 7 codes (`prospect_created`, `medical_review`, `need_info`, `validated_medical`, `surgery_scheduled`, `rejected_medical`, `case_closed`) projetés sur 7 `GlobalStatus`. Les tables `medical_decisions`, `quotes`, `calendar_events`, `audit_logs` sont vides / non utilisées ; le journal d'activité est `patient_messages`. Les scripts SQL ponctuels du bootstrap sont archivés dans [`supabase/legacy/`](supabase/legacy/README.md) et ne doivent pas être exécutés.
+
 ---
 
 ## 📋 TABLE DES MATIÈRES
@@ -138,11 +140,14 @@ franchir-patient-tracker/
 ├── tailwind.config.ts                    # Configuration Tailwind
 ├── next.config.ts                        # Configuration Next.js
 │
-└── *.sql                                 # Scripts SQL Supabase
-    ├── supabase-schema.sql               # Schéma principal
-    ├── supabase-rls-policies.sql         # Politiques RLS
-    ├── supabase-fix-realtime.sql         # Fix realtime
-    └── ...                               # Autres scripts de maintenance
+├── supabase-schema.sql                   # Schéma initial + seeds
+├── supabase-rls-policies.sql             # Politiques RLS initiales
+│
+└── supabase/
+    ├── migrations/                       # Évolutions de schéma versionnées (source de vérité avec la prod)
+    ├── scripts/                          # Opérations données ponctuelles (docs/migrations-one-time-ops.md)
+    ├── functions/                        # Edge Functions
+    └── legacy/                           # Archive des scripts SQL du bootstrap — NE PAS exécuter (README.md du dossier)
 ```
 
 ---
@@ -840,11 +845,12 @@ RESEND_API_KEY=re_xxxxx
 2. Copier le contenu de `supabase-schema.sql`
 3. Run (Ctrl/Cmd + Enter)
 4. Vérifier qu'il n'y a pas d'erreurs
+5. Appliquer ensuite les migrations `supabase/migrations/` (`supabase db push`) — le schéma racine est l'état initial, pas l'état prod
 
 #### 4. Activer Realtime
 1. Database > Replication
 2. Activer la réplication pour la table `notifications`
-3. Ou exécuter `supabase-fix-realtime.sql`
+3. Ne pas utiliser `supabase/legacy/supabase-fix-realtime.sql` (archive : insère une notification de test et échoue si la table est déjà publiée)
 
 #### 5. Créer les utilisateurs
 **Via l'interface** :

@@ -31,6 +31,9 @@ Une fois le projet créé:
 4. Coller dans l'éditeur SQL
 5. Cliquer sur "Run" (ou Ctrl/Cmd + Enter)
 6. Vérifier qu'il n'y a pas d'erreurs
+7. Appliquer ensuite `supabase-rls-policies.sql`, puis les migrations versionnées de `supabase/migrations/` (`supabase db push`) : le schéma racine décrit l'état initial, pas l'état prod
+
+> **Scripts legacy** : les anciens scripts SQL ponctuels (diagnostics, fixes, comptes, `reset_database.sql`) sont archivés dans `supabase/legacy/` et documentés dans `supabase/legacy/README.md`. Ne pas les exécuter : plusieurs sont destructeurs (suppression de policies RLS, TRUNCATE de données).
 
 ## 4. Créer un utilisateur test
 

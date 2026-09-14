@@ -1,3 +1,5 @@
+-- ⚠️ ARCHIVE LEGACY — NE PAS EXÉCUTER EN PROD (destructeur : supprime TOUTES les policies RLS
+-- du schéma public, désactive la RLS et DROP TYPE user_role CASCADE).
 -- Script RADICAL pour corriger l'enum user_role
 -- Supprime TOUTES les policies automatiquement, puis modifie l'enum
 

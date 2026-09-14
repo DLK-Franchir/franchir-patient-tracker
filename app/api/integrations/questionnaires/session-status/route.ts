@@ -26,6 +26,11 @@ import { syncPatientToQuestionnaires } from '@/lib/integrations/questionnaire-po
 import { isValidBearer } from '@/lib/security/service-bearer'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { Logger } from '@/lib/logger'
+import {
+  logPatientAction,
+  QUESTIONNAIRES_SYSTEM_AUTHOR,
+} from '@/lib/patient-messages/log-action'
+import { buildQuestionnaireCompletedMeta } from '@/lib/patient-messages/action-meta'
 
 const log = new Logger('api/integrations/questionnaires/session-status')
 
@@ -58,6 +63,8 @@ export async function POST(req: Request) {
     }
 
     const supabase = createServiceRoleClient()
+    const questionnaireCompletedAt =
+      typeof completedAt === 'string' ? completedAt : new Date().toISOString()
 
     // Corrélation par patients.id = trackerPatientId. Sous-état uniquement :
     // le code workflow (medical_review) n'est pas touché (D7).
@@ -65,8 +72,7 @@ export async function POST(req: Request) {
       .from('patients')
       .update({
         questionnaire_status: 'completed',
-        questionnaire_completed_at:
-          typeof completedAt === 'string' ? completedAt : new Date().toISOString(),
+        questionnaire_completed_at: questionnaireCompletedAt,
         questionnaire_summary: typeof summary === 'string' ? summary : null,
       })
       .eq('id', trackerPatientId)
@@ -83,6 +89,25 @@ export async function POST(req: Request) {
       // rejeu automatique en V1.5).
       return NextResponse.json({ error: 'Patient Not Found' }, { status: 404 })
     }
+
+    // Journal d'activité : auteur système (pas de profil staff derrière un callback M2M).
+    await logPatientAction(
+      supabase,
+      {
+        patientId: updated.id,
+        author: QUESTIONNAIRES_SYSTEM_AUTHOR,
+        kind: 'system',
+        title: 'Questionnaire complété',
+        body: 'Le patient a complété le questionnaire Anamneze.',
+        topic: 'system',
+        meta: buildQuestionnaireCompletedMeta({
+          completedAt: questionnaireCompletedAt,
+          summary,
+        }),
+      },
+      log,
+      { action: 'questionnaire_completed' },
+    )
 
     // Rattrapage : si un chirurgien a été assigné entre-temps (ou si le webhook
     // de sync a échoué), on repousse surgeon_email côté questionnaires pour que

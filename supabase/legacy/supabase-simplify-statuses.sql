@@ -1,3 +1,5 @@
+-- ⚠️ ARCHIVE LEGACY — NE PAS EXÉCUTER EN PROD (destructeur : TRUNCATE workflow_statuses CASCADE
+-- vide aussi les tables qui référencent les statuts, dont patients ; seed obsolète, sans case_closed).
 -- Simplifier les statuts workflow (garder seulement les essentiels)
 -- Supprimer tous les statuts existants
 TRUNCATE TABLE workflow_statuses CASCADE;

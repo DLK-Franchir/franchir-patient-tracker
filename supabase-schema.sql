@@ -1,3 +1,13 @@
+-- ============================================================
+-- FRANCHIR PATIENT TRACKER — schéma de référence / bootstrap
+-- ============================================================
+-- Ce fichier décrit le schéma initial (bootstrap d'une base vierge). Il n'est
+-- PAS l'état exact de la prod : la prod (projet zdmeidekszdrzmjuasee) fait foi.
+-- Écarts connus et inventaire complet : reports/00_architecture_inventory.md.
+-- Les évolutions du schéma vivent dans supabase/migrations/ (additives,
+-- idempotentes, gate DB manuel).
+-- ============================================================
+
 -- Extension pour UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -96,22 +106,23 @@ CREATE TABLE public.audit_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Insertion des statuts par défaut
+-- Insertion des statuts par défaut — seed aligné sur la prod (11 codes).
+-- Codes produits par l'application : prospect_created, medical_review, need_info,
+-- validated_medical, surgery_scheduled, case_closed, rejected_medical.
+-- Codes présents en base mais non produits par l'application : quote_issued,
+-- quote_accepted, surgery_done, completed (mappés dans lib/workflow-v2.ts).
 INSERT INTO workflow_statuses (code, label, order_position, is_terminal, color) VALUES
-  ('prospect_created', 'Prospect créé', 1, FALSE, '#3B82F6'),
-  ('medical_review', 'En revue médicale', 2, FALSE, '#F59E0B'),
-  ('need_info', 'À compléter', 3, FALSE, '#EF4444'),
-  ('rejected_medical', 'Refusé médicalement', 4, TRUE, '#DC2626'),
-  ('validated_medical', 'Validé médicalement', 5, FALSE, '#10B981'),
-  ('sent_to_surgeon', 'Envoyé au chirurgien', 6, FALSE, '#8B5CF6'),
-  ('surgeon_rejected', 'Refus chirurgien', 7, TRUE, '#DC2626'),
-  ('surgeon_accepted', 'Accord chirurgien', 8, FALSE, '#10B981'),
-  ('quote_issued', 'Devis émis', 9, FALSE, '#F59E0B'),
-  ('quote_rejected', 'Devis refusé', 10, TRUE, '#DC2626'),
-  ('quote_accepted', 'Devis accepté', 11, FALSE, '#10B981'),
-  ('surgery_scheduled', 'Date chirurgie confirmée', 12, FALSE, '#8B5CF6'),
-  ('deposit_received', 'Acompte 30% reçu', 13, FALSE, '#10B981'),
-  ('confirmed', 'Dossier confirmé', 14, FALSE, '#059669');
+  ('prospect_created', 'Dossier créé', 1, FALSE, '#9CA3AF'),
+  ('medical_review', 'En revue médicale', 2, FALSE, '#3B82F6'),
+  ('need_info', 'À compléter', 3, FALSE, '#F59E0B'),
+  ('validated_medical', 'Validé médicalement', 4, FALSE, '#10B981'),
+  ('quote_issued', 'Devis envoyé', 5, FALSE, '#8B5CF6'),
+  ('quote_accepted', 'Devis accepté', 6, FALSE, '#10B981'),
+  ('surgery_scheduled', 'Chirurgie programmée', 7, FALSE, '#6366F1'),
+  ('surgery_done', 'Chirurgie effectuée', 8, FALSE, '#059669'),
+  ('completed', 'Dossier terminé', 9, TRUE, '#14B8A6'),
+  ('case_closed', 'Dossier fermé', 10, TRUE, '#9CA3AF'),
+  ('rejected_medical', 'Refusé médicalement', 99, TRUE, '#EF4444');
 
 -- Row Level Security (RLS) - Tout le monde voit tout
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -151,3 +162,5 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Évolutions du schéma : voir supabase/migrations/ (source des changements post-bootstrap).
