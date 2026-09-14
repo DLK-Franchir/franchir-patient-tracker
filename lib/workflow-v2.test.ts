@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   canPerformWorkflowAction,
   getAvailableActions,
@@ -125,5 +125,61 @@ describe('case_closed workflow', () => {
         label: 'Validé médicalement',
       }),
     ).toBe('commercial_in_progress')
+  })
+})
+
+describe('codes workflow_statuses présents en base mais non produits par l’application', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const PROD_ONLY_CODES = [
+    { code: 'quote_issued', label: 'Devis envoyé', expected: 'commercial_in_progress' },
+    { code: 'quote_accepted', label: 'Devis accepté', expected: 'commercial_in_progress' },
+    { code: 'surgery_done', label: 'Chirurgie effectuée', expected: 'scheduled' },
+    { code: 'completed', label: 'Dossier terminé', expected: 'closed' },
+  ] as const
+
+  it.each(PROD_ONLY_CODES)('mappe $code (« $label ») vers $expected', ({ code, label, expected }) => {
+    expect(globalStatusFromWorkflowStatus({ id: '1', code, label })).toBe(expected)
+  })
+
+  it('mappe surgery_done vers scheduled et non commercial_in_progress (ancien fallback « chirurgie »)', () => {
+    expect(
+      globalStatusFromWorkflowStatus({ id: '1', code: 'surgery_done', label: 'Chirurgie effectuée' }),
+    ).not.toBe('commercial_in_progress')
+  })
+
+  it('mappe completed vers closed et non draft (ancien fallback « dossier »)', () => {
+    expect(
+      globalStatusFromWorkflowStatus({ id: '1', code: 'completed', label: 'Dossier terminé' }),
+    ).not.toBe('draft')
+  })
+
+  it.each(PROD_ONLY_CODES)(
+    'résout $code par le code seul, sans solliciter le fallback libellé',
+    ({ code, expected }) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      // Libellé trompeur : le fallback libellé donnerait un autre GlobalStatus.
+      expect(globalStatusFromWorkflowStatus({ id: '1', code, label: 'Refusé' })).toBe(expected)
+      // Sans libellé : le fallback tomberait sur draft + console.warn.
+      expect(globalStatusFromWorkflowStatus({ id: '1', code })).toBe(expected)
+      expect(warn).not.toHaveBeenCalled()
+    },
+  )
+
+  it('n’altère pas le mapping des codes produits par l’application', () => {
+    const cases = [
+      ['prospect_created', 'draft'],
+      ['medical_review', 'medical_review'],
+      ['need_info', 'medical_more_info'],
+      ['validated_medical', 'commercial_in_progress'],
+      ['surgery_scheduled', 'scheduled'],
+      ['case_closed', 'closed'],
+      ['rejected_medical', 'rejected'],
+    ] as const
+    for (const [code, expected] of cases) {
+      expect(globalStatusFromWorkflowStatus({ id: '1', code })).toBe(expected)
+    }
   })
 })
