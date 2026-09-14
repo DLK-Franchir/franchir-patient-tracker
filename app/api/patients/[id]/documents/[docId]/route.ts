@@ -20,6 +20,8 @@ import {
   isObjectKeyOwnedByPatient,
 } from '@/lib/documents/patient-documents'
 import { Logger } from '@/lib/logger'
+import { logPatientAction } from '@/lib/patient-messages/log-action'
+import { buildDocumentDeletedMeta } from '@/lib/patient-messages/action-meta'
 
 const log = new Logger('api/patients/documents/delete')
 
@@ -44,7 +46,7 @@ export async function DELETE(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, email')
+    .select('role, email, full_name')
     .eq('id', user.id)
     .single()
 
@@ -70,7 +72,7 @@ export async function DELETE(
 
   const { data: doc, error: fetchError } = await service
     .from('patient_documents')
-    .select('id, file_path, patient_id')
+    .select('id, file_path, patient_id, kind, size_bytes')
     .eq('id', docId)
     .eq('patient_id', patientId)
     .maybeSingle()
@@ -106,6 +108,28 @@ export async function DELETE(
     log.error('Erreur suppression ligne document', deleteError)
     return NextResponse.json({ error: 'Échec de la suppression' }, { status: 500 })
   }
+
+  const isDicom = doc.kind === 'dicom'
+  await logPatientAction(
+    service,
+    {
+      patientId,
+      author: { id: user.id, full_name: profile.full_name, role: profile.role },
+      kind: 'action',
+      title: isDicom ? 'Fichier DICOM supprimé' : 'Document supprimé',
+      body: isDicom
+        ? 'Un fichier DICOM a été supprimé du dossier.'
+        : 'Un document a été supprimé du dossier.',
+      topic: 'audit',
+      meta: buildDocumentDeletedMeta({
+        id: docId,
+        kind: doc.kind,
+        size_bytes: doc.size_bytes,
+      }),
+    },
+    log,
+    { action: 'document_deleted' },
+  )
 
   return NextResponse.json({ success: true })
 }

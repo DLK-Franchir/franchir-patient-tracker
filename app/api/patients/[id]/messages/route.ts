@@ -5,6 +5,7 @@ import { canUseWorkflow, type StaffRole } from '@/lib/access-control'
 import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
 import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
 import { sendNewMessageNotifications } from '@/lib/notifications'
+import { parseMessageTopic } from '@/lib/patient-messages/message-topic'
 
 const log = new Logger('api/patients/messages')
 
@@ -14,11 +15,13 @@ export async function POST(
 ) {
   try {
     const { id: patientId } = await params
-    const { message } = await req.json()
+    const { message, topic: rawTopic } = await req.json()
 
     if (!message || !message.trim()) {
       return NextResponse.json({ error: 'Message vide' }, { status: 400 })
     }
+
+    const topic = parseMessageTopic(rawTopic)
 
     const supabase = await createServerClient()
 
@@ -62,6 +65,7 @@ export async function POST(
       kind: 'message',
       title: null,
       body: message.trim(),
+      topic,
       meta: {},
     })
 

@@ -199,9 +199,14 @@ export const STATUS_NOTIFICATION_RULES: Record<string, { roles: string[]; messag
     roles: ['gilles', 'marcel', 'franchir', 'admin'],
     message: (name) => `La chirurgie de ${name} a été programmée.`,
   },
-  draft: {
+  // Code DB posé par reopen_case (le GlobalStatus `draft` n'est pas une clé ici).
+  prospect_created: {
     roles: ['marcel', 'franchir', 'admin'],
     message: (name) => `Le dossier de ${name} a été réouvert.`,
+  },
+  case_closed: {
+    roles: ['marcel', 'franchir', 'admin'],
+    message: (name) => `Le dossier de ${name} a été fermé.`,
   },
 }
 

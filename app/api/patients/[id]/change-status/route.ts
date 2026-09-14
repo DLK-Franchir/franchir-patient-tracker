@@ -12,6 +12,10 @@ import {
   sendSurgeonAssignmentEmail,
 } from '@/lib/notifications'
 import { logPatientAction } from '@/lib/patient-messages/log-action'
+import {
+  buildWorkflowActionMeta,
+  type WorkflowActionMetaContext,
+} from '@/lib/patient-messages/action-meta'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const log = new Logger('api/change-status')
@@ -101,6 +105,9 @@ export async function POST(
         patient_name,
         quote_accepted,
         date_accepted,
+        quote_amount,
+        proposed_date,
+        assigned_surgeon_id,
         current_status:workflow_statuses!current_status_id (id, code, label)
       `).eq('id', patientId).single(),
     ])
@@ -148,6 +155,17 @@ export async function POST(
     proposed_date?: string | null
     assigned_surgeon?: { id: string; full_name: string; email?: string | null } | null
   } = {}
+  // Valeurs structurées pour meta (état AVANT update lu dans le select initial).
+  const metaContext: WorkflowActionMetaContext = {
+    actionId: actionId as ActionId,
+    role,
+    oldStatusCode: currentStatus?.code ?? null,
+    previousSurgeonId: patient.assigned_surgeon_id ?? null,
+    previousQuoteAmount: patient.quote_amount,
+    quoteAmount: patient.quote_amount,
+    previousProposedDate: patient.proposed_date,
+    proposedDate: patient.proposed_date,
+  }
 
   switch (actionId as ActionId) {
     case 'submit_to_medical':
@@ -199,6 +217,7 @@ export async function POST(
       }
 
       messageBody += `\n\nChirurgiens recommandés: ${recommendedSurgeons.map((s) => s.full_name).join(', ')}`
+      metaContext.recommendedSurgeonIds = recommendedIds
       if (data?.surgeonId) {
         const { data: approveSurgeon } = await writeClient
           .from('surgeons')
@@ -216,6 +235,7 @@ export async function POST(
           }
           messageBody += `\n\nChirurgien assigné : ${approveSurgeon.full_name}`
           updatedPatient.assigned_surgeon = approveSurgeon
+          metaContext.assignedSurgeonId = approveSurgeon.id
           await sendSurgeonAssignmentEmail(approveSurgeon, patient.patient_name)
         }
       }
@@ -247,6 +267,7 @@ export async function POST(
       messageTitle = 'Chirurgien assigné'
       messageBody = `Chirurgien assigné : ${assignSurgeon.full_name}. Le dossier lui est transmis pour étude.`
       updatedPatient.assigned_surgeon = assignSurgeon
+      metaContext.assignedSurgeonId = assignSurgeon.id
       break
     }
 
@@ -254,12 +275,14 @@ export async function POST(
       newStatusCode = 'need_info'
       messageTitle = 'Informations complémentaires demandées'
       messageBody = data?.message || 'Des informations complémentaires sont nécessaires.'
+      metaContext.reason = data?.message
       break
 
     case 'reject_medical':
       newStatusCode = 'rejected_medical'
       messageTitle = 'Refusé médicalement'
       messageBody = data?.justification || 'Le dossier a été refusé médicalement.'
+      metaContext.reason = data?.justification
       break
 
     case 'confirm_quote':
@@ -308,6 +331,7 @@ export async function POST(
       newStatusCode = 'prospect_created'
       messageTitle = 'Dossier réouvert'
       messageBody = data?.message || 'Le dossier a été réouvert.'
+      metaContext.reason = data?.message
       break
 
     case 'close_case':
@@ -316,12 +340,14 @@ export async function POST(
       messageBody =
         data?.message ||
         'Le dossier a été fermé. L\'historique est conservé ; aucune action workflow en attente.'
+      metaContext.reason = data?.message
       break
 
     case 'add_budget': {
       messageTitle = 'Budget indicatif ajouté'
       messageBody = `Budget indicatif: ${data?.budget || 'Non spécifié'}`
       const quoteAmount = parseQuoteAmount(data?.budget)
+      metaContext.quoteAmount = quoteAmount
       if (quoteAmount !== null) {
         const { error: budgetError } = await writeClient
           .from('patients')
@@ -340,6 +366,7 @@ export async function POST(
       messageTitle = 'Dates proposées'
       messageBody = `Dates proposées:\n${data?.dates || 'Non spécifié'}`
       const proposedDate = parseFirstProposedDate(data?.dates)
+      metaContext.proposedDate = proposedDate
       if (proposedDate) {
         const { error: dateError } = await writeClient
           .from('patients')
@@ -397,9 +424,10 @@ export async function POST(
           actionId.includes('propose')
             ? 'commercial'
             : 'medical',
-        meta: newStatusCode
-          ? { old_status: currentStatus?.code, new_status: newStatusCode, action_id: actionId }
-          : { action_id: actionId },
+        meta: buildWorkflowActionMeta({
+          ...metaContext,
+          newStatusCode: newStatusCode || null,
+        }),
       },
       log,
       { actionId },
