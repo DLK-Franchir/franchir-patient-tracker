@@ -15,6 +15,7 @@ import {
   isNumericFolderPrefix,
   seriesUidFilenamePrefix,
 } from '@/lib/imaging/dicom-series-uid-name'
+import { cachePreparedDicomMeta } from '@/lib/imaging/dicom-upload-cache'
 
 export type PreparedDicomFile = {
   file: File
@@ -135,8 +136,9 @@ export function prepareDicomUploadFile(
   header: DicomHeaderInfo | null,
 ): File {
   const safeName = buildUniqueUploadName(relativePath, original.name, header)
-  const blob = original.slice(0, original.size, DICOM_MIME_TYPE)
-  return new File([blob], safeName, {
+  if (original.name === safeName && original.type === DICOM_MIME_TYPE) return original
+  // new File([original]) partage le backing store ; slice(0, size) recopie 2 Go.
+  return new File([original], safeName, {
     type: DICOM_MIME_TYPE,
     lastModified: original.lastModified,
   })
@@ -196,8 +198,17 @@ export async function importDicomFolder(
         const header = await readDicomHeaderFromFile(file)
         const seriesKey = resolveSeriesKey(header, displayPath)
 
+        const preparedFile = prepareDicomUploadFile(file, displayPath, header)
+        cachePreparedDicomMeta(preparedFile, {
+          sopInstanceUid: header?.sopInstanceUid ?? null,
+          seriesInstanceUid: header?.seriesInstanceUid ?? seriesKey,
+          seriesDescription: null,
+          bodyPart: null,
+          instanceNumber: null,
+          acquisitionDatetime: null,
+        })
         prepared.push({
-          file: prepareDicomUploadFile(file, displayPath, header),
+          file: preparedFile,
           seriesInstanceUid: seriesKey,
           modality: header?.modality ?? null,
           originalName: file.name,

@@ -16,6 +16,7 @@ import { importDicomFolder, formatEmptyDicomFolderMessage } from '@/lib/imaging/
 import {
   configureWebkitDirectoryInput,
   filesFromDataTransfer,
+  fileRelativePath,
   snapshotFileList,
 } from '@/lib/imaging/directory-picker'
 
@@ -94,34 +95,6 @@ export default function DocumentUpload({
     [errors, files, onChange],
   )
 
-  const addFiles = useCallback(
-    (incoming: FileList | File[]) => {
-      const list = Array.from(incoming)
-      const nextErrors: string[] = []
-      const accepted: File[] = []
-
-      for (const file of list) {
-        if (isIgnorableCompanionFile(file.name)) {
-          continue
-        }
-        const validationError = validateDocumentFile({
-          name: file.name,
-          size: file.size,
-          type: file.type,
-        })
-        if (validationError) {
-          nextErrors.push(`${file.name} : ${DOCUMENT_VALIDATION_MESSAGES[validationError]}`)
-          continue
-        }
-        accepted.push(file)
-      }
-
-      mergeAccepted(accepted)
-      if (nextErrors.length > 0) setErrors(nextErrors)
-    },
-    [mergeAccepted],
-  )
-
   const handleFolderImport = useCallback(
     async (fileList: FileList | File[]) => {
       if (disabled) return
@@ -150,32 +123,23 @@ export default function DocumentUpload({
             count: s.files.length,
           })),
         )
-        const existingKeys = new Set(files.map((f) => `${f.name}:${f.size}:${f.lastModified}`))
-        const newFileCount = prepared.filter(
-          (f) => !existingKeys.has(`${f.name}:${f.size}:${f.lastModified}`),
-        ).length
-
-        mergeAccepted(prepared)
+        // Remplace la sélection : un CD mélange souvent 912 DICOM + des milliers
+        // d'aperçus JPEG. Envoyer le tout (2 Go) fait planter l'onglet.
+        onChange(prepared)
 
         const notes: string[] = []
-        if (newFileCount === 0) {
-          notes.push('Ce dossier est deja importe (fichiers identiques).')
-        }
         if (result.ignoredCompanionCount > 0) {
           notes.push(`${result.ignoredCompanionCount} fichier(s) parasite(s) ignore(s)`)
         }
         if (result.skippedNonDicomCount > 0) {
-          notes.push(`${result.skippedNonDicomCount} fichier(s) non-DICOM ignore(s)`)
-          if (result.sampleSkippedPaths.length > 0) {
-            notes.push(`ex. ${result.sampleSkippedPaths.slice(0, 3).join(', ')}`)
-          }
+          notes.push(`${result.skippedNonDicomCount} aperçu(s) / fichier(s) non-DICOM ignoré(s)`)
         }
-        if (notes.length > 0) setFolderNote(notes.join(' · '))
+        setFolderNote(notes.length > 0 ? notes.join(' · ') : null)
 
         setImportSummary(
-          `${result.series.length} serie(s), ${totalImages} image(s) importee(s)${
+          `${result.series.length} série(s), ${totalImages} image(s) prête(s) à envoyer${
             result.skippedNonDicomCount > 0
-              ? `, ${result.skippedNonDicomCount} ignore(s)`
+              ? ` — ${result.skippedNonDicomCount} aperçu(s) ignoré(s)`
               : ''
           }`,
         )
@@ -186,7 +150,40 @@ export default function DocumentUpload({
         setFolderImporting(false)
       }
     },
-    [disabled, files, mergeAccepted],
+    [disabled, onChange],
+  )
+
+  const addFiles = useCallback(
+    (incoming: FileList | File[]) => {
+      const list = Array.from(incoming)
+      const looksLikeFolder = list.some((file) => fileRelativePath(file).includes('/'))
+      if (looksLikeFolder) {
+        void handleFolderImport(list)
+        return
+      }
+      const nextErrors: string[] = []
+      const accepted: File[] = []
+
+      for (const file of list) {
+        if (isIgnorableCompanionFile(file.name)) {
+          continue
+        }
+        const validationError = validateDocumentFile({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        })
+        if (validationError) {
+          nextErrors.push(`${file.name} : ${DOCUMENT_VALIDATION_MESSAGES[validationError]}`)
+          continue
+        }
+        accepted.push(file)
+      }
+
+      mergeAccepted(accepted)
+      if (nextErrors.length > 0) setErrors(nextErrors)
+    },
+    [handleFolderImport, mergeAccepted],
   )
 
   const openFolderPicker = useCallback(() => {

@@ -17,7 +17,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client'
-import { PATIENT_DOCUMENTS_BUCKET } from '@/lib/documents/patient-documents'
+import { inferRenderType, PATIENT_DOCUMENTS_BUCKET } from '@/lib/documents/patient-documents'
 import { putFileToSignedUploadUrl } from '@/lib/integrations/signed-upload-put'
 import {
   prepareDicomFilesForUpload,
@@ -63,6 +63,21 @@ export type UploadProgress = {
 export type UploadResultSummary = {
   count: number
   skipped: number
+}
+
+/** Au-delà, les JPEG/PDF du viewer CD sont traités comme du bruit, pas un envoi mixte voulu. */
+const CD_PREVIEW_JUNK_THRESHOLD = 20
+
+/**
+ * Un CD DICOM embarque souvent des milliers d'aperçus JPEG en plus des coupes.
+ * Les envoyer avec les images tue l'onglet (~2 Go). On ne garde alors que le DICOM.
+ */
+export function selectFilesForPatientUpload(files: File[]): File[] {
+  const dicomOnly = files.filter((file) => inferRenderType(file.name, file.type) === 'dicom')
+  if (dicomOnly.length > 0 && files.length - dicomOnly.length >= CD_PREVIEW_JUNK_THRESHOLD) {
+    return dicomOnly
+  }
+  return files
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -149,14 +164,16 @@ export async function uploadPatientDocuments(
 ): Promise<UploadResultSummary> {
   if (files.length === 0) return { count: 0, skipped: 0 }
 
+  const uploadFiles = selectFilesForPatientUpload(files)
+
   const supabase = createClient()
   const finalized: FinalizeDocument[] = []
   let processedCount = 0
   let skippedDuplicates = 0
   const skipForward = patientId === IMAGING_SANDBOX_PATIENT_ID
 
-  onProgress?.({ total: files.length, uploaded: 0, phase: 'prepare' })
-  const preparedAll = await prepareDicomFilesForUpload(files, (done, total) => {
+  onProgress?.({ total: uploadFiles.length, uploaded: 0, phase: 'prepare' })
+  const preparedAll = await prepareDicomFilesForUpload(uploadFiles, (done, total) => {
     onProgress?.({ total, uploaded: done, phase: 'prepare' })
   })
 
@@ -189,7 +206,7 @@ export async function uploadPatientDocuments(
       if (result.status === 'skipped') {
         skippedDuplicates += 1
         processedCount += 1
-        onProgress?.({ total: files.length, uploaded: processedCount, phase: 'upload' })
+        onProgress?.({ total: uploadFiles.length, uploaded: processedCount, phase: 'upload' })
         continue
       }
       signedPairs.push({
@@ -223,7 +240,7 @@ export async function uploadPatientDocuments(
             dicom,
           })
           processedCount += 1
-          onProgress?.({ total: files.length, uploaded: processedCount, phase: 'upload' })
+          onProgress?.({ total: uploadFiles.length, uploaded: processedCount, phase: 'upload' })
         }),
       )
     }
@@ -240,7 +257,7 @@ export async function uploadPatientDocuments(
     return { count: 0, skipped: skippedDuplicates }
   }
 
-  onProgress?.({ total: files.length, uploaded: files.length, phase: 'finalize' })
+  onProgress?.({ total: uploadFiles.length, uploaded: uploadFiles.length, phase: 'finalize' })
 
   const finalizeRes = await fetch(`/api/patients/${patientId}/documents/finalize`, {
     method: 'POST',
