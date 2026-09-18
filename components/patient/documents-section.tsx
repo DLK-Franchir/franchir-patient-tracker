@@ -408,7 +408,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       setUploadStatus(`Préparation de ${pendingFiles.length} fichier(s)… Ne fermez pas la page.`)
     })
     try {
-      const { count, skipped } = await uploadPatientDocuments(
+      const { count, skipped, failed } = await uploadPatientDocuments(
         patientId,
         pendingFiles,
         (progress) => {
@@ -418,12 +418,16 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
             )
             return
           }
+          const lot =
+            progress.batch && progress.batchCount
+              ? ` · lot ${progress.batch}/${progress.batchCount}`
+              : ''
           if (progress.phase === 'finalize') {
-            setUploadStatus('Enregistrement des fichiers…')
+            setUploadStatus(`Enregistrement${lot}… Ne fermez pas la page.`)
             return
           }
           setUploadStatus(
-            `Envoi ${progress.uploaded} / ${progress.total}… Ne fermez pas la page.`,
+            `Envoi ${progress.uploaded} / ${progress.total}${lot}… Ne fermez pas la page.`,
           )
         },
       )
@@ -433,6 +437,9 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       const parts = [`${count} fichier(s) enregistré(s).`]
       if (skipped > 0) {
         parts.push(`${skipped} doublon(s) ignoré(s).`)
+      }
+      if (failed > 0) {
+        parts.push(`${failed} échec(s) — réessayez Envoyer pour les manquants.`)
       }
       setUploadSuccess(parts.join(' '))
       setUploadStatus(null)
