@@ -302,6 +302,7 @@ export const DOCUMENT_VALIDATION_MESSAGES: Record<DocumentValidationError, strin
 export const dicomMetadataSchema = z.object({
   sopInstanceUid: z.string().max(128).nullable().optional(),
   seriesInstanceUid: z.string().max(128).nullable().optional(),
+  modality: z.string().max(16).nullable().optional(),
   seriesDescription: z.string().max(255).nullable().optional(),
   bodyPart: z.string().max(64).nullable().optional(),
   instanceNumber: z.number().int().nullable().optional(),
@@ -339,6 +340,7 @@ export type PatientDocument = {
   /** Métadonnées DICOM persistées (null pour les non-DICOM / legacy). */
   sopInstanceUid: string | null
   seriesInstanceUid: string | null
+  modality: string | null
   seriesDescription: string | null
   bodyPart: string | null
   instanceNumber: number | null

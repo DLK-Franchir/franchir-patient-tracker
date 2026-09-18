@@ -17,6 +17,7 @@ export {
 export {
   dedupeDicomFilesByBasename,
   dicomSeriesGroupId,
+  dicomModalityLabel,
   dicomSeriesLabel,
   dicomSeriesSourceLabel,
   extractImIndex,

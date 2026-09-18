@@ -24,6 +24,7 @@ const bodySchema = z.object({
   dryRun: z.boolean().optional(),
   limit: z.number().int().min(1).max(BACKFILL_MAX_LIMIT).optional(),
   missingSeriesOnly: z.boolean().optional(),
+  missingLabelsOnly: z.boolean().optional(),
 })
 
 export async function POST(request: Request) {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
       dryRun: parsed.data.dryRun,
       limit: parsed.data.limit ?? BACKFILL_DEFAULT_LIMIT,
       missingSeriesOnly: parsed.data.missingSeriesOnly,
+      missingLabelsOnly: parsed.data.missingLabelsOnly,
     })
 
     // Compteurs uniquement (pas de file names / UIDs / PHI).

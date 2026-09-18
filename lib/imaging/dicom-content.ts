@@ -195,6 +195,8 @@ export type DicomContentInfo = DicomHeaderInfo & {
 export type DicomPersistedMetadata = {
   sopInstanceUid: string | null
   seriesInstanceUid: string | null
+  /** Modality (0008,0060) : MR, CT, CR… — affichée IRM / Scanner / Radio. */
+  modality: string | null
   seriesDescription: string | null
   bodyPart: string | null
   instanceNumber: number | null
@@ -238,6 +240,7 @@ export function extractDicomPersistedMetadata(
   return {
     sopInstanceUid: info.sopInstanceUid,
     seriesInstanceUid: info.seriesInstanceUid || null,
+    modality: info.modality,
     seriesDescription: info.seriesDescription,
     bodyPart: info.bodyPart,
     instanceNumber: info.instanceNumber,

@@ -142,6 +142,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       uploaded_by: user.id,
       sop_instance_uid: dicom?.sopInstanceUid ?? null,
       series_instance_uid: dicom?.seriesInstanceUid ?? null,
+      modality: dicom?.modality ?? null,
       series_description: dicom?.seriesDescription ?? null,
       body_part: dicom?.bodyPart ?? null,
       instance_number: dicom?.instanceNumber ?? null,

@@ -9,6 +9,7 @@ import { extractSeriesUidFromStorageName } from '@/lib/imaging/dicom-series-uid-
 export type ResolvedDicomPersistMeta = {
   sopInstanceUid: string | null
   seriesInstanceUid: string | null
+  modality: string | null
   seriesDescription: string | null
   bodyPart: string | null
   instanceNumber: number | null
@@ -22,6 +23,7 @@ export function resolveDicomPersistMeta(
   const fromName = extractSeriesUidFromStorageName(fileName)
   const sop = dicom?.sopInstanceUid ?? null
   const series = dicom?.seriesInstanceUid?.trim() || fromName || null
+  const modality = dicom?.modality?.trim() || null
   const seriesDescription = dicom?.seriesDescription ?? null
   const bodyPart = dicom?.bodyPart ?? null
   const instanceNumber = dicom?.instanceNumber ?? null
@@ -30,6 +32,7 @@ export function resolveDicomPersistMeta(
   if (
     !sop &&
     !series &&
+    !modality &&
     !seriesDescription &&
     !bodyPart &&
     instanceNumber == null &&
@@ -41,6 +44,7 @@ export function resolveDicomPersistMeta(
   return {
     sopInstanceUid: sop,
     seriesInstanceUid: series,
+    modality,
     seriesDescription,
     bodyPart,
     instanceNumber,
