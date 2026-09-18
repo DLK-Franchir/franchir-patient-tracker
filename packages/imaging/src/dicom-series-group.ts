@@ -429,6 +429,8 @@ export function groupDicomFilesIntoSeries<T extends NamedImagingFile>(
 export type MetaImagingFile = NamedImagingFile & {
   sopInstanceUid?: string | null
   seriesInstanceUid?: string | null
+  /** Modality DICOM (0008,0060) : MR, CT, CR, DX, US… */
+  modality?: string | null
   seriesDescription?: string | null
   bodyPart?: string | null
   instanceNumber?: number | null
@@ -478,10 +480,36 @@ function compareByInstance<T extends MetaImagingFile>(a: T, b: T): number {
   return a.name.localeCompare(b.name)
 }
 
+/** Libellés lisibles des modalités DICOM courantes. */
+const META_MODALITY_LABELS: Record<string, string> = {
+  MR: 'IRM',
+  CT: 'Scanner',
+  CR: 'Radiographie',
+  DX: 'Radiographie',
+  RF: 'Radioscopie',
+  US: 'Échographie',
+  XA: 'Angiographie',
+  MG: 'Mammographie',
+  NM: 'Médecine nucléaire',
+  PT: 'TEP',
+  OT: 'Autre',
+  SR: 'Compte rendu',
+  DOC: 'Document',
+}
+
+export function dicomModalityLabel(modality: string | null | undefined): string | null {
+  const key = (modality ?? '').trim().toUpperCase()
+  if (!key) return null
+  return META_MODALITY_LABELS[key] ?? key
+}
+
 function metaSeriesLabel(file: MetaImagingFile | undefined, count: number): string {
   const desc = (file?.seriesDescription ?? '').trim()
   const body = (file?.bodyPart ?? '').trim()
-  const base = desc || body || 'Série DICOM'
+  const mod = dicomModalityLabel(file?.modality)
+  const detail = desc || body
+  // Ex. « IRM — SAG T2 (25 images) », « Scanner — RACHIS LOMBAIRE (240 images) »
+  const base = mod && detail ? `${mod} — ${detail}` : mod || detail || 'Série DICOM'
   return `${base} (${count} image${count > 1 ? 's' : ''})`
 }
 

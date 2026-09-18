@@ -3,12 +3,14 @@
  */
 
 import {
+  DICOM_HEADER_SCAN_BYTES,
   DICOM_MIME_TYPE,
   ensureDicomExtension,
   fileIsLikelyDicom,
-  readDicomHeaderFromFile,
+  parseDicomHeaderInfo,
   type DicomHeaderInfo,
 } from '@/lib/imaging/dicom-detection'
+import { extractDicomPersistedMetadata } from '@/lib/imaging/dicom-content'
 import { fileRelativePath } from '@/lib/imaging/directory-picker'
 import { isIgnorableCompanionFile } from '@/lib/documents/patient-documents'
 import {
@@ -200,17 +202,26 @@ export async function importDicomFolder(
         skippedNonDicomCount += 1
         if (sampleSkippedPaths.length < 3) sampleSkippedPaths.push(displayPath)
       } else {
-        const header = await readDicomHeaderFromFile(file)
+        // Un seul read des octets d'en-tête : header léger (nommage/série) +
+        // métadonnées complètes (description, modalité, body part…). Avant,
+        // on mettait en cache des nulls et le finalize ne persistait rien.
+        const headBuffer = await file
+          .slice(0, Math.min(file.size, DICOM_HEADER_SCAN_BYTES))
+          .arrayBuffer()
+        const header = parseDicomHeaderInfo(headBuffer)
         const seriesKey = resolveSeriesKey(header, displayPath)
+        const persisted = extractDicomPersistedMetadata(headBuffer)
 
         const preparedFile = prepareDicomUploadFile(file, displayPath, header)
         cachePreparedDicomMeta(preparedFile, {
-          sopInstanceUid: header?.sopInstanceUid ?? null,
-          seriesInstanceUid: header?.seriesInstanceUid ?? seriesKey,
-          seriesDescription: null,
-          bodyPart: null,
-          instanceNumber: null,
-          acquisitionDatetime: null,
+          sopInstanceUid: persisted?.sopInstanceUid ?? header?.sopInstanceUid ?? null,
+          seriesInstanceUid:
+            persisted?.seriesInstanceUid ?? header?.seriesInstanceUid ?? seriesKey,
+          modality: persisted?.modality ?? header?.modality ?? null,
+          seriesDescription: persisted?.seriesDescription ?? null,
+          bodyPart: persisted?.bodyPart ?? null,
+          instanceNumber: persisted?.instanceNumber ?? null,
+          acquisitionDatetime: persisted?.acquisitionDatetime ?? null,
         })
         prepared.push({
           file: preparedFile,

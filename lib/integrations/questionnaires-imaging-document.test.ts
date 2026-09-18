@@ -12,6 +12,7 @@ function doc(partial: Partial<PatientDocument> & Pick<PatientDocument, 'fileName
     url: 'https://signed.example/x',
     sopInstanceUid: null,
     seriesInstanceUid: null,
+    modality: null,
     seriesDescription: null,
     bodyPart: null,
     instanceNumber: null,

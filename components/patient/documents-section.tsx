@@ -164,6 +164,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
       size: d.sizeBytes,
       sopInstanceUid: d.sopInstanceUid,
       seriesInstanceUid: d.seriesInstanceUid,
+      modality: d.modality,
       seriesDescription: d.seriesDescription,
       bodyPart: d.bodyPart,
       instanceNumber: d.instanceNumber,

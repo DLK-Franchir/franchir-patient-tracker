@@ -22,6 +22,8 @@ export type BackfillDicomMetadataOptions = {
   limit?: number
   /** Only rows missing series_instance_uid (default true). */
   missingSeriesOnly?: boolean
+  /** Only rows missing modality or series_description (prioritaire sur missingSeriesOnly). */
+  missingLabelsOnly?: boolean
 }
 
 export type BackfillDicomMetadataResult = {
@@ -102,7 +104,9 @@ export async function backfillPatientDicomMetadata(
     .order('created_at', { ascending: true })
     .limit(limit)
 
-  if (missingSeriesOnly) {
+  if (options.missingLabelsOnly === true) {
+    query = query.or('modality.is.null,series_description.is.null')
+  } else if (missingSeriesOnly) {
     query = query.is('series_instance_uid', null)
   }
 
@@ -142,6 +146,7 @@ export async function backfillPatientDicomMetadata(
       .update({
         sop_instance_uid: meta.sopInstanceUid,
         series_instance_uid: meta.seriesInstanceUid,
+        modality: meta.modality,
         series_description: meta.seriesDescription,
         body_part: meta.bodyPart,
         instance_number: meta.instanceNumber,

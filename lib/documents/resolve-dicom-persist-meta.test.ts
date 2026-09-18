@@ -15,11 +15,21 @@ describe('resolveDicomPersistMeta', () => {
     expect(meta).toEqual({
       sopInstanceUid: 'sop-1',
       seriesInstanceUid: 'series-client',
+      modality: null,
       seriesDescription: 'AX T1',
       bodyPart: 'SPINE',
       instanceNumber: 3,
       acquisitionDatetime: '20240101120000',
     })
+  })
+
+  it('persiste la modality quand le client la fournit', () => {
+    const meta = resolveDicomPersistMeta('slice.dcm', {
+      sopInstanceUid: 'sop-2',
+      seriesInstanceUid: 'series-2',
+      modality: 'MR',
+    })
+    expect(meta?.modality).toBe('MR')
   })
 
   it('retombe sur SUID encode dans le nom si payload incomplet', () => {
