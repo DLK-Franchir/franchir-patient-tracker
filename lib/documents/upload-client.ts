@@ -195,15 +195,49 @@ async function forwardBatchToQuestionnaires(
   return forwarded
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms))
+}
+
+/**
+ * POST JSON avec retentatives : Storage/Vercel peuvent renvoyer un 500 ou une
+ * page HTML de façon transitoire sur des gros lots. Un lot qui échoue après
+ * retries ne doit PAS annuler tout l'envoi (retourne null, l'appelant saute).
+ */
+async function postJsonWithRetry(
+  url: string,
+  body: unknown,
+  attempts = 3,
+): Promise<Response | null> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) return res
+      // 4xx = définitif (droits, validation) : inutile de réessayer.
+      if (res.status < 500) return res
+    } catch {
+      // erreur réseau : on retente
+    }
+    if (attempt < attempts - 1) {
+      await sleep(1500 * (attempt + 1))
+    }
+  }
+  return null
+}
+
 async function finalizeDocuments(
   patientId: string,
   documents: FinalizeDocument[],
-): Promise<{ count: number; skipped: number }> {
-  const finalizeRes = await fetch(`/api/patients/${patientId}/documents/finalize`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ documents }),
-  })
+): Promise<{ count: number; skipped: number } | null> {
+  const finalizeRes = await postJsonWithRetry(
+    `/api/patients/${patientId}/documents/finalize`,
+    { documents },
+  )
+  if (!finalizeRes) return null
   if (!finalizeRes.ok) {
     throw new Error(await parseError(finalizeRes, "Échec de l'enregistrement des fichiers"))
   }
@@ -248,18 +282,32 @@ export async function uploadPatientDocuments(
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
     const batch = batches[batchIndex]!
-    const signRes = await fetch(`/api/patients/${patientId}/documents/sign-upload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const signRes = await postJsonWithRetry(
+      `/api/patients/${patientId}/documents/sign-upload`,
+      {
         files: batch.map((p: PreparedUploadFile) => ({
           name: p.file.name,
           size: p.file.size,
           type: p.file.type || null,
           sopInstanceUid: p.dicom?.sopInstanceUid ?? null,
         })),
-      }),
-    })
+      },
+    )
+    if (!signRes) {
+      // Lot refusé après retries (surcharge Storage) : on le compte en échec
+      // et on CONTINUE — les lots suivants passent en général.
+      failedCount += batch.length
+      processedCount += batch.length
+      onProgress?.({
+        total: uploadFiles.length,
+        uploaded: processedCount,
+        phase: 'upload',
+        batch: batchIndex + 1,
+        batchCount,
+        failed: failedCount,
+      })
+      continue
+    }
     if (!signRes.ok) {
       throw new Error(await parseError(signRes, "Échec de la préparation de l'upload"))
     }
@@ -343,8 +391,12 @@ export async function uploadPatientDocuments(
         failed: failedCount,
       })
       const finalized = await finalizeDocuments(patientId, batchFinalized)
-      savedCount += finalized.count
-      skippedDuplicates += finalized.skipped
+      if (finalized) {
+        savedCount += finalized.count
+        skippedDuplicates += finalized.skipped
+      } else {
+        failedCount += batchFinalized.length
+      }
     }
 
     if (!skipForward) {
