@@ -29,14 +29,14 @@ export const MAX_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
  * n'est qu'un garde-fou large contre un import accidentel massif. Le client
  * découpe l'émission des URLs signées en sous-lots.
  */
-export const MAX_DOCUMENTS_PER_REQUEST = 1000
+export const MAX_DOCUMENTS_PER_REQUEST = 4000
 
 /** TTL des URLs signées (PHI) : court, régénéré à chaque affichage. */
 /** TTL URLs signées imagerie — séries volumineuses JPEG-LS. */
 export const SIGNED_URL_TTL_SECONDS = 1800
 
-/** Plafond de fichiers listés par patient (séries DICOM CD = centaines de coupes). */
-export const MAX_DOCUMENTS_LISTED = 2000
+/** Plafond de fichiers listés par patient (séries DICOM CD = milliers de coupes). */
+export const MAX_DOCUMENTS_LISTED = 4000
 
 /**
  * Catégorie de stockage persistée dans patient_documents.kind :

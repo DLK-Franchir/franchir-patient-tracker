@@ -24,6 +24,7 @@ import {
   type PreparedUploadFile,
 } from '@/lib/documents/prepare-dicom-for-upload'
 import type { DicomPersistedMetadata } from '@/lib/imaging/dicom-content'
+import { IMAGING_SANDBOX_PATIENT_ID } from '@/lib/access-control'
 
 /** Taille des sous-lots d'émission d'URLs signées (équilibre latence / charge). */
 const SIGN_BATCH_SIZE = 50
@@ -56,6 +57,7 @@ type FinalizeDocument = {
 export type UploadProgress = {
   total: number
   uploaded: number
+  phase: 'prepare' | 'upload' | 'finalize'
 }
 
 export type UploadResultSummary = {
@@ -151,9 +153,12 @@ export async function uploadPatientDocuments(
   const finalized: FinalizeDocument[] = []
   let processedCount = 0
   let skippedDuplicates = 0
+  const skipForward = patientId === IMAGING_SANDBOX_PATIENT_ID
 
-  // P3b : métadonnées + nom SUID.* avant sign/upload (tous chemins, pas seulement dossier).
-  const preparedAll = await prepareDicomFilesForUpload(files)
+  onProgress?.({ total: files.length, uploaded: 0, phase: 'prepare' })
+  const preparedAll = await prepareDicomFilesForUpload(files, (done, total) => {
+    onProgress?.({ total, uploaded: done, phase: 'prepare' })
+  })
 
   for (const batch of chunk(preparedAll, SIGN_BATCH_SIZE)) {
     const signRes = await fetch(`/api/patients/${patientId}/documents/sign-upload`, {
@@ -184,7 +189,7 @@ export async function uploadPatientDocuments(
       if (result.status === 'skipped') {
         skippedDuplicates += 1
         processedCount += 1
-        onProgress?.({ total: files.length, uploaded: processedCount })
+        onProgress?.({ total: files.length, uploaded: processedCount, phase: 'upload' })
         continue
       }
       signedPairs.push({
@@ -218,20 +223,24 @@ export async function uploadPatientDocuments(
             dicom,
           })
           processedCount += 1
-          onProgress?.({ total: files.length, uploaded: processedCount })
+          onProgress?.({ total: files.length, uploaded: processedCount, phase: 'upload' })
         }),
       )
     }
 
     const acceptedFiles = signedPairs.map((p) => p.prepared.file)
-    for (const qBatch of chunk(acceptedFiles, QUESTIONNAIRES_SIGN_BATCH_SIZE)) {
-      await forwardBatchToQuestionnaires(patientId, qBatch)
+    if (!skipForward) {
+      for (const qBatch of chunk(acceptedFiles, QUESTIONNAIRES_SIGN_BATCH_SIZE)) {
+        await forwardBatchToQuestionnaires(patientId, qBatch)
+      }
     }
   }
 
   if (finalized.length === 0) {
     return { count: 0, skipped: skippedDuplicates }
   }
+
+  onProgress?.({ total: files.length, uploaded: files.length, phase: 'finalize' })
 
   const finalizeRes = await fetch(`/api/patients/${patientId}/documents/finalize`, {
     method: 'POST',

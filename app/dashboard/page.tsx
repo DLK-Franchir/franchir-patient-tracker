@@ -1,8 +1,9 @@
 import { createServerClient } from '@/lib/supabase/server'
-import { isStaffProfile } from '@/lib/access-control'
+import { canViewGillesErikRestrictedPatient, isStaffProfile } from '@/lib/access-control'
 import { type Role } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { after } from 'next/server'
+import Link from 'next/link'
 import AppHeader from '@/components/app-header'
 import PatientList from '@/components/dashboard/patient-list'
 import { reconcileQuestionnaireSentStatusesForPatients } from '@/lib/integrations/issue-questionnaire-link'
@@ -64,6 +65,7 @@ type PatientQueryRow = {
   assigned_surgeon: { full_name: string } | { full_name: string }[] | null
   workflow_statuses: WorkflowStatusOption | WorkflowStatusOption[] | null
   profiles: { full_name: string } | { full_name: string }[] | null
+  visibility_scope?: string | null
 }
 
 type DashboardPatient = {
@@ -78,6 +80,7 @@ type DashboardPatient = {
   assigned_surgeon_name: string | null
   workflow_statuses: WorkflowStatusOption | null
   profiles: { full_name: string } | null
+  visibility_scope?: string | null
 }
 
 function firstRelation<T>(value: T | T[] | null): T | null {
@@ -120,6 +123,7 @@ function formatDashboardPatient(patient: PatientQueryRow): DashboardPatient {
     assigned_surgeon_name: firstRelation(patient.assigned_surgeon)?.full_name ?? null,
     workflow_statuses: firstRelation(patient.workflow_statuses),
     profiles: firstRelation(patient.profiles),
+    visibility_scope: patient.visibility_scope ?? 'all_staff',
   }
 }
 
@@ -129,6 +133,7 @@ function toSummaryPatient(patient: DashboardPatient): SummaryPatientExtended {
     quote_accepted: patient.quote_accepted,
     date_accepted: patient.date_accepted,
     workflow_statuses: patient.workflow_statuses,
+    visibility_scope: patient.visibility_scope,
   }
 }
 
@@ -136,9 +141,9 @@ async function fetchAllDashboardPatients(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
 ): Promise<DashboardPatient[]> {
   const fullSelect =
-    'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)'
+    'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, visibility_scope, assigned_surgeon:surgeons!assigned_surgeon_id (full_name), workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)'
   const baseSelect =
-    'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)'
+    'id, patient_name, created_at, questionnaire_status, proposed_date, quote_amount, quote_accepted, date_accepted, visibility_scope, workflow_statuses!current_status_id (id, code, label, color), profiles!created_by (full_name)'
 
   const fullResult = await supabase.from('patients').select(fullSelect)
   const { data: rawPatients } = fullResult.error
@@ -248,12 +253,16 @@ export default async function DashboardPage({
   const dashboardRole = userRole as 'marcel' | 'gilles' | 'franchir' | 'admin'
   const focus: DashboardFocus = normalizeDashboardFocus(params.focus)
   const summaryPatients = allPatients.map(toSummaryPatient)
-  const roleScopedPatients = filterPatientsForRole(summaryPatients, dashboardRole)
-  const roleScopeIds = getRoleScopedPatientIds(summaryPatients, dashboardRole)
+  const viewer = { role: dashboardRole, email: profile.email }
+  const roleScopedPatients = filterPatientsForRole(summaryPatients, dashboardRole, viewer)
+  const roleScopeIds = getRoleScopedPatientIds(summaryPatients, dashboardRole, viewer)
+  const kpiPatients = roleScopedPatients.filter(
+    (patient) => patient.visibility_scope !== 'gilles_erik',
+  )
   const dashboardSummary = computeDashboardSummary(
-    roleScopedPatients,
+    kpiPatients,
     dashboardRole,
-    roleScopedPatients,
+    kpiPatients,
   )
 
   const gillesLandingRedirect = getGillesDashboardLandingRedirect(
@@ -312,11 +321,29 @@ export default async function DashboardPage({
     after(() => reconcileQuestionnaireSentStatusesForPatients(patients))
   }
 
+  const showImagingLink = canViewGillesErikRestrictedPatient(profile)
+
   return (
     <>
-      <AppHeader userRole={userRole} showActions={true} />
+      <AppHeader userRole={userRole} showActions={true} showImagingLink={showImagingLink} />
       <div className="min-h-screen bg-franchir-cream p-4 sm:p-6 lg:p-8">
         <div className="mx-auto max-w-[1400px]">
+          {showImagingLink && (
+            <Link
+              href="/imagerie"
+              className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-[#1E2B70]/15 bg-white px-5 py-4 shadow-sm transition hover:border-[#1E2B70]/30 hover:shadow-md"
+            >
+              <span>
+                <span className="block text-base font-extrabold text-[#1E2B70]">Scanners et IRM</span>
+                <span className="mt-0.5 block text-sm text-[#2E3450]">
+                  Déposer et consulter les scanners / IRM
+                </span>
+              </span>
+              <span className="shrink-0 rounded-xl bg-[#1E2B70] px-4 py-2 text-sm font-bold text-white">
+                Ouvrir
+              </span>
+            </Link>
+          )}
           <PatientList
             initialPatients={patients}
             total={total}

@@ -54,6 +54,18 @@ export async function prepareDicomForUpload(file: File): Promise<PreparedUploadF
   return { file: prepared, dicom }
 }
 
-export async function prepareDicomFilesForUpload(files: File[]): Promise<PreparedUploadFile[]> {
-  return Promise.all(files.map((f) => prepareDicomForUpload(f)))
+export async function prepareDicomFilesForUpload(
+  files: File[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<PreparedUploadFile[]> {
+  const out: PreparedUploadFile[] = []
+  const chunkSize = 20
+  for (let i = 0; i < files.length; i += chunkSize) {
+    const slice = files.slice(i, i + chunkSize)
+    const prepared = await Promise.all(slice.map((file) => prepareDicomForUpload(file)))
+    out.push(...prepared)
+    onProgress?.(out.length, files.length)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  return out
 }

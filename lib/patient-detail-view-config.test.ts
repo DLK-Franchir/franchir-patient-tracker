@@ -12,6 +12,7 @@ describe('getPatientDetailViewConfig', () => {
       showQuestionnairePdf: true,
       showAnamnezeDashboard: true,
       showClinicalSummary: true,
+      showWorkflowActions: true,
     })
   })
 
@@ -30,5 +31,12 @@ describe('getPatientDetailViewConfig', () => {
     expect(view.showSharePoint).toBe(true)
     expect(view.showQuestionnairePdf).toBe(false)
     expect(view.showAnamnezeDashboard).toBe(false)
+  })
+
+  it('ouvre l\'upload imagerie pour Gilles sur un dossier sandbox', () => {
+    const view = getPatientDetailViewConfig('gilles', { visibilityScope: 'gilles_erik' })
+    expect(view.canManageDocuments).toBe(true)
+    expect(view.showWorkflowActions).toBe(false)
+    expect(view.canManageQuestionnaire).toBe(false)
   })
 })

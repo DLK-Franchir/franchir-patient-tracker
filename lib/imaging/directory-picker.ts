@@ -1,10 +1,11 @@
 /**
- * Sélection de dossier CD DICOM : File System Access API (Chrome/Edge) avec
- * repli webkitdirectory (Safari/Firefox).
+ * Sélection de dossier CD DICOM : webkitdirectory (Safari/Chrome/Firefox) en
+ * priorité — plus fiable pour un CD de milliers de coupes que showDirectoryPicker.
  */
 
 type DirectoryHandleWithEntries = FileSystemDirectoryHandle & {
-  entries(): AsyncIterableIterator<[string, FileSystemHandle]>
+  entries?: () => AsyncIterableIterator<[string, FileSystemHandle]>
+  values?: () => AsyncIterableIterator<FileSystemHandle>
 }
 
 type WindowWithDirectoryPicker = Window & {
@@ -22,6 +23,23 @@ export type DirectoryPickOutcome =
   | { status: 'unsupported' }
 
 type FileWithRelativePath = File & { webkitRelativePath?: string }
+
+type FileSystemEntryLike = {
+  isFile: boolean
+  isDirectory: boolean
+  name: string
+  file?: (ok: (file: File) => void, err?: (error: Error) => void) => void
+  createReader?: () => {
+    readEntries: (
+      ok: (entries: FileSystemEntryLike[]) => void,
+      err?: (error: Error) => void,
+    ) => void
+  }
+}
+
+function appendFiles(target: File[], extra: File[]): void {
+  for (const file of extra) target.push(file)
+}
 
 export function supportsDirectoryPicker(): boolean {
   const win = window as WindowWithDirectoryPicker
@@ -58,18 +76,76 @@ async function collectFromDirectoryHandle(
 ): Promise<File[]> {
   const files: File[] = []
   const dir = handle as DirectoryHandleWithEntries
-  for await (const [name, child] of dir.entries()) {
+  const iterator = typeof dir.entries === 'function' ? dir.entries() : dir.values?.()
+  if (!iterator) return files
+
+  for await (const item of iterator) {
+    const child = Array.isArray(item) ? item[1] : item
+    const name = Array.isArray(item) ? String(item[0]) : child.name
+    if (!child) continue
     const childPath = basePath ? `${basePath}/${name}` : name
     if (child.kind === 'file') {
       files.push(withRelativePath(await (child as FileSystemFileHandle).getFile(), childPath))
     } else if (child.kind === 'directory') {
-      files.push(...(await collectFromDirectoryHandle(child as FileSystemDirectoryHandle, childPath)))
+      appendFiles(files, await collectFromDirectoryHandle(child as FileSystemDirectoryHandle, childPath))
     }
   }
   return files
 }
 
-/** Ouvre le selecteur natif de dossier (Chrome/Edge). */
+async function readAllDirectoryEntries(reader: {
+  readEntries: (
+    ok: (entries: FileSystemEntryLike[]) => void,
+    err?: (error: Error) => void,
+  ) => void
+}): Promise<FileSystemEntryLike[]> {
+  const all: FileSystemEntryLike[] = []
+  for (;;) {
+    const batch = await new Promise<FileSystemEntryLike[]>((resolve, reject) => {
+      reader.readEntries(resolve, reject)
+    })
+    if (batch.length === 0) break
+    for (const entry of batch) all.push(entry)
+  }
+  return all
+}
+
+async function filesFromDirectoryEntry(entry: FileSystemEntryLike, parentPath: string): Promise<File[]> {
+  const path = parentPath ? `${parentPath}/${entry.name}` : entry.name
+  if (entry.isFile && entry.file) {
+    const file = await new Promise<File>((resolve, reject) => {
+      entry.file!(resolve, reject)
+    })
+    return [withRelativePath(file, path)]
+  }
+  if (entry.isDirectory && entry.createReader) {
+    const children = await readAllDirectoryEntries(entry.createReader())
+    const files: File[] = []
+    for (const child of children) {
+      appendFiles(files, await filesFromDirectoryEntry(child, path))
+    }
+    return files
+  }
+  return []
+}
+
+/** Drop d'un dossier Finder : lit tout l'arbre (sinon Chrome ne donne qu'un fichier). */
+export async function filesFromDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {
+  const items = dataTransfer.items
+  if (items && items.length > 0) {
+    const nested: File[] = []
+    for (const item of Array.from(items)) {
+      const getter = item.webkitGetAsEntry?.bind(item)
+      const entry = getter ? (getter() as FileSystemEntryLike | null) : null
+      if (!entry) continue
+      appendFiles(nested, await filesFromDirectoryEntry(entry, ''))
+    }
+    if (nested.length > 0) return nested
+  }
+  return snapshotFileList(dataTransfer.files)
+}
+
+/** Ouvre le selecteur natif de dossier (Chrome/Edge) — fallback, pas le chemin CD principal. */
 export async function pickDirectoryViaFileSystemAccess(): Promise<DirectoryPickOutcome> {
   if (!supportsDirectoryPicker()) return { status: 'unsupported' }
 

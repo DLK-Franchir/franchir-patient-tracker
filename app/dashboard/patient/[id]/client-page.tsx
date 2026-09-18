@@ -72,6 +72,7 @@ interface PatientData {
     full_name: string
     role: string
   }
+  visibility_scope?: string | null
 }
 
 export default function PatientDetailClient({
@@ -121,7 +122,9 @@ export default function PatientDetailClient({
     }
   }, [])
 
-  const viewConfig = getPatientDetailViewConfig(userRole)
+  const viewConfig = getPatientDetailViewConfig(userRole, {
+    visibilityScope: patient.visibility_scope,
+  })
   const canManageQuestionnaire = viewConfig.canManageQuestionnaire
 
   const prepareQuestionnaireLink = async (
@@ -340,6 +343,7 @@ export default function PatientDetailClient({
 
   const rightColumn = (
     <div className="space-y-5">
+      {viewConfig.showWorkflowActions && (
       <PatientActionPanel
         globalStatus={globalStatus}
         userRole={userRole}
@@ -354,7 +358,9 @@ export default function PatientDetailClient({
         onAction={handleAction}
         onCommercialSaved={() => router.refresh()}
       />
+      )}
 
+      {viewConfig.canManageQuestionnaire || viewConfig.showQuestionnairePdf ? (
       <QuestionnairePatientCard
         patientId={patient.id}
         patientEmail={patient.patient_email}
@@ -369,6 +375,7 @@ export default function PatientDetailClient({
         onRevokeLink={revokeQuestionnaireLink}
         showPdfDownload={viewConfig.showQuestionnairePdf}
       />
+      ) : null}
 
       <QuestionnaireDispatchModal
         open={Boolean(dispatchPayload)}
@@ -438,7 +445,7 @@ export default function PatientDetailClient({
           progressDetail={patient.clinical_summary}
         />
 
-        {workContext && <PatientWorkContextBanner context={workContext} />}
+        {workContext && viewConfig.showWorkflowActions && <PatientWorkContextBanner context={workContext} />}
 
         {createQuestionnaireWarning && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 mb-4" role="alert">

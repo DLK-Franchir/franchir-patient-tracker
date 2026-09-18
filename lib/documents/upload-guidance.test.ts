@@ -23,7 +23,7 @@ describe('upload-guidance', () => {
     const lines = uploadGuidanceLines().join(' ')
     expect(lines).toContain('100 Mo')
     expect(lines).toContain('50 Mo')
-    expect(lines).toContain('1000 fichiers')
+    expect(lines).toContain('4000 fichiers')
     expect(lines).toContain('50 coupes')
     expect(lines).toContain('4 en parallèle')
   })

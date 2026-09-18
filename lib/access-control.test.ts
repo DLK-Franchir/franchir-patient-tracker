@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canAssignSurgeon } from './access-control'
+import { canAssignSurgeon, canManagePatientDocuments } from './access-control'
 import { canPerformWorkflowAction, getAvailableActions } from './workflow-v2'
 
 describe('canAssignSurgeon', () => {
@@ -13,6 +13,46 @@ describe('canAssignSurgeon', () => {
   it('refuse les profils non staff', () => {
     expect(canAssignSurgeon({ email: 'patient@example.com', role: 'marcel' })).toBe(false)
     expect(canAssignSurgeon(null)).toBe(false)
+  })
+})
+
+describe('canManagePatientDocuments sandbox Gilles/Erik', () => {
+  const sandbox = { visibility_scope: 'gilles_erik' as const }
+
+  it('autorise Gilles, Erik et Yves sur le dossier interne', () => {
+    expect(
+      canManagePatientDocuments(
+        { email: 'duboisgilles31@gmail.com', role: 'gilles' },
+        sandbox,
+      ),
+    ).toBe(true)
+    expect(
+      canManagePatientDocuments(
+        { email: 'erik.boulard@franchir.eu', role: 'franchir' },
+        sandbox,
+      ),
+    ).toBe(true)
+    expect(
+      canManagePatientDocuments(
+        { email: 'yves.merillon@franchir.eu', role: 'franchir' },
+        sandbox,
+      ),
+    ).toBe(true)
+  })
+
+  it('refuse Marcel sur le dossier interne', () => {
+    expect(
+      canManagePatientDocuments(
+        { email: 'marcel.mazaltarim@gmail.com', role: 'marcel' },
+        sandbox,
+      ),
+    ).toBe(false)
+  })
+
+  it('conserve le refus Gilles hors sandbox', () => {
+    expect(
+      canManagePatientDocuments({ email: 'duboisgilles31@gmail.com', role: 'gilles' }),
+    ).toBe(false)
   })
 })
 

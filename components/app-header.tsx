@@ -12,16 +12,19 @@ interface AppHeaderProps {
   userRole?: string
   patientName?: string
   showActions?: boolean
+  showImagingLink?: boolean
 }
 
 export default function AppHeader({
   userRole,
   patientName,
   showActions = false,
+  showImagingLink = false,
 }: AppHeaderProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isPatientPage = pathname?.includes('/dashboard/patient/')
+  const isImagingPage = pathname === '/imagerie'
   const canCreatePatient = userRole === 'marcel' || userRole === 'admin' || userRole === 'franchir'
 
   const handleLogout = async () => {
@@ -66,6 +69,8 @@ export default function AppHeader({
                   {patientName}
                 </span>
               </>
+            ) : isImagingPage ? (
+              <span className="text-[14px] font-semibold text-white/90">Scanners et IRM</span>
             ) : (
               <span className="text-[14px] text-white/55">Tableau de suivi</span>
             )}
@@ -74,6 +79,16 @@ export default function AppHeader({
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-2.5 sm:flex">
+          {showImagingLink && (
+            <Link
+              href="/imagerie"
+              className="rounded-xl px-3 py-2 text-[14px] font-bold text-white transition-colors"
+              style={{ background: isImagingPage ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)' }}
+            >
+              Scanners / IRM
+            </Link>
+          )}
+
           {showActions && <NotificationBell onDark />}
 
           {showActions && (
@@ -146,6 +161,16 @@ export default function AppHeader({
 
             {isPatientPage && patientName && (
               <p className="truncate px-3 text-sm font-semibold text-white">{patientName}</p>
+            )}
+
+            {showImagingLink && (
+              <Link
+                href="/imagerie"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-3 font-medium text-white transition hover:bg-white/10"
+              >
+                Scanners / IRM
+              </Link>
             )}
 
             {showActions && (
