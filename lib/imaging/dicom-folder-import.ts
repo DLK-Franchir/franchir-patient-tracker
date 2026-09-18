@@ -102,6 +102,11 @@ export function buildUniqueUploadName(
   if (folderKey) {
     const seriesTag = sanitizeBasename(basenameFromPath(folderKey))
     if (/^SE\d+/i.test(seriesTag) || /^Series\d*/i.test(seriesTag)) {
+      const parts = folderKey.split(/[\\/]/).filter(Boolean)
+      const root = parts.length > 1 ? sanitizeBasename(parts[0]!) : ''
+      if (root && root !== seriesTag) {
+        return `${root}_${seriesTag}_${stem}.dcm`.slice(0, 200)
+      }
       return `${seriesTag}_${stem}.dcm`
     }
   }

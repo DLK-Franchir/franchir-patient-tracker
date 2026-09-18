@@ -35,6 +35,22 @@ type DocumentUploadProps = {
   isUploading?: boolean
 }
 
+function mergeSeriesPreview(
+  previous: { key: string; label: string; count: number }[],
+  incoming: { key: string; label: string; count: number }[],
+): { key: string; label: string; count: number }[] {
+  const next = [...previous]
+  for (const entry of incoming) {
+    const index = next.findIndex((item) => item.key === entry.key)
+    if (index >= 0) {
+      next[index] = entry
+    } else {
+      next.push(entry)
+    }
+  }
+  return next
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`
@@ -56,12 +72,13 @@ export default function DocumentUpload({
 }: DocumentUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+  const [folderInputEpoch, setFolderInputEpoch] = useState(0)
   const [dragActive, setDragActive] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
   const [folderImporting, setFolderImporting] = useState(false)
   const [folderNote, setFolderNote] = useState<string | null>(null)
   const [folderError, setFolderError] = useState<string | null>(null)
-  const [seriesPreview, setSeriesPreview] = useState<{ label: string; count: number }[]>([])
+  const [seriesPreview, setSeriesPreview] = useState<{ key: string; label: string; count: number }[]>([])
   const [importSummary, setImportSummary] = useState<string | null>(null)
 
   // webkitdirectory nest pas dans les typings React : pose imperatif comme questionnaires.
@@ -69,7 +86,7 @@ export default function DocumentUpload({
     const input = folderInputRef.current
     if (!input) return
     configureWebkitDirectoryInput(input)
-  }, [])
+  }, [folderInputEpoch])
 
   const mergeAccepted = useCallback(
     (accepted: File[]) => {
@@ -102,46 +119,54 @@ export default function DocumentUpload({
       setFolderImporting(true)
       setFolderNote(`Lecture de ${snapshot.length} fichier(s)… Ne fermez pas la page.`)
       setFolderError(null)
-      setSeriesPreview([])
-      setImportSummary(null)
       await new Promise((resolve) => window.setTimeout(resolve, 50))
       try {
         const result = await importDicomFolder(snapshot, (done, total) => {
           setFolderNote(`Analyse DICOM ${done} / ${total}… Ne fermez pas la page.`)
         })
         const prepared = result.series.flatMap((s) => s.files.map((f) => f.file))
-        const totalImages = prepared.length
 
         if (prepared.length === 0) {
           setFolderError(formatEmptyDicomFolderMessage(result))
+          setFolderNote(null)
           return
         }
 
-        setSeriesPreview(
-          result.series.map((s) => ({
-            label: s.label,
-            count: s.files.length,
-          })),
+        const existingKeys = new Set(files.map((f) => `${f.name}:${f.size}:${f.lastModified}`))
+        const added = prepared.filter(
+          (file) => !existingKeys.has(`${file.name}:${file.size}:${file.lastModified}`),
         )
-        // Remplace la sélection : un CD mélange souvent 912 DICOM + des milliers
-        // d'aperçus JPEG. Envoyer le tout (2 Go) fait planter l'onglet.
-        onChange(prepared)
+        mergeAccepted(prepared)
+        setSeriesPreview((previous) =>
+          mergeSeriesPreview(
+            previous,
+            result.series.map((series) => ({
+              key: series.seriesInstanceUid,
+              label: series.label,
+              count: series.files.length,
+            })),
+          ),
+        )
 
+        if (added.length === 0) {
+          setFolderNote(null)
+          setImportSummary(
+            `Ce dossier est déjà dans la sélection (${files.length} fichier(s) prêts). Choisissez un autre dossier ou cliquez Envoyer.`,
+          )
+          return
+        }
+
+        const totalAfter = Math.min(files.length + added.length, MAX_DOCUMENTS_PER_REQUEST)
         const notes: string[] = []
         if (result.ignoredCompanionCount > 0) {
-          notes.push(`${result.ignoredCompanionCount} fichier(s) parasite(s) ignore(s)`)
+          notes.push(`${result.ignoredCompanionCount} fichier(s) parasite(s) ignoré(s)`)
         }
         if (result.skippedNonDicomCount > 0) {
-          notes.push(`${result.skippedNonDicomCount} aperçu(s) / fichier(s) non-DICOM ignoré(s)`)
+          notes.push(`${result.skippedNonDicomCount} aperçu(s) non-DICOM ignoré(s)`)
         }
         setFolderNote(notes.length > 0 ? notes.join(' · ') : null)
-
         setImportSummary(
-          `${result.series.length} série(s), ${totalImages} image(s) prête(s) à envoyer${
-            result.skippedNonDicomCount > 0
-              ? ` — ${result.skippedNonDicomCount} aperçu(s) ignoré(s)`
-              : ''
-          }`,
+          `${added.length} image(s) ajoutée(s) (${result.series.length} série(s)) · total ${totalAfter}`,
         )
       } catch (err) {
         const message = err instanceof Error ? err.message : "Echec de l'analyse du dossier DICOM."
@@ -150,7 +175,7 @@ export default function DocumentUpload({
         setFolderImporting(false)
       }
     },
-    [disabled, onChange],
+    [disabled, files, mergeAccepted],
   )
 
   const addFiles = useCallback(
@@ -298,11 +323,12 @@ export default function DocumentUpload({
         </p>
         <p className="max-w-md text-sm text-[#2E3450]">
           Cliquez et choisissez le dossier racine (bouton <strong>Ouvrir</strong> sur Mac), ou
-          glissez le dossier ici. Toutes les séries sont lues d’un coup — pas image par image.
+          glissez le dossier ici. Plusieurs CDs : importez-les l’un après l’autre, puis Envoyer.
         </p>
       </div>
 
       <input
+        key={folderInputEpoch}
         ref={folderInputRef}
         type="file"
         multiple
@@ -314,6 +340,7 @@ export default function DocumentUpload({
           if (!picked?.length) return
           const snapshot = snapshotFileList(picked)
           input.value = ''
+          setFolderInputEpoch((epoch) => epoch + 1)
           void handleFolderImport(snapshot)
         }}
       />
@@ -346,7 +373,7 @@ export default function DocumentUpload({
       {seriesPreview.length > 0 && (
         <ul className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
           {seriesPreview.slice(0, 12).map((entry) => (
-            <li key={entry.label} className="text-xs text-indigo-900">
+            <li key={entry.key} className="text-xs text-indigo-900">
               {entry.label}
             </li>
           ))}

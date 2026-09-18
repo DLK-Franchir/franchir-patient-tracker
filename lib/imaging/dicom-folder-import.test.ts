@@ -79,7 +79,7 @@ describe('dicom-folder-import', () => {
       modality: 'MR',
       sopInstanceUid: null,
     })
-    expect(prepared.name).toBe('SE000005_IM000001.dcm')
+    expect(prepared.name).toBe('DICOM_IRM_SE000005_IM000001.dcm')
     expect(prepared.type).toBe('application/dicom')
     expect(ensureDicomExtension('IM000001')).toBe('IM000001.dcm')
   })
@@ -103,6 +103,14 @@ describe('dicom-folder-import', () => {
       names.add(buildUniqueUploadName(path, 'IM000001'))
     }
     expect(names.size).toBe(11)
+  })
+
+  it('distingue deux CD avec les memes dossiers SE/IM', () => {
+    const a = buildUniqueUploadName('CD_Cervical/DICOM/PA000001/ST000001/SE000001/IM000001', 'IM000001')
+    const b = buildUniqueUploadName('CD_Lombaire/DICOM/PA000001/ST000001/SE000001/IM000001', 'IM000001')
+    expect(a).not.toBe(b)
+    expect(a).toContain('CD_Cervical')
+    expect(b).toContain('CD_Lombaire')
   })
 
   it('importe structure Arcande_IRM PA/ST/SE/IM en series separees', async () => {
