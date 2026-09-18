@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
-import { canViewGillesErikRestrictedPatient, isStaffProfile } from '@/lib/access-control'
+import { canViewGillesErikRestrictedPatient, assertStaffProfile } from '@/lib/access-control'
 import { type Role } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { after } from 'next/server'
@@ -245,7 +245,7 @@ export default async function DashboardPage({
     fetchAllDashboardPatients(supabase),
   ])
 
-  if (!isStaffProfile(profile)) {
+  if (!assertStaffProfile(profile)) {
     redirect('/login?error=unauthorized')
   }
 

@@ -75,7 +75,10 @@ export async function requireDocumentWriteAccess(
   supabase: SupabaseClient,
   patientId: string,
   profile: ProfileAccess | null,
-): Promise<{ ok: true; patient: PatientAccessRow } | { ok: false; response: NextResponse }> {
+): Promise<
+  | { ok: true; patient: PatientAccessRow; profile: ProfileAccess }
+  | { ok: false; response: NextResponse }
+> {
   if (!profile?.role) {
     return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
@@ -87,7 +90,7 @@ export async function requireDocumentWriteAccess(
     return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
-  return access
+  return { ok: true, patient: access.patient, profile }
 }
 
 /** Charge le statut workflow et refuse l'accès si le dossier est hors périmètre rôle. */

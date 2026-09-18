@@ -52,11 +52,12 @@ export async function DELETE(
 
   const writeAccess = await requireDocumentWriteAccess(supabase, patientId, profile)
   if (!writeAccess.ok) return writeAccess.response
+  const writer = writeAccess.profile
 
   const archivedDeny = await denyIfArchivedPatientWrite(
     supabase,
     patientId,
-    profile.role as StaffRole,
+    writer.role as StaffRole,
   )
   if (archivedDeny) return archivedDeny
 
@@ -106,7 +107,7 @@ export async function DELETE(
     service,
     {
       patientId,
-      author: { id: user.id, full_name: profile.full_name, role: profile.role },
+      author: { id: user.id, full_name: writer.full_name ?? null, role: writer.role ?? 'staff' },
       kind: 'action',
       title: isDicom ? 'Fichier DICOM supprimé' : 'Document supprimé',
       body: isDicom
