@@ -116,7 +116,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const archivedDeny = await denyIfArchivedPatientWrite(
     supabase,
     patientId,
-    profile.role as StaffRole,
+    writeAccess.profile.role as StaffRole,
   )
   if (archivedDeny) return archivedDeny
 
