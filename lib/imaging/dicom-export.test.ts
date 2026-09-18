@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildAsyncStudyExportParts,
   buildStudyExportParts,
   hashSeriesUid,
+  MAX_ASYNC_PART_BYTES,
+  MAX_ASYNC_PART_FILES,
   MAX_STUDY_EXPORT_FILES,
   normalizeSeriesExportKey,
   planStudyExport,
@@ -211,5 +214,76 @@ describe('planStudyExport / chunks', () => {
     if ('error' in part0) return
     expect(part0.fileCount).toBe(plan.parts[0]?.fileCount)
     expect(resolveStudyExportPart(rows, 99)).toMatchObject({ error: 'part_out_of_range' })
+  })
+})
+
+describe('buildStudyExportParts / buildAsyncStudyExportParts file-level split', () => {
+  function seriesRows(
+    uid: string,
+    count: number,
+    sizeBytes: number,
+    desc: string,
+  ): DicomExportRow[] {
+    const rows: DicomExportRow[] = []
+    for (let i = 0; i < count; i += 1) {
+      rows.push(
+        row({
+          id: `${uid}-${i}`,
+          filePath: `p/${uid}/${i}.dcm`,
+          fileName: `${i}.dcm`,
+          sizeBytes,
+          seriesInstanceUid: uid,
+          seriesDescription: desc,
+          instanceNumber: i + 1,
+          sopInstanceUid: `${uid}.${i}`,
+        }),
+      )
+    }
+    return rows
+  }
+
+  it('splits a 110-file series under the byte cap by file count', () => {
+    // 110 * 200 Ko = 22 Mo < 42 Mo → le plafond fichiers (80) tranche.
+    const rows = seriesRows('1.2.110', 110, 200_000, 'LOMBAIRE_ROUTINE')
+    const parts = buildAsyncStudyExportParts(rows)
+    expect(parts.reduce((sum, p) => sum + p.fileCount, 0)).toBe(110)
+    expect(parts.length).toBeGreaterThan(1)
+    expect(parts.every((p) => p.fileCount <= MAX_ASYNC_PART_FILES)).toBe(true)
+    expect(parts.every((p) => p.totalBytes <= MAX_ASYNC_PART_BYTES)).toBe(true)
+    expect(parts[0]?.fileCount).toBe(MAX_ASYNC_PART_FILES)
+    expect(parts[1]?.fileCount).toBe(110 - MAX_ASYNC_PART_FILES)
+
+    const syncParts = buildStudyExportParts(rows)
+    expect(syncParts).toHaveLength(1)
+    expect(syncParts[0]?.fileCount).toBe(110)
+  })
+
+  it('splits a series of few huge files by bytes', () => {
+    // 6 * 25 Mo = 150 Mo ; 25+25=50 Mo > 42 Mo → une image par partie.
+    const rows = seriesRows('1.2.scan', 6, 25_000_000, 'REQUETE_NUMERISEE')
+    const parts = buildAsyncStudyExportParts(rows)
+    expect(parts).toHaveLength(6)
+    expect(parts.every((p) => p.fileCount === 1 && p.totalBytes === 25_000_000)).toBe(true)
+    expect(parts.reduce((sum, p) => sum + p.fileCount, 0)).toBe(6)
+  })
+
+  it('keeps small series packed together under async caps', () => {
+    const rows = [
+      ...seriesRows('1.2.a', 10, 500_000, 'T2'),
+      ...seriesRows('1.2.b', 10, 500_000, 'T1'),
+    ]
+    const parts = buildAsyncStudyExportParts(rows)
+    expect(parts).toHaveLength(1)
+    expect(parts[0]?.fileCount).toBe(20)
+    expect(parts[0]?.seriesCount).toBe(2)
+    expect(parts[0]?.totalBytes).toBe(10_000_000)
+  })
+
+  it('allows a single file larger than the byte cap as its own part', () => {
+    const rows = seriesRows('1.2.huge', 1, 60_000_000, 'LOCALIZER')
+    const parts = buildAsyncStudyExportParts(rows)
+    expect(parts).toHaveLength(1)
+    expect(parts[0]?.fileCount).toBe(1)
+    expect(parts[0]?.totalBytes).toBe(60_000_000)
   })
 })

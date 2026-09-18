@@ -4,11 +4,12 @@ import {
   ASYNC_EXPORT_STORAGE_ROOT,
   asyncExportPartPath,
   asyncExportStatusPath,
+  classifyAsyncExportBuildFailure,
   cleanupExpiredAsyncExports,
   createAsyncExportJobRecord,
   isValidAsyncExportJobId,
 } from './dicom-export-async'
-import { MAX_ASYNC_PART_FILES, type DicomExportRow } from './dicom-export'
+import { MAX_ASYNC_PART_BYTES, MAX_ASYNC_PART_FILES, type DicomExportRow } from './dicom-export'
 
 function row(
   partial: Partial<DicomExportRow> & Pick<DicomExportRow, 'id' | 'filePath' | 'fileName'>,
@@ -69,9 +70,16 @@ describe('dicom-export-async helpers', () => {
     expect(isValidAsyncExportJobId(created.jobId)).toBe(true)
     expect(created.fileCount).toBe(500)
     expect(created.partCount).toBeGreaterThan(1)
-    // Série seule > plafond fichiers : partie mono-série (même règle que sync).
-    expect(created.parts.every((p) => p.fileCount > 0 && p.status === 'pending')).toBe(true)
+    expect(
+      created.parts.every(
+        (p) => p.fileCount > 0 && p.fileCount <= MAX_ASYNC_PART_FILES && p.status === 'pending',
+      ),
+    ).toBe(true)
+    expect(
+      created.parts.every((p) => p.totalBytes <= MAX_ASYNC_PART_BYTES || p.fileCount === 1),
+    ).toBe(true)
     expect(MAX_ASYNC_PART_FILES).toBe(80)
+    expect(MAX_ASYNC_PART_BYTES).toBe(42_000_000)
     expect(created.status).toBe('queued')
     expect(Date.parse(created.expiresAt) - Date.parse(created.createdAt)).toBe(
       ASYNC_EXPORT_JOB_TTL_MS,
@@ -216,5 +224,30 @@ describe('dicom-export-async helpers', () => {
     expect(result.jobsExpired).toBe(1)
     expect(result.objectsDeleted).toBe(1)
     expect(remove).not.toHaveBeenCalled()
+  })
+})
+
+describe('classifyAsyncExportBuildFailure', () => {
+  it('maps upload errors and keeps build_failed for unknown', () => {
+    expect(classifyAsyncExportBuildFailure(new Error('upload_failed'))).toEqual({
+      reason: 'upload_failed',
+      errorCode: 'upload_failed',
+    })
+    expect(classifyAsyncExportBuildFailure(new Error('Payload too large'))).toEqual({
+      reason: 'upload_failed',
+      errorCode: 'upload_failed',
+    })
+    expect(classifyAsyncExportBuildFailure(new Error('zip_failed'))).toEqual({
+      reason: 'zip_failed',
+      errorCode: 'zip_failed',
+    })
+    expect(classifyAsyncExportBuildFailure(new Error('download_failed'))).toEqual({
+      reason: 'download_failed',
+      errorCode: 'download_failed',
+    })
+    expect(classifyAsyncExportBuildFailure(new Error('ECONNRESET'))).toEqual({
+      reason: 'unknown',
+      errorCode: 'build_failed',
+    })
   })
 })
