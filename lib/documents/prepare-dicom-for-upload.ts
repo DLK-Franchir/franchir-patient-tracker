@@ -15,6 +15,10 @@ import {
 import { DICOM_HEADER_SCAN_BYTES } from '@/lib/imaging/dicom-detection'
 import { prepareDicomUploadFile } from '@/lib/imaging/dicom-folder-import'
 import { extractSeriesUidFromStorageName } from '@/lib/imaging/dicom-series-uid-name'
+import {
+  cachePreparedDicomMeta,
+  getPreparedDicomMeta,
+} from '@/lib/imaging/dicom-upload-cache'
 
 export type PreparedUploadFile = {
   file: File
@@ -37,12 +41,18 @@ async function readPersistedMeta(file: File): Promise<DicomPersistedMetadata | n
  * pas encore, renomme via prepareDicomUploadFile (parité import dossier).
  */
 export async function prepareDicomForUpload(file: File): Promise<PreparedUploadFile> {
+  const cached = getPreparedDicomMeta(file)
+  if (cached) {
+    return { file, dicom: cached }
+  }
+
   const dicom = await readPersistedMeta(file)
   if (!dicom?.seriesInstanceUid) {
     return { file, dicom }
   }
 
   if (extractSeriesUidFromStorageName(file.name)) {
+    cachePreparedDicomMeta(file, dicom)
     return { file, dicom }
   }
 
@@ -51,6 +61,7 @@ export async function prepareDicomForUpload(file: File): Promise<PreparedUploadF
     modality: null,
     sopInstanceUid: dicom.sopInstanceUid,
   })
+  cachePreparedDicomMeta(prepared, dicom)
   return { file: prepared, dicom }
 }
 

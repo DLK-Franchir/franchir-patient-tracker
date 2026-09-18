@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import {
@@ -401,10 +402,11 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
 
   const handleUpload = useCallback(async () => {
     if (pendingFiles.length === 0) return
-    setUploading(true)
-    setUploadSuccess(null)
-    setUploadStatus(`Préparation de ${pendingFiles.length} fichier(s)… Ne fermez pas la page.`)
-    await new Promise((resolve) => window.setTimeout(resolve, 50))
+    flushSync(() => {
+      setUploading(true)
+      setUploadSuccess(null)
+      setUploadStatus(`Préparation de ${pendingFiles.length} fichier(s)… Ne fermez pas la page.`)
+    })
     try {
       const { count, skipped } = await uploadPatientDocuments(
         patientId,
@@ -441,6 +443,16 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       setUploading(false)
     }
   }, [pendingFiles, patientId, fetchDocuments])
+
+  useEffect(() => {
+    if (!uploading) return
+    const onLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onLeave)
+    return () => window.removeEventListener('beforeunload', onLeave)
+  }, [uploading])
 
   const deleteDocumentIds = useCallback(
     async (documentIds: string[]) => {
@@ -744,7 +756,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
         <div
           role="status"
           aria-live="polite"
-          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950"
+          className="sticky top-0 z-40 mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950 shadow-sm"
         >
           {uploadStatus}
         </div>
