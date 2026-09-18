@@ -103,6 +103,55 @@ export function isValidAsyncExportJobId(jobId: string): boolean {
   return JOB_ID_RE.test(jobId)
 }
 
+/** Raisons loguées (jamais de PHI). `unknown` est mappé API → `build_failed`. */
+export type AsyncExportBuildFailReason = 'upload_failed' | 'zip_failed' | 'download_failed' | 'unknown'
+
+export type AsyncExportBuildErrorCode = 'upload_failed' | 'zip_failed' | 'download_failed' | 'build_failed'
+
+function collectErrorText(err: unknown): string {
+  const parts: string[] = []
+  let current: unknown = err
+  const seen = new Set<unknown>()
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    if (current instanceof Error) {
+      parts.push(current.message)
+      current = current.cause
+    } else {
+      parts.push(String(current))
+      break
+    }
+  }
+  return parts.join('\n').toLowerCase()
+}
+
+/**
+ * Classe l erreur de build sans exposer paths / UID / noms.
+ * Codes API spécifiques quand c est possible ; `unknown` → `build_failed` (compat UI).
+ */
+export function classifyAsyncExportBuildFailure(err: unknown): {
+  reason: AsyncExportBuildFailReason
+  errorCode: AsyncExportBuildErrorCode
+} {
+  const text = collectErrorText(err)
+  if (
+    text.includes('upload_failed') ||
+    text.includes('async_export_upload_failed') ||
+    text.includes('payload too large') ||
+    text.includes('maximum allowed size') ||
+    text.includes('entity too large')
+  ) {
+    return { reason: 'upload_failed', errorCode: 'upload_failed' }
+  }
+  if (text.includes('download_failed')) {
+    return { reason: 'download_failed', errorCode: 'download_failed' }
+  }
+  if (text.includes('zip_failed') || text.includes('archiver')) {
+    return { reason: 'zip_failed', errorCode: 'zip_failed' }
+  }
+  return { reason: 'unknown', errorCode: 'build_failed' }
+}
+
 export function asyncExportJobPrefix(patientId: string, jobId: string): string {
   return `${ASYNC_EXPORT_STORAGE_ROOT}/${patientId}/${jobId}`
 }
@@ -490,18 +539,31 @@ export async function buildAsyncExportPart(
   await writeJobRecord(supabase, patientId, record)
 
   try {
-    const buffer = await bufferDicomZip(resolved.entries, (path) =>
-      downloadPatientDocumentBlob(supabase, path),
-    )
-    const storagePath = asyncExportPartPath(patientId, jobId, partIndex)
-    const { error: uploadError } = await supabase.storage
-      .from(PATIENT_DOCUMENTS_BUCKET)
-      .upload(storagePath, buffer, {
-        contentType: 'application/zip',
-        upsert: true,
+    let buffer: Buffer
+    try {
+      buffer = await bufferDicomZip(resolved.entries, async (path) => {
+        try {
+          return await downloadPatientDocumentBlob(supabase, path)
+        } catch {
+          throw new Error('download_failed')
+        }
       })
-    if (uploadError) {
-      throw new Error('async_export_upload_failed')
+    } catch (err) {
+      if (err instanceof Error && err.message === 'download_failed') throw err
+      throw new Error('zip_failed')
+    }
+
+    const storagePath = asyncExportPartPath(patientId, jobId, partIndex)
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(PATIENT_DOCUMENTS_BUCKET)
+        .upload(storagePath, buffer, {
+          contentType: 'application/zip',
+          upsert: true,
+        })
+      if (uploadError) throw new Error('upload_failed')
+    } catch {
+      throw new Error('upload_failed')
     }
 
     existing.status = 'ready'
@@ -516,13 +578,20 @@ export async function buildAsyncExportPart(
     record.updatedAt = new Date().toISOString()
     await writeJobRecord(supabase, patientId, record)
     return toPublic(record)
-  } catch {
+  } catch (err) {
+    const { reason, errorCode } = classifyAsyncExportBuildFailure(err)
+    console.error('[dicom-export-async] part build failed', {
+      reason,
+      fileCount: resolved.fileCount,
+      totalBytes: resolved.totalBytes,
+      partIndex,
+    })
     existing.status = 'error'
-    existing.errorCode = 'build_failed'
+    existing.errorCode = errorCode
     record.status = 'error'
-    record.errorCode = 'build_failed'
+    record.errorCode = errorCode
     record.updatedAt = new Date().toISOString()
     await writeJobRecord(supabase, patientId, record)
-    return { error: 'build_failed', status: 500 }
+    return { error: errorCode, status: 500 }
   }
 }

@@ -31,11 +31,16 @@ export const MAX_STUDY_EXPORT_BYTES = 1_500_000_000
 /**
  * Plafonds parties **async** (P7) — plus petits que le sync pour tenir
  * maxDuration + mémoire serverless, puis ZIP matérialisé en Storage.
+ *
+ * L upload Storage standard (supabase-js `.upload()`, pas TUS) refuse autour
+ * de 50 Mo (`UPLOAD_FILE_SIZE_LIMIT_STANDARD`). Le cap async doit rester
+ * nettement sous ce plafond : le ZIP store ajoute des headers, et une série
+ * trop grosse ne doit plus partir en une seule partie.
  */
 export const MAX_ASYNC_PART_FILES = 80
 
-/** Soft cap octets bruts DCM par partie async (~90 Mo). */
-export const MAX_ASYNC_PART_BYTES = 90_000_000
+/** Soft cap octets bruts DCM par partie async (~42 Mo, sous la limite upload ~50 Mo). */
+export const MAX_ASYNC_PART_BYTES = 42_000_000
 
 /** Au-delà de ce nombre de parties sync → préférer le job async Storage. */
 export const ASYNC_EXPORT_RECOMMEND_MIN_PARTS = 2
@@ -250,8 +255,60 @@ function groupFileStats(group: ImageExportGroup): { fileCount: number; totalByte
 }
 
 /**
+ * Découpe une série trop grosse en chunks greedy au niveau fichier.
+ * Un fichier unique plus gros que le plafond reste une partie à lui seul.
+ */
+function splitGroupByPartLimits(
+  group: ImageExportGroup,
+  limits: StudyExportPartLimits,
+): ImageExportGroup[] {
+  const { fileCount, totalBytes } = groupFileStats(group)
+  if (fileCount <= limits.maxFiles && totalBytes <= limits.maxBytes) {
+    return [group]
+  }
+
+  const chunks: ImageExportGroup[] = []
+  let files: ExportableFile[] = []
+  let chunkFiles = 0
+  let chunkBytes = 0
+
+  const flushChunk = () => {
+    if (files.length === 0) return
+    chunks.push({
+      groupId: group.groupId,
+      label: group.label,
+      isEncapsulatedPdf: group.isEncapsulatedPdf,
+      files,
+    })
+    files = []
+    chunkFiles = 0
+    chunkBytes = 0
+  }
+
+  for (const file of group.files) {
+    const size = file.sizeBytes
+    const wouldExceed =
+      files.length > 0 &&
+      (chunkFiles + 1 > limits.maxFiles || chunkBytes + size > limits.maxBytes)
+    if (wouldExceed) flushChunk()
+
+    files.push(file)
+    chunkFiles += 1
+    chunkBytes += size
+
+    if (files.length === 1 && (chunkFiles > limits.maxFiles || chunkBytes > limits.maxBytes)) {
+      flushChunk()
+    }
+  }
+  flushChunk()
+  return chunks
+}
+
+/**
  * Empaquette les séries image en parties ZIP (greedy) sous les plafonds donnés.
- * Une série seule peut dépasser le plafond → partie mono-série.
+ * Une série qui dépasse le plafond est découpée au niveau fichier ; les chunks
+ * tiennent ensuite dans le packing greedy avec les autres séries.
+ * Un fichier unique plus gros que le plafond reste une partie dédiée.
  */
 export function buildStudyExportParts(
   rows: DicomExportRow[],
@@ -289,20 +346,22 @@ export function buildStudyExportParts(
   }
 
   for (const group of groups) {
-    const { fileCount, totalBytes } = groupFileStats(group)
-    const wouldExceed =
-      batch.length > 0 &&
-      (batchFiles + fileCount > limits.maxFiles || batchBytes + totalBytes > limits.maxBytes)
+    for (const piece of splitGroupByPartLimits(group, limits)) {
+      const { fileCount, totalBytes } = groupFileStats(piece)
+      const wouldExceed =
+        batch.length > 0 &&
+        (batchFiles + fileCount > limits.maxFiles || batchBytes + totalBytes > limits.maxBytes)
 
-    if (wouldExceed) flush()
+      if (wouldExceed) flush()
 
-    batch.push(group)
-    batchFiles += fileCount
-    batchBytes += totalBytes
+      batch.push(piece)
+      batchFiles += fileCount
+      batchBytes += totalBytes
 
-    // Série seule au-delà du plafond : flush immédiat (export partie mono-série).
-    if (batch.length === 1 && (batchFiles > limits.maxFiles || batchBytes > limits.maxBytes)) {
-      flush()
+      // Fichier unique au-delà du plafond : flush immédiat (partie dédiée).
+      if (batch.length === 1 && (batchFiles > limits.maxFiles || batchBytes > limits.maxBytes)) {
+        flush()
+      }
     }
   }
   flush()
