@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { safeStaffRedirectPath } from '@/lib/safe-staff-redirect'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -27,7 +28,10 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      const redirectPath = safeStaffRedirectPath(
+        new URLSearchParams(window.location.search).get('redirect'),
+      )
+      router.push(redirectPath)
       router.refresh()
     }
   }

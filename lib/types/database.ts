@@ -70,6 +70,11 @@ export interface Patient {
   recommended_surgeons: Json | null
   created_by: string
   created_at: string
+  /**
+   * `all_staff` (défaut) ou `gilles_erik` (dossier interne imagerie : Gilles, Erik, Yves).
+   * Migration 20260918170000.
+   */
+  visibility_scope?: 'all_staff' | 'gilles_erik'
   /** Non maintenu automatiquement en prod tant que le trigger 20260914120100 n'est pas appliqué. */
   updated_at: string
   workflow_statuses?: WorkflowStatus

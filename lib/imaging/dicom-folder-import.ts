@@ -168,7 +168,10 @@ export function dicomSeriesImportLabel(
   return `${modLabel} ${seriesIndex + 1} (${sliceCount} image${sliceCount > 1 ? 's' : ''})`
 }
 
-export async function importDicomFolder(input: FileList | File[]): Promise<DicomFolderImportResult> {
+export async function importDicomFolder(
+  input: FileList | File[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<DicomFolderImportResult> {
   const files = Array.from(input)
   let ignoredCompanionCount = 0
   let skippedNonDicomCount = 0
@@ -177,32 +180,36 @@ export async function importDicomFolder(input: FileList | File[]): Promise<Dicom
 
   const prepared: PreparedDicomFile[] = []
 
-  for (const file of files) {
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index]!
     const displayPath = fileRelativePath(file)
     if (isIgnorableCompanionFile(displayPath) || isIgnorableCompanionFile(file.name)) {
       ignoredCompanionCount += 1
-      continue
+    } else {
+      scannedCandidateCount += 1
+
+      const isDicom = await fileIsLikelyDicom(file, displayPath)
+      if (!isDicom) {
+        skippedNonDicomCount += 1
+        if (sampleSkippedPaths.length < 3) sampleSkippedPaths.push(displayPath)
+      } else {
+        const header = await readDicomHeaderFromFile(file)
+        const seriesKey = resolveSeriesKey(header, displayPath)
+
+        prepared.push({
+          file: prepareDicomUploadFile(file, displayPath, header),
+          seriesInstanceUid: seriesKey,
+          modality: header?.modality ?? null,
+          originalName: file.name,
+          relativePath: displayPath,
+        })
+      }
     }
 
-    scannedCandidateCount += 1
-
-    const isDicom = await fileIsLikelyDicom(file, displayPath)
-    if (!isDicom) {
-      skippedNonDicomCount += 1
-      if (sampleSkippedPaths.length < 3) sampleSkippedPaths.push(displayPath)
-      continue
+    if (index % 15 === 0 || index === files.length - 1) {
+      onProgress?.(index + 1, files.length)
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
-
-    const header = await readDicomHeaderFromFile(file)
-    const seriesKey = resolveSeriesKey(header, displayPath)
-
-    prepared.push({
-      file: prepareDicomUploadFile(file, displayPath, header),
-      seriesInstanceUid: seriesKey,
-      modality: header?.modality ?? null,
-      originalName: file.name,
-      relativePath: displayPath,
-    })
   }
 
   const bySeries = new Map<string, PreparedDicomFile[]>()

@@ -283,6 +283,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [showUpload, setShowUpload] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [downloadBusy, setDownloadBusy] = useState(false)
   const [downloadScope, setDownloadScope] = useState<'series' | 'study'>('series')
@@ -400,18 +402,40 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const handleUpload = useCallback(async () => {
     if (pendingFiles.length === 0) return
     setUploading(true)
+    setUploadSuccess(null)
+    setUploadStatus(`Préparation de ${pendingFiles.length} fichier(s)… Ne fermez pas la page.`)
+    await new Promise((resolve) => window.setTimeout(resolve, 50))
     try {
-      // Upload DIRECT navigateur → Storage (URLs signées) : pas de limite serverless.
-      const { skipped } = await uploadPatientDocuments(patientId, pendingFiles)
+      const { count, skipped } = await uploadPatientDocuments(
+        patientId,
+        pendingFiles,
+        (progress) => {
+          if (progress.phase === 'prepare') {
+            setUploadStatus(
+              `Analyse DICOM ${progress.uploaded} / ${progress.total}… Ne fermez pas la page.`,
+            )
+            return
+          }
+          if (progress.phase === 'finalize') {
+            setUploadStatus('Enregistrement des fichiers…')
+            return
+          }
+          setUploadStatus(
+            `Envoi ${progress.uploaded} / ${progress.total}… Ne fermez pas la page.`,
+          )
+        },
+      )
       setPendingFiles([])
       setShowUpload(false)
       await fetchDocuments()
+      const parts = [`${count} fichier(s) enregistré(s).`]
       if (skipped > 0) {
-        alert(
-          `${skipped} fichier(s) DICOM déjà présent(s) (même image) ont été ignorés pour éviter les doublons.`,
-        )
+        parts.push(`${skipped} doublon(s) ignoré(s).`)
       }
+      setUploadSuccess(parts.join(' '))
+      setUploadStatus(null)
     } catch (err) {
+      setUploadStatus(null)
       alert(err instanceof Error ? err.message : "Échec de l'upload")
     } finally {
       setUploading(false)
@@ -716,6 +740,23 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
         </div>
       </div>
 
+      {uploadStatus && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950"
+        >
+          {uploadStatus}
+        </div>
+      )}
+      {uploadSuccess && (
+        <div
+          role="status"
+          className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900"
+        >
+          {uploadSuccess}
+        </div>
+      )}
       {canManage && showUpload && (
         <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
           <DocumentUpload
@@ -740,13 +781,23 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
               type="button"
               onClick={handleUpload}
               disabled={uploading || pendingFiles.length === 0}
+              title={
+                pendingFiles.length === 0
+                  ? 'Importez d’abord le dossier CD (bouton bleu ci-dessus)'
+                  : undefined
+              }
               className="px-4 py-2 bg-[#2563EB] text-white rounded-lg hover:bg-[#1d4ed8] text-sm font-bold disabled:opacity-50"
             >
-              {uploading
-                ? 'Envoi en cours…'
-                : `Envoyer ${pendingFiles.length > 0 ? `(${pendingFiles.length})` : ''}`}
+              {uploading ? 'Envoi en cours…' : `Envoyer ${pendingFiles.length > 0 ? `(${pendingFiles.length})` : ''}`}
             </button>
           </div>
+          {pendingFiles.length === 0 && !uploading ? (
+            <p className="mt-3 text-sm text-gray-600">
+              Aucun fichier sélectionné. Cliquez sur <strong>Importer le CD complet</strong>,
+              choisissez le dossier racine (bouton Ouvrir sur Mac), attendez l’analyse, puis
+              Envoyer.
+            </p>
+          ) : null}
         </div>
       )}
 

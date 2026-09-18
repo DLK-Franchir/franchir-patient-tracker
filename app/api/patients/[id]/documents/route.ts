@@ -19,9 +19,9 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { assertStaffProfile, canManagePatientDocuments, type StaffRole } from '@/lib/access-control'
+import { assertStaffProfile, isGillesErikVisibilityScope, type StaffRole } from '@/lib/access-control'
 import { denyIfArchivedPatientWrite } from '@/lib/patient-archive-guard'
-import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
+import { denyIfOutOfRoleScope, requireDocumentWriteAccess } from '@/lib/patient-role-scope-guard'
 import { listPatientDocuments } from '@/lib/documents/list-patient-documents'
 import {
   PATIENT_DOCUMENTS_BUCKET,
@@ -110,16 +110,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .eq('id', user.id)
     .single()
 
-  if (!profile || !canManagePatientDocuments(profile)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  const scopeDeny = await denyIfOutOfRoleScope(
-    supabase,
-    patientId,
-    profile.role as StaffRole,
-  )
-  if (scopeDeny) return scopeDeny
+  const writeAccess = await requireDocumentWriteAccess(supabase, patientId, profile)
+  if (!writeAccess.ok) return writeAccess.response
 
   const archivedDeny = await denyIfArchivedPatientWrite(
     supabase,
@@ -233,7 +225,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Option A : remonte l'imagerie vers le portail chirurgien (questionnaires).
     // Best-effort : n'altère jamais la réponse d'upload (stockage tracker = vérité).
-    await forwardImagingToQuestionnaires(patientId, forwardable)
+    if (!isGillesErikVisibilityScope(writeAccess.patient.visibility_scope)) {
+      await forwardImagingToQuestionnaires(patientId, forwardable)
+    }
 
     return NextResponse.json({ success: true, count: inserted?.length ?? rows.length })
   } catch (error) {

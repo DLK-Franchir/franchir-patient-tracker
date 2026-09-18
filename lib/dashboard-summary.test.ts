@@ -266,6 +266,26 @@ describe('dashboard-summary', () => {
     expect(isRoleScopedPatient(patient('3', 'validated_medical'), 'gilles')).toBe(true)
   })
 
+  it('isole le dossier imagerie Gilles/Erik hors du cockpit Marcel', () => {
+    const sandbox = {
+      id: 'sandbox',
+      workflow_statuses: { id: 'ws-prospect', code: 'prospect_created', label: 'Dossier créé' },
+      visibility_scope: 'gilles_erik',
+    }
+    const gilles = { role: 'gilles' as const, email: 'duboisgilles31@gmail.com' }
+    const erik = { role: 'franchir' as const, email: 'erik.boulard@franchir.eu' }
+    const yves = { role: 'franchir' as const, email: 'yves.merillon@franchir.eu' }
+    const marcel = { role: 'marcel' as const, email: 'marcel.mazaltarim@gmail.com' }
+
+    expect(isRoleScopedPatient(sandbox, 'gilles', gilles)).toBe(true)
+    expect(isRoleScopedPatient(sandbox, 'franchir', erik)).toBe(true)
+    expect(isRoleScopedPatient(sandbox, 'franchir', yves)).toBe(true)
+    expect(isRoleScopedPatient(sandbox, 'marcel', marcel)).toBe(false)
+    expect(
+      filterPatientsForRole([patient('1', 'draft'), sandbox], 'marcel', marcel).map((p) => p.id),
+    ).toEqual(['1'])
+  })
+
   it('ignore les filtres URL invalides pour Gilles', () => {
     expect(normalizeDashboardTabForRole('actifs', 'gilles')).toBeNull()
     expect(normalizeDashboardKpiForRole('toConfirm', 'gilles')).toBeNull()

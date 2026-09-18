@@ -1,3 +1,4 @@
+import { isGillesErikVisibilityScope } from '@/lib/access-control'
 import type { UserRole } from '@/lib/workflow-v2'
 
 export type PatientDetailViewConfig = {
@@ -11,6 +12,7 @@ export type PatientDetailViewConfig = {
   showQuestionnairePdf: boolean
   /** Dashboard cartes Anamneze (synthese JSON) sur fiche patient. */
   showAnamnezeDashboard: boolean
+  showWorkflowActions: boolean
 }
 
 const DEFAULT_VIEW: PatientDetailViewConfig = {
@@ -21,6 +23,7 @@ const DEFAULT_VIEW: PatientDetailViewConfig = {
   canManageQuestionnaire: true,
   showQuestionnairePdf: false,
   showAnamnezeDashboard: false,
+  showWorkflowActions: true,
 }
 
 const GILLES_VIEW: PatientDetailViewConfig = {
@@ -31,6 +34,18 @@ const GILLES_VIEW: PatientDetailViewConfig = {
   canManageQuestionnaire: false,
   showQuestionnairePdf: true,
   showAnamnezeDashboard: true,
+  showWorkflowActions: true,
+}
+
+const IMAGING_SANDBOX_VIEW: PatientDetailViewConfig = {
+  showSharePoint: false,
+  showClinicalSummary: true,
+  canManageDocuments: true,
+  showCommercialTab: false,
+  canManageQuestionnaire: false,
+  showQuestionnairePdf: false,
+  showAnamnezeDashboard: false,
+  showWorkflowActions: false,
 }
 
 /** Marcel et admin peuvent consulter la synthèse PDF et le dashboard Anamneze en lecture seule. */
@@ -42,7 +57,14 @@ const READ_ONLY_MEDICAL_VIEW: Pick<
   showAnamnezeDashboard: true,
 }
 
-export function getPatientDetailViewConfig(role: UserRole): PatientDetailViewConfig {
+export function getPatientDetailViewConfig(
+  role: UserRole,
+  options?: { visibilityScope?: string | null },
+): PatientDetailViewConfig {
+  if (isGillesErikVisibilityScope(options?.visibilityScope)) {
+    return IMAGING_SANDBOX_VIEW
+  }
+
   if (role === 'gilles') {
     return GILLES_VIEW
   }

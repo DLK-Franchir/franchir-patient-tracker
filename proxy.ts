@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { isStaffProfile } from '@/lib/access-control'
+import { safeStaffRedirectPath } from '@/lib/safe-staff-redirect'
 import {
   DWV_PUBLIC_PATH_PREFIXES,
   dwvWorkerRewriteTarget,
@@ -98,10 +99,11 @@ export async function updateSession(request: NextRequest) {
         .single()
 
       if (isStaffProfile(profile)) {
-        const redirect = request.nextUrl.searchParams.get('redirect')
+        const redirect = safeStaffRedirectPath(request.nextUrl.searchParams.get('redirect'))
         const url = request.nextUrl.clone()
-        url.pathname = redirect || '/dashboard'
-        url.searchParams.delete('redirect')
+        const [pathname, search] = redirect.split('?')
+        url.pathname = pathname || '/dashboard'
+        url.search = search ? `?${search}` : ''
         return NextResponse.redirect(url)
       }
     }

@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { UploadCloud, X, FileText, Brain, ImageIcon, FolderUp, Loader2, Info, Play } from 'lucide-react'
-import { dropzoneHintLine, uploadGuidanceLines, UPLOAD_GUIDANCE } from '@/lib/documents/upload-guidance'
+import { X, FileText, Brain, ImageIcon, FolderUp, Loader2, Info, Play } from 'lucide-react'
+import { uploadGuidanceLines, UPLOAD_GUIDANCE } from '@/lib/documents/upload-guidance'
 import {
   validateDocumentFile,
   inferRenderType,
@@ -15,9 +15,8 @@ import { getDocumentAcceptAttribute } from '@/lib/features/mp4-viewer'
 import { importDicomFolder, formatEmptyDicomFolderMessage } from '@/lib/imaging/dicom-folder-import'
 import {
   configureWebkitDirectoryInput,
-  pickDirectoryViaFileSystemAccess,
+  filesFromDataTransfer,
   snapshotFileList,
-  supportsDirectoryPicker,
 } from '@/lib/imaging/directory-picker'
 
 /**
@@ -126,13 +125,17 @@ export default function DocumentUpload({
   const handleFolderImport = useCallback(
     async (fileList: FileList | File[]) => {
       if (disabled) return
+      const snapshot = Array.isArray(fileList) ? fileList : snapshotFileList(fileList)
       setFolderImporting(true)
-      setFolderNote(null)
+      setFolderNote(`Lecture de ${snapshot.length} fichier(s)… Ne fermez pas la page.`)
       setFolderError(null)
       setSeriesPreview([])
       setImportSummary(null)
+      await new Promise((resolve) => window.setTimeout(resolve, 50))
       try {
-        const result = await importDicomFolder(fileList)
+        const result = await importDicomFolder(snapshot, (done, total) => {
+          setFolderNote(`Analyse DICOM ${done} / ${total}… Ne fermez pas la page.`)
+        })
         const prepared = result.series.flatMap((s) => s.files.map((f) => f.file))
         const totalImages = prepared.length
 
@@ -183,35 +186,18 @@ export default function DocumentUpload({
         setFolderImporting(false)
       }
     },
-    [disabled, mergeAccepted],
+    [disabled, files, mergeAccepted],
   )
 
   const openFolderPicker = useCallback(() => {
     if (disabled || folderImporting) return
-
-    // Safari/Firefox : le click() doit rester synchrone dans le geste utilisateur.
-    if (!supportsDirectoryPicker()) {
-      setFolderError(null)
-      folderInputRef.current?.click()
-      return
-    }
-
-    void (async () => {
-      try {
-        const outcome = await pickDirectoryViaFileSystemAccess()
-        if (outcome.status === 'cancelled') return
-        if (outcome.status === 'picked') {
-          await handleFolderImport(outcome.result.files)
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Impossible d'ouvrir le selecteur de dossier."
-        setFolderError(message)
-      }
-    })()
-  }, [disabled, folderImporting, handleFolderImport])
+    setFolderError(null)
+    const input = folderInputRef.current
+    if (!input) return
+    // Repose webkitdirectory au clic : Safari peut perdre l'attribut.
+    configureWebkitDirectoryInput(input)
+    input.click()
+  }, [disabled, folderImporting])
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -219,11 +205,27 @@ export default function DocumentUpload({
       e.stopPropagation()
       setDragActive(false)
       if (disabled) return
-      if (e.dataTransfer.files?.length) {
-        addFiles(e.dataTransfer.files)
-      }
+      void (async () => {
+        try {
+          const snapshot = await filesFromDataTransfer(e.dataTransfer)
+          if (snapshot.length === 0) return
+          const looksLikeFolder =
+            snapshot.length > 1 ||
+            snapshot.some((file) => {
+              const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath
+              return Boolean(rel && rel.includes('/'))
+            })
+          if (looksLikeFolder) {
+            await handleFolderImport(snapshot)
+            return
+          }
+          addFiles(snapshot)
+        } catch (err) {
+          setFolderError(err instanceof Error ? err.message : "Impossible de lire le dossier déposé.")
+        }
+      })()
     },
-    [addFiles, disabled],
+    [addFiles, disabled, handleFolderImport],
   )
 
   const removeFile = useCallback(
@@ -263,6 +265,22 @@ export default function DocumentUpload({
       )}
 
       <div
+        role="button"
+        tabIndex={disabled || folderImporting ? -1 : 0}
+        aria-disabled={disabled || folderImporting}
+        aria-label="Importer le CD complet"
+        onClick={() => openFolderPicker()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            openFolderPicker()
+          }
+        }}
+        className={`flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition ${
+          dragActive
+            ? 'border-[#2563EB] bg-blue-50'
+            : 'border-[#2563EB]/40 bg-[#EBF0FA] hover:bg-[#dfe6f6]'
+        } ${disabled || folderImporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         onDragOver={(e) => {
           e.preventDefault()
           if (!disabled) setDragActive(true)
@@ -272,43 +290,21 @@ export default function DocumentUpload({
           setDragActive(false)
         }}
         onDrop={handleDrop}
-        onClick={() => !disabled && inputRef.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if ((e.key === 'Enter' || e.key === ' ') && !disabled) {
-            e.preventDefault()
-            inputRef.current?.click()
-          }
-        }}
-        aria-disabled={disabled}
-        className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition cursor-pointer ${
-          dragActive
-            ? 'border-[#2563EB] bg-blue-50'
-            : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        <UploadCloud className="w-7 h-7 text-gray-400" aria-hidden="true" />
-        <p className="text-sm font-medium text-gray-700">
-          Glissez-déposez vos fichiers ou cliquez pour parcourir
+        {folderImporting ? (
+          <Loader2 className="w-8 h-8 animate-spin text-[#2563EB]" aria-hidden="true" />
+        ) : (
+          <FolderUp className="w-8 h-8 text-[#2563EB]" aria-hidden="true" />
+        )}
+        <p className="text-base font-bold text-[#1E2B70]">
+          {folderImporting ? 'Analyse du CD en cours…' : 'Importer le CD complet'}
         </p>
-        <p className="text-xs text-gray-500">{dropzoneHintLine()}</p>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept={getDocumentAcceptAttribute()}
-          className="hidden"
-          disabled={disabled}
-          onChange={(e) => {
-            if (e.target.files?.length) addFiles(e.target.files)
-            // Reinitialise pour permettre de re-selectionner le meme fichier.
-            e.target.value = ''
-          }}
-        />
+        <p className="max-w-md text-sm text-[#2E3450]">
+          Cliquez et choisissez le dossier racine (bouton <strong>Ouvrir</strong> sur Mac), ou
+          glissez le dossier ici. Toutes les séries sont lues d’un coup — pas image par image.
+        </p>
       </div>
 
-      {/* Input dossier hors zone cliquable (evite conflits drag/drop). */}
       <input
         ref={folderInputRef}
         type="file"
@@ -325,48 +321,75 @@ export default function DocumentUpload({
         }}
       />
 
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept={getDocumentAcceptAttribute()}
+        className="hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          if (e.target.files?.length) addFiles(e.target.files)
+          e.target.value = ''
+        }}
+      />
+
+      <p className="text-center text-xs text-gray-500">
+        Un PDF ou une image isolée ?{' '}
+        <button
+          type="button"
+          disabled={disabled || folderImporting}
+          onClick={() => inputRef.current?.click()}
+          className="font-medium text-[#2563EB] hover:underline disabled:opacity-50"
+        >
+          Ajouter des fichiers isolés
+        </button>
+      </p>
+
       {seriesPreview.length > 0 && (
         <ul className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-          {seriesPreview.map((entry) => (
+          {seriesPreview.slice(0, 12).map((entry) => (
             <li key={entry.label} className="text-xs text-indigo-900">
               {entry.label}
             </li>
           ))}
+          {seriesPreview.length > 12 ? (
+            <li className="text-xs text-indigo-700">+ {seriesPreview.length - 12} série(s)</li>
+          ) : null}
         </ul>
       )}
 
-      {folderNote ? <p className="text-xs text-gray-500">{folderNote}</p> : null}
-      {importSummary ? (
-        <p className="text-xs font-medium text-indigo-800">{importSummary}</p>
+      {folderNote ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950">
+          {folderNote}
+        </p>
       ) : null}
-      {folderError ? <p className="text-xs text-red-600">{folderError}</p> : null}
+      {importSummary ? (
+        <p className="text-sm font-medium text-indigo-800">{importSummary}</p>
+      ) : null}
+      {folderError ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {folderError}
+        </p>
+      ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="space-y-1">
-          <button
-            type="button"
-            disabled={disabled || folderImporting}
-            onClick={() => void openFolderPicker()}
-            className="inline-flex items-center gap-1.5 text-sm text-[#2563EB] hover:text-[#1d4ed8] font-medium disabled:opacity-50"
-          >
-            {folderImporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <FolderUp className="w-4 h-4" aria-hidden="true" />
-            )}
-            {folderImporting ? 'Analyse du dossier…' : 'Importer un dossier (CD DICOM)'}
-          </button>
-          <p className="text-xs text-gray-500">
-            Sur Mac, le selecteur affiche <strong>Ouvrir</strong> (pas Importer) — c&apos;est normal.
-            Choisissez le dossier racine du CD (ex. Arcande_IRM ou DICOM IRM).
-          </p>
-        </div>
-        {files.length > 0 && (
-          <span className="text-xs text-gray-500">
-            {files.length} fichier{files.length > 1 ? 's' : ''} importé{files.length > 1 ? 's' : ''}
+      {files.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-medium text-gray-800">
+            {files.length} fichier{files.length > 1 ? 's' : ''} prêt
+            {files.length > 1 ? 's' : ''} · {formatSize(files.reduce((sum, file) => sum + file.size, 0))}
           </span>
-        )}
-      </div>
+          {!disabled && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-xs font-medium text-gray-500 hover:text-red-600"
+            >
+              Tout retirer
+            </button>
+          )}
+        </div>
+      )}
 
       {errors.length > 0 && (
         <ul className="space-y-1">
@@ -378,7 +401,7 @@ export default function DocumentUpload({
         </ul>
       )}
 
-      {files.length > 0 && (
+      {files.length > 0 && files.length <= 12 && (
         <ul className="space-y-2">
           {files.map((file, index) => (
             <li
@@ -401,6 +424,12 @@ export default function DocumentUpload({
             </li>
           ))}
         </ul>
+      )}
+      {files.length > 12 && (
+        <p className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+          Liste masquée ({files.length} fichiers). Cliquez <strong>Envoyer</strong> pour tout
+          transférer d’un coup.
+        </p>
       )}
     </div>
   )

@@ -47,12 +47,63 @@ export function canEditCommercialData(profile?: ProfileAccess | null): boolean {
   return canCreatePatient(profile)
 }
 
+/** Dossier interne scanners/IRM : Gilles, Erik et Yves (e-mails, pas le rôle). */
+export const GILLES_ERIK_VISIBILITY_SCOPE = 'gilles_erik' as const
+
+export const GILLES_ERIK_RESTRICTED_EMAILS = [
+  'duboisgilles31@gmail.com',
+  'duboisgilles31@franchir.eu',
+  'erik.boulard@franchir.eu',
+  'yves.merillon@franchir.eu',
+] as const
+
+/** Dossier sandbox scanners/IRM — URL courte `/imagerie`. */
+export const IMAGING_SANDBOX_PATIENT_ID = 'e7165a6d-4f1d-4111-a000-000000000001'
+export const IMAGING_SANDBOX_PATH = '/imagerie'
+
+const GILLES_ERIK_RESTRICTED_EMAIL_SET = new Set<string>(GILLES_ERIK_RESTRICTED_EMAILS)
+
+export function isGillesErikVisibilityScope(scope?: string | null): boolean {
+  return scope === GILLES_ERIK_VISIBILITY_SCOPE
+}
+
+export function canViewGillesErikRestrictedPatient(profile?: ProfileAccess | null): boolean {
+  if (!assertStaffProfile(profile)) {
+    return false
+  }
+
+  return GILLES_ERIK_RESTRICTED_EMAIL_SET.has(normalizeEmail(profile.email))
+}
+
+export function canAccessPatientVisibility(
+  profile?: ProfileAccess | null,
+  visibilityScope?: string | null,
+): boolean {
+  if (!assertStaffProfile(profile)) {
+    return false
+  }
+
+  if (!isGillesErikVisibilityScope(visibilityScope)) {
+    return true
+  }
+
+  return canViewGillesErikRestrictedPatient(profile)
+}
+
 /**
  * Upload / suppression des fichiers patients (DICOM + documents) : réservé aux
  * créateurs de dossier (marcel / franchir / admin). La simple consultation des
  * fichiers reste ouverte à tout le staff actif (cf. isStaffProfile).
+ * Exception : dossier `gilles_erik` — Gilles, Erik et Yves peuvent déposer l'imagerie.
  */
-export function canManagePatientDocuments(profile?: ProfileAccess | null): boolean {
+export function canManagePatientDocuments(
+  profile?: ProfileAccess | null,
+  patient?: { visibility_scope?: string | null } | null,
+): boolean {
+  if (patient && isGillesErikVisibilityScope(patient.visibility_scope)) {
+    return canViewGillesErikRestrictedPatient(profile)
+  }
+
   return canCreatePatient(profile)
 }
 

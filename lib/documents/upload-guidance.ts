@@ -27,7 +27,7 @@ export const UPLOAD_LIMITS_MB = {
 
 export const UPLOAD_GUIDANCE = {
   limitsSummary: `Taille max par fichier : ${UPLOAD_LIMITS_MB.maxFileSize} Mo. Formats : DICOM (.dcm), JPEG, PNG, PDF${isMp4ViewerEnabled() ? ', MP4' : ''}.`,
-  batchLimit: `Jusqu'à ${MAX_DOCUMENTS_PER_REQUEST} fichiers par envoi (import CD complet possible).`,
+  batchLimit: `Jusqu'à ${MAX_DOCUMENTS_PER_REQUEST} fichiers par envoi (import CD complet, y compris ~2 Go).`,
   forwardNote: `Au-delà de ${UPLOAD_LIMITS_MB.forwardMaxFileSize} Mo par fichier, l'imagerie reste dans Marcel mais n'est pas transmise au portail chirurgien.`,
   cdImportDelay:
     "Import d'un CD DICOM : comptez 1 à 3 min pour l'analyse, puis plusieurs minutes pour l'envoi selon le volume. Ne fermez pas la page.",

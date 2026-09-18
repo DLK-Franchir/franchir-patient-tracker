@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server'
-import { isStaffProfile, requireStaffProfile } from '@/lib/access-control'
+import { isStaffProfile, requireStaffProfile, canViewGillesErikRestrictedPatient } from '@/lib/access-control'
 import { redirect } from 'next/navigation'
 import PatientDetailClient from './client-page'
 import AppHeader from '@/components/app-header'
@@ -21,7 +21,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/login')
+    redirect(`/login?redirect=/dashboard/patient/${id}`)
   }
 
   const { data: profile } = await supabase
@@ -66,8 +66,13 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
 
   if (
     !isRoleScopedPatient(
-      { id: patient.id, workflow_statuses: patient.current_status },
+      {
+        id: patient.id,
+        workflow_statuses: patient.current_status,
+        visibility_scope: patient.visibility_scope,
+      },
       userRole,
+      staffProfile,
     )
   ) {
     redirect('/dashboard')
@@ -110,7 +115,9 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     patient.questionnaire_status = null
   }
 
-  const viewConfig = getPatientDetailViewConfig(userRole)
+  const viewConfig = getPatientDetailViewConfig(userRole, {
+    visibilityScope: patient.visibility_scope,
+  })
   let synthesisPreview: QuestionnaireSynthesisPreview | null = null
   let synthesisPreviewError: string | null = null
 
@@ -133,6 +140,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
         userRole={userRole}
         patientName={patient.patient_name}
         showActions={true}
+        showImagingLink={canViewGillesErikRestrictedPatient(staffProfile)}
       />
       <div className="min-h-screen bg-franchir-cream [&_.anamneze-dashboard]:bg-transparent">
         <PatientDetailClient

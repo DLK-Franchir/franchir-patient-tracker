@@ -1,3 +1,7 @@
+import {
+  canViewGillesErikRestrictedPatient,
+  isGillesErikVisibilityScope,
+} from '@/lib/access-control'
 import { BRAND } from '@/lib/brand-tokens'
 import {
   CASE_CLOSED_STATUS_CODE,
@@ -12,9 +16,15 @@ import {
 
 export type DashboardFocus = 'mine' | 'waiting' | 'all'
 
+export type PatientViewer = {
+  role: UserRole
+  email?: string | null
+}
+
 export type SummaryPatient = {
   id: string
   workflow_statuses: WorkflowStatus | null
+  visibility_scope?: string | null
 }
 
 export type SummaryPatientExtended = SummaryPatient & {
@@ -207,7 +217,17 @@ const GILLES_VISIBLE_STATUSES = new Set<GlobalStatus>([
   'rejected',
 ])
 
-export function isRoleScopedPatient(patient: SummaryPatient, role: UserRole): boolean {
+export function isRoleScopedPatient(
+  patient: SummaryPatient,
+  role: UserRole,
+  viewer?: PatientViewer,
+): boolean {
+  if (isGillesErikVisibilityScope(patient.visibility_scope)) {
+    return canViewGillesErikRestrictedPatient({
+      email: viewer?.email,
+      role: viewer?.role ?? role,
+    })
+  }
   if (role !== 'gilles') return true
   const globalStatus = globalStatusFromWorkflowStatus(patient.workflow_statuses)
   if (isClosedGlobalStatus(globalStatus)) return false
@@ -217,18 +237,20 @@ export function isRoleScopedPatient(patient: SummaryPatient, role: UserRole): bo
 export function filterPatientsForRole<T extends SummaryPatient>(
   patients: T[],
   role: UserRole,
+  viewer?: PatientViewer,
 ): T[] {
-  if (role !== 'gilles') return patients
-  return patients.filter((patient) => isRoleScopedPatient(patient, role))
+  return patients.filter((patient) => isRoleScopedPatient(patient, role, viewer))
 }
 
 /** Restriction de liste par rôle (`null` = pas de filtre de base). */
 export function getRoleScopedPatientIds(
   patients: SummaryPatient[],
   role: UserRole,
+  viewer?: PatientViewer,
 ): string[] | null {
-  if (role !== 'gilles') return null
-  return filterPatientsForRole(patients, role).map((patient) => patient.id)
+  const scoped = filterPatientsForRole(patients, role, viewer)
+  if (role !== 'gilles' && scoped.length === patients.length) return null
+  return scoped.map((patient) => patient.id)
 }
 
 export function intersectPatientIds(
