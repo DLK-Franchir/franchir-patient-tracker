@@ -15,16 +15,15 @@ import {
   utilities as csUtils,
   type Types as CsTypes,
 } from '@cornerstonejs/core'
-import { Enums as csToolsEnums, ToolGroupManager } from '@cornerstonejs/tools'
 import type { DicomTool, ViewerCapabilities } from '../contract'
 import { formatDicomLoadError, normalizeModality } from '../policy'
 import { emitImagingTelemetry, type ImagingTelemetryHandler } from '../telemetry'
-import { CS_TOOL_NAMES, ensureCornerstone } from './init'
+import { ensureCornerstone } from './init'
+import { attachCsInteractions } from './interaction'
 
 export type CsStackHandle = {
   viewport: CsTypes.IStackViewport
   renderingEngine: RenderingEngine
-  toolGroupId: string
   imageIds: string[]
 }
 
@@ -34,6 +33,8 @@ export type CsStackParams = {
   handleRef: RefObject<CsStackHandle | null>
   capabilities: ViewerCapabilities
   toolRef: RefObject<DicomTool>
+  /** Défilement coupes depuis les gestes (outil « Coupes » tactile). */
+  navigateSlicesRef: RefObject<(delta: number) => void>
   onImagingTelemetryRef?: RefObject<ImagingTelemetryHandler | undefined>
   setStatus: (status: 'loading' | 'rendering' | 'ready' | 'error') => void
   setProgress: (value: number) => void
@@ -45,6 +46,8 @@ export type CsStackParams = {
   setModality: (value: string | null) => void
   setFailedIndexes: (value: Set<number>) => void
   onSliceCountResolvedRef: RefObject<((count: number) => void) | undefined>
+  /** `false` : détruit le viewport sans en recréer (comparaison / MPR). */
+  active?: boolean
 }
 
 let hostCounter = 0
@@ -58,33 +61,6 @@ export const CS_RENDER_READY_FALLBACK_MS = 1500
 
 export function toImageId(url: string): string {
   return `wadouri:${url}`
-}
-
-/** Applique l'outil Franchir (`DicomTool`) aux bindings Cornerstone. */
-export function applyCsTool(toolGroupId: string, tool: DicomTool): void {
-  const group = ToolGroupManager.getToolGroup(toolGroupId)
-  if (!group) return
-  const { MouseBindings } = csToolsEnums
-  const primary = { mouseButton: MouseBindings.Primary }
-  const secondary = { mouseButton: MouseBindings.Secondary }
-  const auxiliary = { mouseButton: MouseBindings.Auxiliary }
-  const twoFingers = { numTouchPoints: 2 }
-
-  // Zoom clic droit + pincement, pan bouton du milieu : constants quel que soit l'outil.
-  group.setToolActive(CS_TOOL_NAMES.zoom, { bindings: [secondary, twoFingers] })
-  group.setToolActive(CS_TOOL_NAMES.pan, { bindings: [auxiliary] })
-
-  if (tool === 'WindowLevel') {
-    group.setToolPassive(CS_TOOL_NAMES.stackScroll)
-    group.setToolActive(CS_TOOL_NAMES.windowLevel, { bindings: [primary] })
-  } else if (tool === 'ZoomAndPan') {
-    group.setToolPassive(CS_TOOL_NAMES.windowLevel)
-    group.setToolPassive(CS_TOOL_NAMES.stackScroll)
-    group.setToolActive(CS_TOOL_NAMES.pan, { bindings: [primary, auxiliary] })
-  } else {
-    group.setToolPassive(CS_TOOL_NAMES.windowLevel)
-    group.setToolActive(CS_TOOL_NAMES.stackScroll, { bindings: [primary] })
-  }
 }
 
 function readCsWindowLevel(
@@ -119,6 +95,7 @@ export function useCornerstoneStack(params: CsStackParams) {
     handleRef,
     capabilities,
     toolRef,
+    navigateSlicesRef,
     onImagingTelemetryRef,
     setStatus,
     setProgress,
@@ -130,9 +107,11 @@ export function useCornerstoneStack(params: CsStackParams) {
     setModality,
     setFailedIndexes,
     onSliceCountResolvedRef,
+    active = true,
   } = params
 
   useEffect(() => {
+    if (!active) return
     const element = elementRef.current
     if (!element) return
     const urls = urlsKey.split('\n').filter(Boolean)
@@ -141,12 +120,12 @@ export function useCornerstoneStack(params: CsStackParams) {
     let disposed = false
     const hostId = nextHostId()
     const viewportId = `${hostId}-vp`
-    const toolGroupId = `${hostId}-tools`
     const imageIds = urls.map(toImageId)
     const failed = new Set<number>()
     let renderingEngine: RenderingEngine | null = null
     let firstRendered = false
     let detachEvents: (() => void) | null = null
+    let detachInteractions: (() => void) | null = null
 
     setStatus('loading')
     setProgress(0)
@@ -184,17 +163,16 @@ export function useCornerstoneStack(params: CsStackParams) {
       })
       const viewport = renderingEngine.getViewport(viewportId) as CsTypes.IStackViewport
 
-      const toolGroup = ToolGroupManager.createToolGroup(toolGroupId)
-      if (toolGroup) {
-        toolGroup.addTool(CS_TOOL_NAMES.windowLevel)
-        toolGroup.addTool(CS_TOOL_NAMES.pan)
-        toolGroup.addTool(CS_TOOL_NAMES.zoom)
-        toolGroup.addTool(CS_TOOL_NAMES.stackScroll)
-        toolGroup.addViewport(viewportId, hostId)
-      }
-      applyCsTool(toolGroupId, toolRef.current)
-
-      handleRef.current = { viewport, renderingEngine, toolGroupId, imageIds }
+      handleRef.current = { viewport, renderingEngine, imageIds }
+      detachInteractions = attachCsInteractions({
+        element,
+        getViewport: () => (disposed ? null : viewport),
+        getTool: () => toolRef.current,
+        onNavigateSlices: delta => navigateSlicesRef.current(delta),
+        onWindowLevelChanged: () => {
+          if (!disposed) setWindowLevel(readCsWindowLevel(viewport))
+        },
+      })
 
       const syncWl = () => {
         if (!disposed) setWindowLevel(readCsWindowLevel(viewport))
@@ -303,11 +281,7 @@ export function useCornerstoneStack(params: CsStackParams) {
     return () => {
       disposed = true
       detachEvents?.()
-      try {
-        ToolGroupManager.destroyToolGroup(toolGroupId)
-      } catch {
-        /* jamais créé */
-      }
+      detachInteractions?.()
       try {
         const engine = renderingEngine ?? getRenderingEngine(hostId)
         engine?.destroy()
@@ -322,6 +296,7 @@ export function useCornerstoneStack(params: CsStackParams) {
     handleRef,
     capabilities,
     toolRef,
+    navigateSlicesRef,
     onImagingTelemetryRef,
     setStatus,
     setProgress,
@@ -333,5 +308,6 @@ export function useCornerstoneStack(params: CsStackParams) {
     setModality,
     setFailedIndexes,
     onSliceCountResolvedRef,
+    active,
   ])
 }

@@ -1,5 +1,19 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.1
+
+- **U2 — mesures, comparaison, ciné, MPR** (moteur Cornerstone uniquement ; dwv
+  inchangé, flag toujours off par défaut) :
+  - Distance, angle et Cobb en calque SVG, coordonnées patient (mm / °),
+    **non persistées** (pas de table, pas de PHI dans le libellé).
+  - Ciné (~8 images/s) sur une série de plus d'une coupe.
+  - Comparaison : second viewport, défilement et fenêtrage synchronisés,
+    choix de la série comparée. Ligne de référence (intersection des plans)
+    quand l'orientation patient est présente et les plans ne sont pas parallèles.
+  - MPR : bouton actif seulement si `isValidVolume` (orientation, taille et
+    espacement homogènes) ; trois vues axial / sagittal / coronal. Sinon le
+    bouton reste inactif.
+
 ## 0.15.0
 
 - **U1 — moteur Cornerstone3D derrière le contrat** (`DicomViewerProps` inchangé) :
@@ -22,7 +36,12 @@
     OpenJPH) → `public/cornerstone/` via `imaging-viewer:sync` ; préfixe public
     `CORNERSTONE_PUBLIC_DIR` hors auth middleware. Worker bundlé par Next.
   - Télémétrie : `engine: 'cornerstone'` accepté (`ImagingTelemetryEngine`).
-  - Peer deps optionnelles `@cornerstonejs/core|tools|dicom-image-loader ^5.10`.
+  - Gestes pointeur **sans** `@cornerstonejs/tools` (`interaction.ts`) : le worker
+    `computeWorker` de tools bloque le build Turbopack et U1 n'a besoin que de
+    fenêtrage / zoom / pan / coupes. Peer deps optionnelles
+    `@cornerstonejs/core` + `@cornerstonejs/dicom-image-loader` ^5.10.
+  - Next : alias Turbopack `fs` → module vide (`lib/imaging/empty-module.ts`) —
+    les glues Emscripten `@cornerstonejs/codec-*` référencent `fs` (branche Node).
 - dwv : **fix** « Réinitialiser » après un miroir laissait un canvas noir ;
   outil initial tactile (`ZoomAndPan`) posé par le host au lieu d'un reset forcé.
 - Script `sync-imaging-viewer-package.mjs --tracker-only` : MANIFEST + `public/`

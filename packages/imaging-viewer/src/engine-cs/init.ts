@@ -2,10 +2,12 @@
  * Initialisation Cornerstone3D (U1) — singleton idempotent, client only.
  * Les `.wasm` codecs sont servis depuis `public/cornerstone/` (assets SoT),
  * le worker de décodage est bundlé (`new Worker(new URL(..., import.meta.url))`).
+ *
+ * Pas de `@cornerstonejs/tools` : les gestes sont dans `interaction.ts` et les
+ * mesures U2 sont un calque SVG (le worker `computeWorker` de tools bloque Turbopack).
  */
 
 import * as csCore from '@cornerstonejs/core'
-import * as csTools from '@cornerstonejs/tools'
 import * as dicomImageLoader from '@cornerstonejs/dicom-image-loader'
 
 export type CornerstoneInitOptions = {
@@ -15,29 +17,13 @@ export type CornerstoneInitOptions = {
   maxCacheBytes?: number
 }
 
-export const CS_TOOL_NAMES = {
-  windowLevel: csTools.WindowLevelTool.toolName,
-  pan: csTools.PanTool.toolName,
-  zoom: csTools.ZoomTool.toolName,
-  stackScroll: csTools.StackScrollTool.toolName,
-} as const
-
 const DEFAULT_MAX_CACHE_BYTES = 1024 * 1024 * 1024
 
 let initPromise: Promise<void> | null = null
 
-function addToolOnce(tool: Parameters<typeof csTools.addTool>[0]) {
-  try {
-    csTools.addTool(tool)
-  } catch {
-    /* déjà enregistré (HMR / plusieurs hosts) */
-  }
-}
-
 /**
- * Prépare core + tools + loader. Résout une seule fois par page ; en cas
- * d'échec (WebGL indisponible…) la promesse est rejetée et retentée à l'appel
- * suivant.
+ * Prépare core + loader. Résout une seule fois par page ; en cas d'échec
+ * (WebGL indisponible…) la promesse est rejetée et retentée à l'appel suivant.
  */
 export function ensureCornerstone(options: CornerstoneInitOptions): Promise<void> {
   if (initPromise) return initPromise
@@ -48,7 +34,8 @@ export function ensureCornerstone(options: CornerstoneInitOptions): Promise<void
     if (!csCore.isCornerstoneInitialized()) {
       csCore.init()
     }
-    csTools.init()
+    // Le MPR utilise `cornerstoneStreamingImageVolume:` — loader par défaut
+    // de Cornerstone quand aucun scheme n'est enregistré.
     dicomImageLoader.init({
       maxWebWorkers: options.maxWebWorkers,
       wasmBasePath: options.wasmBasePath,
@@ -60,10 +47,6 @@ export function ensureCornerstone(options: CornerstoneInitOptions): Promise<void
       useLegacyMetadataProvider: true,
     })
     csCore.cache.setMaxCacheSize(options.maxCacheBytes ?? DEFAULT_MAX_CACHE_BYTES)
-    addToolOnce(csTools.WindowLevelTool)
-    addToolOnce(csTools.PanTool)
-    addToolOnce(csTools.ZoomTool)
-    addToolOnce(csTools.StackScrollTool)
   })()
   initPromise.catch(() => {
     initPromise = null

@@ -74,6 +74,8 @@ export type DicomViewerChromeProps = {
   surfaceRef: RefObject<HTMLDivElement | null>
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void
   onSurfacePointerEnter: () => void
+  /** Boutons supplémentaires de la toolbar (mesures, ciné, comparaison, MPR). */
+  toolbarExtra?: ReactNode
   /** Conteneurs moteur (dwv layer group / élément Cornerstone). */
   children: ReactNode
 }
@@ -131,6 +133,7 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
     surfaceRef,
     onKeyDown,
     onSurfacePointerEnter,
+    toolbarExtra,
     children,
   } = props
 
@@ -217,6 +220,7 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
             mobileHint={mobileHint}
             seriesCount={hasSeriesRail ? seriesCount : 0}
             onOpenSeriesSheet={hasSeriesRail ? () => setSeriesSheetOpen(true) : undefined}
+            extra={toolbarExtra}
           />
 
           <div

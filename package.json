@@ -30,7 +30,6 @@
     "@cornerstonejs/core": "^5.10.11",
     "@cornerstonejs/dicom-image-loader": "^5.10.11",
     "@cornerstonejs/metadata": "^5.10.11",
-    "@cornerstonejs/tools": "^5.10.11",
     "@franchir/imaging": "file:./packages/imaging",
     "@franchir/imaging-viewer": "file:./packages/imaging-viewer",
     "@franchir/synthesis-contract": "file:./packages/synthesis-contract",

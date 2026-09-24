@@ -22,9 +22,15 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 
 ## Moteur Cornerstone3D (U1) — ops flip
 
-Package default `engine: 'dwv'`. Le chunk Cornerstone (core + tools + loader,
-~1,5 Mo gz + wasm à la demande) n'est **jamais** téléchargé tant que le flag
-n'est pas posé. Repli dwv automatique si le chunk / l'init échoue.
+Package default `engine: 'dwv'`. Le chunk Cornerstone (core + dicom-image-loader,
+wasm à la demande) n'est **jamais** téléchargé tant que le flag n'est pas posé.
+Pas de `@cornerstonejs/tools` (worker incompatible Turbopack) : gestes dans
+`engine-cs/interaction.ts`. Repli dwv automatique si le chunk / l'init échoue.
+
+**U2 (0.15.1)** n'apparaît qu'avec ce flag : Distance / Angle / Cobb (non
+enregistrées), ciné, comparaison de deux séries (défilement et fenêtrage
+synchronisés, ligne de référence si les plans se coupent), MPR actif seulement
+sur une série homogène. Le moteur dwv ne montre pas ces boutons.
 
 | Variable                     | Valeur                     | Effet                                                                                   |
 | ---------------------------- | -------------------------- | --------------------------------------------------------------------------------------- |

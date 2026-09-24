@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Contrast, FlipHorizontal2, Layers } from 'lucide-react'
 import type { DicomTool, NavMode, ViewerInfoKind } from '../contract'
 import { WL_PRESETS, type WlPresetId } from '../policy'
@@ -42,6 +43,8 @@ export type DicomViewerToolbarProps = {
   /** Mobile : ouvre le panneau séries (rail desktop masqué). */
   seriesCount?: number
   onOpenSeriesSheet?: () => void
+  /** Boutons moteur (mesures, ciné, comparaison, MPR). */
+  extra?: ReactNode
 }
 
 const TOOL_BTN =
@@ -78,6 +81,7 @@ export function DicomViewerToolbar({
   mobileHint,
   seriesCount = 0,
   onOpenSeriesSheet,
+  extra,
 }: DicomViewerToolbarProps) {
   return (
     <>
@@ -225,6 +229,8 @@ export function DicomViewerToolbar({
           <span className="sm:hidden">Réinit.</span>
           <span className="hidden sm:inline">Réinitialiser</span>
         </button>
+
+        {extra}
 
         {canNavigateSlices ? (
           <div className="ml-auto flex items-center gap-1 sm:ml-2">

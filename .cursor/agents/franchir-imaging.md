@@ -7,7 +7,7 @@ description: >-
   @franchir/imaging-viewer packages (0.13.0+ suite P0–P8 complete),
   imaging:sync / imaging-viewer:sync, parity tracker↔clinicien, Fatima/Tania
   golden cases, suite U (U0 rail/molette/slider/presets/overlay done, U1
-  Cornerstone3D engine next, U2 mesures/MPR). No PACS/OHIF. Do not open
+  Cornerstone3D engine (U1a, flag off) and U2 measures/compare/MPR on that engine). No PACS/OHIF. Do not open
   DICOMDIR / persisted annotations without explicit ask.
 ---
 
@@ -77,7 +77,7 @@ Close-out ops : `docs/ops/IMAGING_STABILIZE.md`.
 | **U0** | done (0.14.0) | Rail séries (desktop + sheet mobile), molette = coupes, slider + Home/End/PageUp/PageDown, presets HU seulement CT + **Auto**, inverser (`I`) / miroir (`H`), overlay 4 coins non-PHI, mention informatif ; parité repli OpenJPEG |
 | **U1a** | done (0.15.0, flag off) | Moteur Cornerstone3D derrière `DicomViewerProps` (`/engine-cs`, `wadouri:` signed URLs, J2K / JPEG-LS natifs), capability `engine` défaut `dwv`, flag `NEXT_PUBLIC_IMAGING_ENGINE=cornerstone`, dynamic import + repli dwv, chrome partagé `DicomViewerChrome`, wasm `assets/cornerstone` |
 | **U1b** | next (ops / 0.16) | Flip preview → prod deux apps, smoke Tania / Fatima / JPEG-LS ; puis retrait pool séquentiel / repli OpenJPEG / rewrite workers dwv |
-| **U2** | future | Mesures Length / Angle / Cobb, 2 viewports synchro, lignes de référence, cine, MPR conditionnel |
+| **U2** | done (0.15.1, flag off) | Distance / Angle / Cobb non persistées, 2 viewports synchro, lignes de référence, ciné, MPR si volume homogène — Cornerstone seulement |
 
 Décision : **pas** d'Orthanc / dcm4chee / OHIF — Supabase Storage + `patient_documents`
 restent la source ; le moteur évolue derrière le contrat. Orthanc seulement si
