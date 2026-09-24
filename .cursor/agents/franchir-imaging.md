@@ -75,7 +75,8 @@ Close-out ops : `docs/ops/IMAGING_STABILIZE.md`.
 | Phase | Statut | Contenu |
 |-------|--------|---------|
 | **U0** | done (0.14.0) | Rail séries (desktop + sheet mobile), molette = coupes, slider + Home/End/PageUp/PageDown, presets HU seulement CT + **Auto**, inverser (`I`) / miroir (`H`), overlay 4 coins non-PHI, mention informatif ; parité repli OpenJPEG |
-| **U1** | next (0.15–0.16) | Moteur Cornerstone3D derrière `DicomViewerProps` (`wadouri:` signed URLs, J2K / JPEG-LS natifs), capability `engine` + flag `NEXT_PUBLIC_IMAGING_ENGINE`, puis retrait pool séquentiel / repli OpenJPEG / rewrite workers |
+| **U1a** | done (0.15.0, flag off) | Moteur Cornerstone3D derrière `DicomViewerProps` (`/engine-cs`, `wadouri:` signed URLs, J2K / JPEG-LS natifs), capability `engine` défaut `dwv`, flag `NEXT_PUBLIC_IMAGING_ENGINE=cornerstone`, dynamic import + repli dwv, chrome partagé `DicomViewerChrome`, wasm `assets/cornerstone` |
+| **U1b** | next (ops / 0.16) | Flip preview → prod deux apps, smoke Tania / Fatima / JPEG-LS ; puis retrait pool séquentiel / repli OpenJPEG / rewrite workers dwv |
 | **U2** | future | Mesures Length / Angle / Cobb, 2 viewports synchro, lignes de référence, cine, MPR conditionnel |
 
 Décision : **pas** d'Orthanc / dcm4chee / OHIF — Supabase Storage + `patient_documents`

@@ -24,14 +24,18 @@ export const OPENJPEG_PUBLIC_DIR = '/openjpeg'
 /** Script glue OpenJPEG (pas d'import bundlé — branche Node du glue Emscripten). */
 export const OPENJPEG_SCRIPT_URL = `${OPENJPEG_PUBLIC_DIR}/openjpegjs.js`
 
+/** Codecs `.wasm` Cornerstone (U1) servis depuis `public/cornerstone/`. */
+export const CORNERSTONE_PUBLIC_DIR = '/cornerstone'
+
 /**
  * Préfixes à laisser publics (hors session / i18n) dans le middleware.
- * Inclut OpenJPEG pour le fallback J2K hors auth.
+ * Inclut OpenJPEG pour le fallback J2K hors auth et les `.wasm` Cornerstone.
  */
 export const DWV_PUBLIC_PATH_PREFIXES = [
   DWV_WORKERS_PUBLIC_DIR,
   DWV_ASSETS_WORKERS_SEGMENT,
   OPENJPEG_PUBLIC_DIR,
+  CORNERSTONE_PUBLIC_DIR,
 ] as const
 
 /**
@@ -42,8 +46,7 @@ export const DWV_PUBLIC_PATH_PREFIXES = [
  * string en **littéral** (parse statique Next/Turbopack) ; les tests
  * vérifient l’égalité avec cette constante SoT.
  */
-export const DWV_NEXT_WORKER_MATCHER =
-  '/_next/:path*/assets/workers/:file' as const
+export const DWV_NEXT_WORKER_MATCHER = '/_next/:path*/assets/workers/:file' as const
 
 /**
  * Rewrites `next.config` `afterFiles` — couvrent les chemins hors `/_next/*`.
@@ -71,5 +74,5 @@ export function dwvWorkerRewriteTarget(pathname: string): string | null {
 
 /** True si le pathname est un asset codec public (workers ou OpenJPEG). */
 export function isDwvPublicAssetPath(pathname: string): boolean {
-  return DWV_PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  return DWV_PUBLIC_PATH_PREFIXES.some(prefix => pathname.startsWith(prefix))
 }

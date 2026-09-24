@@ -1,4 +1,10 @@
-import type { NavMode, ViewerCapabilities, ViewerInfoKind, ViewerStatus } from './contract'
+import type {
+  NavMode,
+  ViewerCapabilities,
+  ViewerEngine,
+  ViewerInfoKind,
+  ViewerStatus,
+} from './contract'
 
 /**
  * Presets fenêtrage en unités Hounsfield — pertinents uniquement pour le
@@ -96,7 +102,22 @@ export const RENDER_READY_DELAYS_MS = [400, 800, 1500, 3000, 6000, 10000, 15000]
 export const STACK_PROGRESS_FALLBACK_MS = 600
 export const LAYOUT_RETRY_DELAYS_MS = [0, 50, 150, 400, 800] as const
 
+/** Dossier public des `.wasm` Cornerstone (voir `assets/cornerstone`, sync → `public/`). */
+export const CORNERSTONE_WASM_PUBLIC_DIR = '/cornerstone/'
+
+const VIEWER_ENGINES: readonly ViewerEngine[] = ['dwv', 'cornerstone']
+
+/** `NEXT_PUBLIC_IMAGING_ENGINE` (ou autre source) → moteur valide, sinon `null`. */
+export function parseViewerEngine(raw: string | null | undefined): ViewerEngine | null {
+  const key = (raw ?? '').trim().toLowerCase()
+  if (key === 'cornerstone' || key === 'cs' || key === 'cornerstone3d') return 'cornerstone'
+  if (key === 'dwv') return 'dwv'
+  return VIEWER_ENGINES.includes(key as ViewerEngine) ? (key as ViewerEngine) : null
+}
+
 export const DEFAULT_VIEWER_CAPABILITIES: ViewerCapabilities = {
+  engine: 'dwv',
+  cornerstoneWasmBasePath: CORNERSTONE_WASM_PUBLIC_DIR,
   maxSequentialPool: MAX_SEQUENTIAL_POOL,
   maxPoolLoadConcurrency: MAX_POOL_LOAD_CONCURRENCY,
   stackMode: true,

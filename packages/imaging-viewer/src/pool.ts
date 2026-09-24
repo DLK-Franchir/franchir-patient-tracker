@@ -54,7 +54,7 @@ function activatePoolFile(
   toolRef: RefObject<DicomTool>,
   setSliceIndex: (value: number) => void,
   setStatus: PoolModeParams['setStatus'],
-  setErrorMessage: (value: string | null) => void,
+  setErrorMessage: (value: string | null) => void
 ) {
   pool.forEach((entry, i) => {
     setPoolContainerVisible(entry.container, i === index)
@@ -79,7 +79,7 @@ function activatePoolFile(
     setErrorMessage(
       `Fichier ${index + 1} illisible — passez au suivant avec →${
         entry.errorMessage ? ` (${entry.errorMessage})` : ''
-      }`,
+      }`
     )
     setStatus('ready')
   } else {
@@ -131,7 +131,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
     onSliceCountResolvedRef.current?.(seriesUrls.length)
     if (seriesUrls.length > MAX_SEQUENTIAL_POOL) {
       setPoolWarning(
-        `Série volumineuse (${seriesUrls.length} fichiers) — seuls les ${MAX_SEQUENTIAL_POOL} premiers sont préchargés.`,
+        `Série volumineuse (${seriesUrls.length} fichiers) — seuls les ${MAX_SEQUENTIAL_POOL} premiers sont préchargés.`
       )
     } else {
       setPoolWarning(null)
@@ -164,7 +164,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
       if (success) {
         entry.status = 'ready'
         addWindowLevelPresets(app)
-        app.setTool('WindowLevel')
+        app.setTool(toolRef.current)
       } else {
         entry.status = 'error'
         entry.errorMessage = errMsg ?? 'erreur de chargement'
@@ -188,7 +188,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
           toolRef,
           setSliceIndex,
           setStatus,
-          setErrorMessage,
+          setErrorMessage
         )
       } else if (activeIndex === index) {
         activatePoolFile(index, pool, appRef, toolRef, setSliceIndex, setStatus, setErrorMessage)
@@ -212,7 +212,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
           index,
           app,
           success,
-          errMsg ?? (success ? undefined : 'fichier illisible ou format non pris en charge'),
+          errMsg ?? (success ? undefined : 'fichier illisible ou format non pris en charge')
         )
         pumpPoolLoads()
       }
@@ -224,7 +224,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
           finalizeEntry(true)
           return
         }
-        void waitForRenderableImage(app, RENDER_READY_DELAYS_MS).then((ready) => {
+        void waitForRenderableImage(app, RENDER_READY_DELAYS_MS).then(ready => {
           if (ready) {
             finalizeEntry(true)
             return
@@ -237,7 +237,10 @@ export function useDicomSequentialPool(params: PoolModeParams) {
             engine: 'dwv',
             reason: 'empty_pixel_buffer',
           })
-          finalizeEntry(false, formatDicomLoadError('décodage du flux compressé impossible (codec)'))
+          finalizeEntry(
+            false,
+            formatDicomLoadError('décodage du flux compressé impossible (codec)')
+          )
         })
       }
 
@@ -309,7 +312,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
 
     pumpPoolLoads()
 
-    const resizeObserver = new ResizeObserver((entries) => {
+    const resizeObserver = new ResizeObserver(entries => {
       if (disposed) return
       const rect = entries[0]?.contentRect
       if (!rect || rect.width < 1 || rect.height < 1) return
@@ -341,7 +344,7 @@ export function useDicomSequentialPool(params: PoolModeParams) {
       window.clearTimeout(failTimer)
       if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
       resizeObserver.disconnect()
-      pool.forEach((entry) => {
+      pool.forEach(entry => {
         destroyDwvApp(entry.app, entry.layerGroupId)
       })
       pool.clear()

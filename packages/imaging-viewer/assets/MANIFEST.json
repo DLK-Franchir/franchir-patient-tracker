@@ -1,6 +1,10 @@
 {
-  "generatedAt": "2026-07-20T07:00:42.152Z",
+  "generatedAt": "2026-09-24T13:25:47.664Z",
   "files": {
+    "cornerstone/charlswasm_decode.wasm": "a8b192966b58218713ac09750a6bf6560d22fe12906600b88fcd49ff0d001e04",
+    "cornerstone/libjpegturbowasm_decode.wasm": "3e1dbbe2532d9e1a1e0bc21678b2c8cc1dc84a07d21d2f386603100be451e650",
+    "cornerstone/openjpegwasm_decode.wasm": "387db051dcc27becb394c4f996f5d6925e0b20b101f8b220c036bea95646004a",
+    "cornerstone/openjphjs.wasm": "89f220823e73cd4099149a723584243b30e12c1d23f7bf11898c83eecf46a90c",
     "dwv-workers/jpeg2000.worker.min.js": "3d3f2b270d36c6d00f891f0b3dbff03d5197231ca67a1b2e57866fb625b0599a",
     "dwv-workers/jpegbaseline.worker.min.js": "5decd36f67bbdf231ceb1b60400a52cdc8308c2ac0ae5489fa57216f6451ed5b",
     "dwv-workers/jpegloss.worker.min.js": "98f6cc2fecd67794b2c50ef11c99f13cbefe9d61e8727fb586b0a27c4ea59647",

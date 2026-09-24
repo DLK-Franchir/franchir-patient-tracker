@@ -140,7 +140,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|dwv-workers|assets/workers|openjpeg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|map)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|dwv-workers|assets/workers|openjpeg|cornerstone|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|map|wasm)$).*)',
     // Literal requis par Next (parse statique). Doit rester = DWV_NEXT_WORKER_MATCHER (SoT).
     '/_next/:path*/assets/workers/:file',
   ],

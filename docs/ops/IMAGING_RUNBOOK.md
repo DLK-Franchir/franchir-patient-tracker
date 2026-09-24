@@ -124,6 +124,7 @@ Ticket template (safe):
 
 ```text
 Deploy: <sha / Vercel deployment id>
+Engine: dwv|cornerstone (NEXT_PUBLIC_IMAGING_ENGINE)
 Golden-path --ci: pass|fail
 Workers/OpenJPEG 200: yes|no
 Tania smoke (Marcel / clinicien): pass|fail — note symptom only

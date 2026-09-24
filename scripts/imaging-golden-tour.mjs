@@ -76,8 +76,17 @@ const CHECKLIST = [
     note: "SEQUENTIAL_LOCALIZER_ORIENTATION_MSG via orientationFallbackMessage.",
   },
   {
+    id: "cornerstone-engine-flag",
+    title: "Cornerstone3D engine flag + wasm public path (U1)",
+    fixtures: [
+      "packages/imaging-viewer/src/engine-cs/engine-cs.test.ts",
+      "lib/proxy.test.ts",
+    ],
+    note: "engine default dwv, NEXT_PUBLIC_IMAGING_ENGINE parse, /cornerstone/*.wasm hors auth. Décodage J2K / JPEG-LS réel = harness / staging.",
+  },
+  {
     id: "worker-manifest",
-    title: "Worker / OpenJPEG asset MANIFEST integrity",
+    title: "Worker / OpenJPEG / Cornerstone wasm asset MANIFEST integrity",
     check: "imaging-viewer:check",
     note: "packages/imaging-viewer/assets/MANIFEST.json + public/ install parity.",
   },
@@ -96,6 +105,8 @@ const FOCUSED_VITEST = [
   "packages/imaging-viewer/src/policy.test.ts",
   "packages/imaging-viewer/src/encapsulated-pdf.test.ts",
   "packages/imaging-viewer/src/exports-contract.test.ts",
+  "packages/imaging-viewer/src/engine-cs/engine-cs.test.ts",
+  "lib/proxy.test.ts",
 ];
 
 function fail(msg) {

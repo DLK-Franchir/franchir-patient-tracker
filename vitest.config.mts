@@ -31,6 +31,12 @@ export default defineConfig({
         ),
       },
       {
+        find: /^@franchir\/imaging-viewer\/engine-cs$/,
+        replacement: fileURLToPath(
+          new URL('./packages/imaging-viewer/src/engine-cs/index.ts', import.meta.url),
+        ),
+      },
+      {
         find: /^@franchir\/imaging-viewer\/ui$/,
         replacement: fileURLToPath(
           new URL('./packages/imaging-viewer/src/ui/index.ts', import.meta.url),

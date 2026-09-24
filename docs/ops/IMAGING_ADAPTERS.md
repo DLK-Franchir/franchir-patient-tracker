@@ -4,20 +4,39 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 
 ## Paths
 
-| Concern | Module |
-|---------|--------|
-| Listing + batch signed URLs | `lib/documents/list-patient-documents.ts` (TTL `SIGNED_URL_TTL_SECONDS` = 1800) |
-| Soft-refresh before open | `lib/documents/signed-url-freshness.ts` + `components/patient/documents-section.tsx` |
-| Pont Q imaging (no Range enrich by default) | `lib/integrations/fetch-questionnaire-imaging.ts` (`enrichMetadata=0`) |
-| Series / DOC PDF grouping | `@franchir/imaging` via `groupDicomFilesByMetadata` |
-| PDF encapsulé UI | adapter → `@franchir/imaging-viewer/ui` (`dicom-encapsulated-pdf-viewer.tsx`) |
-| Upload-time SUID persist (P3b) | `lib/documents/prepare-dicom-for-upload.ts` → finalize → `patient_documents.series_instance_uid` |
-| Legacy backfill (P3b) | `POST /api/internal/imaging/backfill-dicom-metadata` + `scripts/backfill-dicom-metadata.mjs` |
-| Workers rewrite | `proxy.ts` (lane A — not this doc) |
-| Product telemetry (P3a) | `onImagingTelemetry` → `lib/imaging/report-imaging-telemetry.ts` — see `IMAGING_TELEMETRY.md` |
-| DICOM export ZIP (P0/P1/P5/P7) | `GET …/export-plan` + sync `…/export.zip?part=N` **ou** async `POST …/export-async` + `…/build` + signed TTL ; UI `downloadStudyDicomExport` |
-| Async export cleanup (P7 residual) | Cron `GET /api/internal/imaging/cleanup-async-exports` (`vercel.json`) — TTL 2 h sur `exports/{patientId}/{jobId}/` |
-| Capabilities / feature flags (P4/P7) | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from `isMp4ViewerEnabled`) |
+| Concern                                     | Module                                                                                                                                                              |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Listing + batch signed URLs                 | `lib/documents/list-patient-documents.ts` (TTL `SIGNED_URL_TTL_SECONDS` = 1800)                                                                                     |
+| Soft-refresh before open                    | `lib/documents/signed-url-freshness.ts` + `components/patient/documents-section.tsx`                                                                                |
+| Pont Q imaging (no Range enrich by default) | `lib/integrations/fetch-questionnaire-imaging.ts` (`enrichMetadata=0`)                                                                                              |
+| Series / DOC PDF grouping                   | `@franchir/imaging` via `groupDicomFilesByMetadata`                                                                                                                 |
+| PDF encapsulé UI                            | adapter → `@franchir/imaging-viewer/ui` (`dicom-encapsulated-pdf-viewer.tsx`)                                                                                       |
+| Upload-time SUID persist (P3b)              | `lib/documents/prepare-dicom-for-upload.ts` → finalize → `patient_documents.series_instance_uid`                                                                    |
+| Legacy backfill (P3b)                       | `POST /api/internal/imaging/backfill-dicom-metadata` + `scripts/backfill-dicom-metadata.mjs`                                                                        |
+| Workers rewrite                             | `proxy.ts` (lane A — not this doc)                                                                                                                                  |
+| Product telemetry (P3a)                     | `onImagingTelemetry` → `lib/imaging/report-imaging-telemetry.ts` — see `IMAGING_TELEMETRY.md`                                                                       |
+| DICOM export ZIP (P0/P1/P5/P7)              | `GET …/export-plan` + sync `…/export.zip?part=N` **ou** async `POST …/export-async` + `…/build` + signed TTL ; UI `downloadStudyDicomExport`                        |
+| Async export cleanup (P7 residual)          | Cron `GET /api/internal/imaging/cleanup-async-exports` (`vercel.json`) — TTL 2 h sur `exports/{patientId}/{jobId}/`                                                 |
+| Capabilities / feature flags (P4/P7/U1)     | `lib/imaging/viewer-capabilities.ts` → `getAppViewerCapabilities()` (`mp4Native` from `isMp4ViewerEnabled`, `engine` from `getImagingEngine`)                       |
+| Moteur Cornerstone3D (U1)                   | `lib/features/imaging-engine.ts` — `NEXT_PUBLIC_IMAGING_ENGINE=cornerstone` ; wasm `public/cornerstone/` (sync) ; `proxy.ts` matcher exclut `cornerstone` + `.wasm` |
+
+## Moteur Cornerstone3D (U1) — ops flip
+
+Package default `engine: 'dwv'`. Le chunk Cornerstone (core + tools + loader,
+~1,5 Mo gz + wasm à la demande) n'est **jamais** téléchargé tant que le flag
+n'est pas posé. Repli dwv automatique si le chunk / l'init échoue.
+
+| Variable                     | Valeur                     | Effet                                                                                   |
+| ---------------------------- | -------------------------- | --------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_IMAGING_ENGINE` | `cornerstone` (alias `cs`) | StackViewport Cornerstone3D, codecs J2K / JPEG-LS / JPEG natifs, pas de pool séquentiel |
+| (absente / autre)            | —                          | dwv historique                                                                          |
+
+Ordre recommandé : **Preview** des deux apps → smoke Tania (11 séries, nav,
+molette), Fatima (DX JPEG 2000 : plus de badge OpenJPEG), un CD JPEG-LS →
+**Production** des deux apps (même valeur) → smoke → puis U1b (retrait dwv).
+
+Vérifs réseau post-flip : `/cornerstone/openjpegwasm_decode.wasm` → **200**
+(pas de redirect login), worker `decodeImageFrameWorker` chargé depuis `/_next/static`.
 
 ## MP4 / m4v native viewer — prod ops flip
 
@@ -25,23 +44,23 @@ Code prêt sur Marcel **et** clinicien (HTML5 `<video>`, H.264/AAC). Le package
 garde `mp4Native: false` par défaut ; l’activation prod est **explicite** (pas
 d’auto-enable en Production, pour ne pas surprendre les navigateurs sans codec).
 
-| Environnement | Comportement |
-|---------------|--------------|
-| `development` / Vercel **Preview** | Actif automatiquement |
-| Vercel **Production** | Off tant que le flag n’est pas posé |
+| Environnement                      | Comportement                        |
+| ---------------------------------- | ----------------------------------- |
+| `development` / Vercel **Preview** | Actif automatiquement               |
+| Vercel **Production**              | Off tant que le flag n’est pas posé |
 
 **Variables acceptées** (truthy : `true` / `1` / `yes`) :
 
-| Variable | Rôle |
-|----------|------|
-| `NEXT_PUBLIC_ENABLE_MP4_VIEWER` | Canonique |
-| `NEXT_PUBLIC_MP4_VIEWER` | Alias (ex. `1`) |
+| Variable                        | Rôle            |
+| ------------------------------- | --------------- |
+| `NEXT_PUBLIC_ENABLE_MP4_VIEWER` | Canonique       |
+| `NEXT_PUBLIC_MP4_VIEWER`        | Alias (ex. `1`) |
 
 **Vercel — poser sur Production des deux apps**, puis redeploy :
 
-| Projet Vercel | Domaine |
-|---------------|---------|
-| `franchir-patient-tracker` | https://patients.franchir.eu |
+| Projet Vercel                      | Domaine                           |
+| ---------------------------------- | --------------------------------- |
+| `franchir-patient-tracker`         | https://patients.franchir.eu      |
 | `franchir-questionnaires-patients` | https://questionnaire.franchir.eu |
 
 ```bash
@@ -76,6 +95,7 @@ SoT = tracker uniquement — pas de cron côté questionnaires.
 
 Ops triage / deep-link / golden-path: [`IMAGING_RUNBOOK.md`](./IMAGING_RUNBOOK.md).  
 Phase A stabilize: [`IMAGING_STABILIZE.md`](./IMAGING_STABILIZE.md).
+
 ## Legacy backfill (P3b)
 
 Rows uploaded before upload-time persist may have `series_instance_uid IS NULL`.

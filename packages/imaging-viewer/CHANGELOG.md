@@ -1,5 +1,33 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.0
+
+- **U1 — moteur Cornerstone3D derrière le contrat** (`DicomViewerProps` inchangé) :
+  - Capability `engine: 'dwv' | 'cornerstone'` (défaut **`dwv`**) +
+    `cornerstoneWasmBasePath` (`/cornerstone/`) ; `parseViewerEngine()` pour le
+    flag app `NEXT_PUBLIC_IMAGING_ENGINE`.
+  - `DicomViewer` = switch moteur : host dwv historique (`DicomViewerDwv`) ou
+    host Cornerstone chargé en **dynamic import** (`DicomViewerCornerstone`,
+    subpath `/engine-cs`). Erreur de chunk / init → **repli dwv** (télémétrie
+    `series_open_ms` `outcome: fallback`, `reason: engine_unavailable`).
+  - Chrome partagé `DicomViewerChrome` (header, rail, toolbar, overlay, slider,
+    mention) — identique pour les deux moteurs.
+  - Engine : `StackViewport` `wadouri:` sur URLs signées, préchargement borné
+    (`maxPoolLoadConcurrency`), fichiers illisibles ignorés à la navigation,
+    W/L / invert / flip / zoom / presets / Auto via `viewport.setProperties` /
+    `setCamera`. Orientations hétérogènes acceptées → **plus de pool séquentiel
+    ni de repli OpenJPEG** sur ce moteur. `useLegacyMetadataProvider: true`
+    (provider « naturalized » 5.x perd le pixel data sous préchargement concurrent).
+  - Assets : `assets/cornerstone/*.wasm` (OpenJPEG, CharLS JPEG-LS, libjpeg-turbo,
+    OpenJPH) → `public/cornerstone/` via `imaging-viewer:sync` ; préfixe public
+    `CORNERSTONE_PUBLIC_DIR` hors auth middleware. Worker bundlé par Next.
+  - Télémétrie : `engine: 'cornerstone'` accepté (`ImagingTelemetryEngine`).
+  - Peer deps optionnelles `@cornerstonejs/core|tools|dicom-image-loader ^5.10`.
+- dwv : **fix** « Réinitialiser » après un miroir laissait un canvas noir ;
+  outil initial tactile (`ZoomAndPan`) posé par le host au lieu d'un reset forcé.
+- Script `sync-imaging-viewer-package.mjs --tracker-only` : MANIFEST + `public/`
+  tracker sans sibling Q.
+
 ## 0.14.0
 
 - **U0 — quick wins UX** (host dwv **et** repli OpenJPEG, parité Marcel / clinicien) :
@@ -31,7 +59,6 @@
   - Apps : cron cleanup Storage TTL (tracker) — voir runbook
 
 ## 0.13.2
-
 
 - MP4 prod readiness (docs / contrat) :
   - `mp4Native` documenté comme **ops flip** (Marcel + clinicien) — default

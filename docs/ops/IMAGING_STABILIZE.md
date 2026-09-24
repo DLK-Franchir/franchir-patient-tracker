@@ -89,7 +89,8 @@ Delete remote imaging branches whose PRs are **MERGED** (or clearly superseded).
 ## Suite U (UX visionneuse, 0.14.0+)
 
 - **U0 done (0.14.0)** — rail séries, molette = coupes, slider, presets HU seulement CT + Auto, inverser / miroir, overlay 4 coins, mention informatif ; parité repli OpenJPEG. Smoke : ouvrir Tania → rail 11 séries cliquable (desktop) / bouton « Séries » (mobile) ; molette change de coupe sans changer d'outil ; IRM sans presets HU.
-- **U1 next** — moteur Cornerstone3D flaggé (`engine`), puis retrait dwv. Voir `packages/imaging-viewer/PRODUCT.md`.
+- **U1a done (0.15.0, flag off)** — moteur Cornerstone3D derrière le contrat (`engine`, `NEXT_PUBLIC_IMAGING_ENGINE=cornerstone`), wasm `public/cornerstone/`, repli dwv. Smoke post-flip : `docs/ops/IMAGING_ADAPTERS.md` (section moteur).
+- **U1b next** — flip preview → prod deux apps, puis retrait dwv (pool séquentiel, repli OpenJPEG, rewrite workers).
 - **U2 future** — mesures, 2 viewports, MPR conditionnel.
 
 ## Hors suite

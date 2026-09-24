@@ -37,6 +37,8 @@ export {
   type DicomEncapsulatedPdfViewerProps,
 } from './dicom-encapsulated-pdf-viewer'
 export { DicomViewer, type DicomViewerProps } from './dicom-viewer'
+export { DicomViewerDwv } from './dicom-viewer-dwv'
+export { DicomViewerChrome, type DicomViewerChromeProps } from './viewer-chrome'
 export { useDwvViewportResize } from './use-dwv-viewport-resize'
 
 export {
