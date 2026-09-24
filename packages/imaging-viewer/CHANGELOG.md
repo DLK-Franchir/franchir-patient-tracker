@@ -13,6 +13,8 @@
   - MPR : bouton actif seulement si `isValidVolume` (orientation, taille et
     espacement homogènes) ; trois vues axial / sagittal / coronal. Sinon le
     bouton reste inactif.
+  - Comparaison : chaque viewport a son overlay (série, coupe, W/L). Un échec
+    de la série comparée s'affiche dans son panneau au lieu d'un viewport vide.
 
 ## 0.15.0
 

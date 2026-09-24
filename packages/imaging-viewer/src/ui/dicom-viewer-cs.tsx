@@ -36,6 +36,7 @@ import {
 import { formatMeasure, pointsRequired, type MeasureKind, type Vec3 } from '../engine-cs/geometry'
 import { seriesSupportsMpr } from '../engine-cs/reference'
 import { DicomViewerChrome } from './viewer-chrome'
+import { DicomCornerOverlay } from './viewer-corner-overlay'
 import { ViewerMeasureLayer, type ProjectedAnnotation } from './viewer-measure-layer'
 import { ViewerReferenceLine } from './viewer-reference-line'
 import { DicomMprPanel } from './dicom-mpr-panel'
@@ -236,7 +237,14 @@ export function DicomViewerCornerstone({
 
   const compareSeries = compareOn ? series?.[compareIndex] : undefined
   const compareUrlsKey = compareSeries?.urls.join('\n') ?? ''
-  const noopStatus = useCallback(() => undefined, [])
+  const noopNumber = useCallback(() => undefined, [])
+  const [compareStatus, setCompareStatus] = useState<'loading' | 'rendering' | 'ready' | 'error'>(
+    'loading'
+  )
+  const [compareError, setCompareError] = useState<string | null>(null)
+  const [compareSliceCount, setCompareSliceCount] = useState(1)
+  const [compareWindowLevel, setCompareWindowLevel] = useState<WindowLevelState>(null)
+  const [compareModality, setCompareModality] = useState<string | null>(null)
 
   useCornerstoneStack({
     urlsKey: compareUrlsKey,
@@ -245,15 +253,15 @@ export function DicomViewerCornerstone({
     capabilities,
     toolRef,
     navigateSlicesRef: compareNavigateRef,
-    setStatus: noopStatus,
-    setProgress: noopStatus,
-    setPreloadLoaded: noopStatus,
-    setErrorMessage: noopStatus,
+    setStatus: setCompareStatus,
+    setProgress: noopNumber,
+    setPreloadLoaded: noopNumber,
+    setErrorMessage: setCompareError,
     setSliceIndex: setCompareSlice,
-    setSliceCount: noopStatus,
-    setWindowLevel: noopStatus,
-    setModality: noopStatus,
-    setFailedIndexes: noopStatus,
+    setSliceCount: setCompareSliceCount,
+    setWindowLevel: setCompareWindowLevel,
+    setModality: setCompareModality,
+    setFailedIndexes: noopNumber,
     onSliceCountResolvedRef: compareSliceCountRef,
     active: compareOn && !mprOpen && compareUrlsKey.length > 0,
   })
@@ -778,6 +786,7 @@ export function DicomViewerCornerstone({
       onKeyDown={handleKeyDown}
       onSurfacePointerEnter={handleSurfacePointerEnter}
       toolbarExtra={toolbarExtra}
+      hideCornerOverlay={compareOn}
     >
       {mprOpen ? (
         <DicomMprPanel
@@ -789,6 +798,16 @@ export function DicomViewerCornerstone({
         <div className="absolute inset-0 flex min-h-0">
           <div className="relative min-w-0 flex-1">
             <div ref={elementRef} className="absolute inset-0" data-testid="dicom-cs-element" />
+            {compareOn && isReady ? (
+              <DicomCornerOverlay
+                modality={modality}
+                description={activeSeries?.description}
+                sliceIndex={sliceIndex}
+                sliceTotal={sliceCount}
+                windowLevel={windowLevel}
+                inverted={inverted}
+              />
+            ) : null}
             <ViewerMeasureLayer
               active={measureKind !== null}
               annotations={projected.annotations}
@@ -810,6 +829,31 @@ export function DicomViewerCornerstone({
                 className="absolute inset-0"
                 data-testid="dicom-cs-compare"
               />
+              {compareStatus === 'ready' ? (
+                <DicomCornerOverlay
+                  modality={compareModality ?? compareSeries?.modality}
+                  description={compareSeries?.description}
+                  sliceIndex={compareSlice}
+                  sliceTotal={compareSliceCount}
+                  windowLevel={compareWindowLevel}
+                />
+              ) : null}
+              {compareStatus === 'loading' || compareStatus === 'rendering' ? (
+                <p
+                  className="pointer-events-none absolute bottom-2 left-2 text-[11px] text-white/70"
+                  data-testid="dicom-compare-loading"
+                >
+                  Chargement…
+                </p>
+              ) : null}
+              {compareStatus === 'error' && compareError ? (
+                <p
+                  className="absolute inset-x-3 bottom-3 text-center text-xs text-white/85"
+                  data-testid="dicom-compare-error"
+                >
+                  {compareError}
+                </p>
+              ) : null}
               <ViewerReferenceLine
                 elementRef={compareElementRef}
                 handleRef={compareHandleRef}

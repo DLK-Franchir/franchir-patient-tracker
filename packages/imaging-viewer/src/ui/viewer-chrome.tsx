@@ -76,6 +76,11 @@ export type DicomViewerChromeProps = {
   onSurfacePointerEnter: () => void
   /** Boutons supplémentaires de la toolbar (mesures, ciné, comparaison, MPR). */
   toolbarExtra?: ReactNode
+  /**
+   * Masque l'overlay unique (comparaison : chaque viewport porte le sien,
+   * sinon le coin droit tombe sur la série comparée).
+   */
+  hideCornerOverlay?: boolean
   /** Conteneurs moteur (dwv layer group / élément Cornerstone). */
   children: ReactNode
 }
@@ -134,6 +139,7 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
     onKeyDown,
     onSurfacePointerEnter,
     toolbarExtra,
+    hideCornerOverlay = false,
     children,
   } = props
 
@@ -233,7 +239,7 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
           >
             {children}
 
-            {isReady ? (
+            {isReady && !hideCornerOverlay ? (
               <DicomCornerOverlay
                 modality={modality}
                 description={description}
