@@ -27,12 +27,13 @@ wasm à la demande) n'est **jamais** téléchargé tant que le flag n'est pas po
 Pas de `@cornerstonejs/tools` (worker incompatible Turbopack) : gestes dans
 `engine-cs/interaction.ts`. Repli dwv automatique si le chunk / l'init échoue.
 
-**U2 (0.15.2)** n'apparaît qu'avec ce flag : Distance / Angle / Cobb (non
+**U2 (0.15.3)** n'apparaît qu'avec ce flag : Distance / Angle / Cobb (non
 enregistrées), ciné, comparaison de deux séries (défilement et fenêtrage
 synchronisés, ligne de référence si les plans se coupent), MPR actif seulement
 sur une série homogène. Le moteur dwv ne montre pas ces boutons. Une radio
-JPEG 2000 que Cornerstone ne décode pas (Fatima) repasse par le viewer
-OpenJPEG.
+JPEG 2000 que Cornerstone ne décode pas (Fatima) reste dans la même barre :
+Fenêtrage, Zoom, Inverser et Miroir marchent ; Distance, Angle, Cobb, Ciné,
+Comparer et MPR restent visibles et grisés.
 
 | Variable                     | Valeur                     | Effet                                                                                   |
 | ---------------------------- | -------------------------- | --------------------------------------------------------------------------------------- |
@@ -40,8 +41,8 @@ OpenJPEG.
 | (absente / autre)            | —                          | dwv historique                                                                          |
 
 Ordre recommandé : **Preview** des deux apps → smoke Tania (11 séries, nav,
-molette), Fatima (DX JPEG 2000 : pixels visibles, badge OpenJPEG seulement si
-Cornerstone ne décode pas), un CD JPEG-LS →
+molette), Fatima (DX JPEG 2000 : pixels visibles, même barre d’outils, mesures
+grisées), un CD JPEG-LS →
 **Production** des deux apps (même valeur) → smoke → puis U1b (retrait dwv).
 
 Vérifs réseau post-flip : `/cornerstone/openjpegwasm_decode.wasm` → **200**

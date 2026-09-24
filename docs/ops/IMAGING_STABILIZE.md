@@ -91,7 +91,7 @@ Delete remote imaging branches whose PRs are **MERGED** (or clearly superseded).
 - **U0 done (0.14.0)** — rail séries, molette = coupes, slider, presets HU seulement CT + Auto, inverser / miroir, overlay 4 coins, mention informatif ; parité repli OpenJPEG. Smoke : ouvrir Tania → rail 11 séries cliquable (desktop) / bouton « Séries » (mobile) ; molette change de coupe sans changer d'outil ; IRM sans presets HU.
 - **U1a done (0.15.0, flag off)** — moteur Cornerstone3D derrière le contrat (`engine`, `NEXT_PUBLIC_IMAGING_ENGINE=cornerstone`), wasm `public/cornerstone/`, repli dwv. Smoke post-flip : `docs/ops/IMAGING_ADAPTERS.md` (section moteur).
 - **U1b next** — flip preview → prod deux apps, puis retrait dwv (pool séquentiel, repli OpenJPEG, rewrite workers).
-- **U2 done (0.15.2, flag off, Cornerstone seulement)** — Distance / Angle / Cobb non persistées, comparaison 2 vues (scroll + W/L), lignes de référence, ciné, MPR si `isValidVolume`. dwv ne les expose pas. JPEG 2000 non décodé par Cornerstone → viewer OpenJPEG.
+- **U2 done (0.15.3, flag off, Cornerstone seulement)** — Distance / Angle / Cobb non persistées, comparaison 2 vues (scroll + W/L), lignes de référence, ciné, MPR si `isValidVolume`. dwv ne les expose pas. JPEG 2000 non décodé par Cornerstone → même barre, outils impossibles grisés.
 
 ## Hors suite
 

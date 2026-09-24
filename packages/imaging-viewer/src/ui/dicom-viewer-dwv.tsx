@@ -498,7 +498,13 @@ export function DicomViewerDwv({
 
   useDwvViewportResize(surfaceRef, appRef, status === 'ready')
 
-  const tools: { id: DicomTool; label: string; shortLabel: string; available: boolean }[] = [
+  const tools: {
+    id: DicomTool
+    label: string
+    shortLabel: string
+    available: boolean
+    disabledTitle?: string
+  }[] = [
     { id: 'WindowLevel', label: 'Fenêtrage', shortLabel: 'Fenêt.', available: true },
     { id: 'ZoomAndPan', label: 'Zoom / Déplacement', shortLabel: 'Zoom', available: true },
     {
@@ -506,7 +512,11 @@ export function DicomViewerDwv({
       id: 'Scroll',
       label: 'Coupes',
       shortLabel: 'Coupes',
-      available: isCoarsePointer && isReady && sliceCount > 1 && navMode === 'stack',
+      available: isCoarsePointer && sliceCount > 1 && navMode === 'stack',
+      disabledTitle:
+        navMode !== 'stack' || sliceCount < 2
+          ? 'Une seule coupe navigable'
+          : 'Réservé à l’écran tactile : balayer pour changer de coupe',
     },
   ]
 

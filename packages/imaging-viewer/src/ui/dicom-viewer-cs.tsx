@@ -40,6 +40,7 @@ import { DicomCornerOverlay } from './viewer-corner-overlay'
 import { ViewerMeasureLayer, type ProjectedAnnotation } from './viewer-measure-layer'
 import { ViewerReferenceLine } from './viewer-reference-line'
 import { DicomMprPanel } from './dicom-mpr-panel'
+import { ViewerAdvancedTools } from './viewer-advanced-tools'
 import { viewerMobileHint, viewerToolHint, viewportLoadingMessage } from './messages'
 import { emitImagingTelemetry, nowMs } from '../telemetry'
 
@@ -603,117 +604,98 @@ export function DicomViewerCornerstone({
     setCompareOn(true)
   }
 
-  const measureButton = (kind: MeasureKind, label: string, testId: string) => (
-    <button
-      type="button"
-      disabled={!isReady || mprOpen}
-      aria-pressed={measureKind === kind}
-      onClick={() => selectMeasure(kind)}
-      className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-white transition disabled:opacity-30"
-      style={{
-        backgroundColor: measureKind === kind ? 'rgba(56,178,172,0.35)' : 'rgba(255,255,255,0.06)',
-      }}
-      data-testid={testId}
-    >
-      {label}
-    </button>
-  )
-
+  const measureBlocked = !isReady || mprOpen
+  const seriesCount = series?.length ?? 0
   const toolbarExtra = (
-    <>
-      {measureButton('length', 'Distance', 'dicom-tool-length')}
-      {measureButton('angle', 'Angle', 'dicom-tool-angle')}
-      {measureButton('cobb', 'Cobb', 'dicom-tool-cobb')}
-      {annotations.length > 0 ? (
-        <button
-          type="button"
-          onClick={() => {
-            setAnnotations([])
-            setDraftPoints([])
-            draftRef.current = []
-          }}
-          className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-white/80"
-          data-testid="dicom-measure-clear"
-        >
-          Effacer
-        </button>
-      ) : null}
-      <button
-        type="button"
-        disabled={!isReady || sliceCount < 2 || mprOpen}
-        aria-pressed={cine}
-        onClick={() => {
-          setMeasureKind(null)
-          setCine(value => !value)
-        }}
-        className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-white transition disabled:opacity-30"
-        style={{ backgroundColor: cine ? 'rgba(56,178,172,0.35)' : 'rgba(255,255,255,0.06)' }}
-        data-testid="dicom-cine"
-      >
-        Ciné
-      </button>
-      {(series?.length ?? 0) > 1 ? (
-        <button
-          type="button"
-          disabled={!isReady || mprOpen}
-          aria-pressed={compareOn}
-          onClick={toggleCompare}
-          className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-white transition disabled:opacity-30"
-          style={{
-            backgroundColor: compareOn ? 'rgba(56,178,172,0.35)' : 'rgba(255,255,255,0.06)',
-          }}
-          data-testid="dicom-compare"
-        >
-          Comparer
-        </button>
-      ) : null}
-      {compareOn && series ? (
-        <select
-          aria-label="Série comparée"
-          value={compareIndex}
-          onChange={event => setCompareIndex(Number(event.target.value))}
-          className="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-white"
-          data-testid="dicom-compare-series"
-        >
-          {series.map((item, index) => (
-            <option key={item.id} value={index} className="text-black">
-              {item.label}
-            </option>
-          ))}
-        </select>
-      ) : null}
-      <button
-        type="button"
-        disabled={!isReady || !volumeOk}
-        aria-pressed={mprOpen}
-        title={
-          volumeOk
-            ? 'Reconstruit les coupes en trois vues : de face, de profil et du dessus'
-            : 'MPR impossible : les coupes n’ont pas la même taille ou le même espacement'
-        }
-        onClick={() => {
-          setCompareOn(false)
-          setMeasureKind(null)
-          setCine(false)
-          setMprOpen(value => !value)
-        }}
-        className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-white transition disabled:opacity-30"
-        style={{ backgroundColor: mprOpen ? 'rgba(56,178,172,0.35)' : 'rgba(255,255,255,0.06)' }}
-        data-testid="dicom-mpr-toggle"
-      >
-        MPR
-      </button>
-    </>
+    <ViewerAdvancedTools
+      measureEnabled={!measureBlocked}
+      measureKind={measureKind}
+      onMeasure={selectMeasure}
+      measureTitle={() =>
+        mprOpen ? 'Fermez le MPR pour mesurer' : 'Mesure sur l’image affichée, non enregistrée'
+      }
+      afterMeasures={
+        annotations.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              setAnnotations([])
+              setDraftPoints([])
+              draftRef.current = []
+            }}
+            className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-white/80"
+            data-testid="dicom-measure-clear"
+          >
+            Effacer
+          </button>
+        ) : null
+      }
+      cineEnabled={isReady && sliceCount > 1 && !mprOpen}
+      cineOn={cine}
+      onCine={() => {
+        setMeasureKind(null)
+        setCine(value => !value)
+      }}
+      cineTitle={
+        sliceCount < 2 ? 'Il faut au moins deux coupes' : 'Défilement automatique des coupes'
+      }
+      compareEnabled={isReady && seriesCount > 1 && !mprOpen}
+      compareOn={compareOn}
+      onCompare={toggleCompare}
+      compareTitle={
+        seriesCount < 2 ? 'Il faut au moins deux séries' : 'Affiche une seconde série à côté'
+      }
+      compareExtra={
+        compareOn && series ? (
+          <select
+            aria-label="Série comparée"
+            value={compareIndex}
+            onChange={event => setCompareIndex(Number(event.target.value))}
+            className="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-white"
+            data-testid="dicom-compare-series"
+          >
+            {series.map((item, index) => (
+              <option key={item.id} value={index} className="text-black">
+                {item.label}
+              </option>
+            ))}
+          </select>
+        ) : null
+      }
+      mprEnabled={isReady && volumeOk}
+      mprOn={mprOpen}
+      onMpr={() => {
+        setCompareOn(false)
+        setMeasureKind(null)
+        setCine(false)
+        setMprOpen(value => !value)
+      }}
+      mprTitle={
+        volumeOk
+          ? 'Reconstruit les coupes en trois vues : de face, de profil et du dessus'
+          : 'MPR impossible : les coupes n’ont pas la même taille ou le même espacement'
+      }
+    />
   )
 
-  const tools: { id: DicomTool; label: string; shortLabel: string; available: boolean }[] = [
+  const tools: {
+    id: DicomTool
+    label: string
+    shortLabel: string
+    available: boolean
+    disabledTitle?: string
+  }[] = [
     { id: 'WindowLevel', label: 'Fenêtrage', shortLabel: 'Fenêt.', available: true },
     { id: 'ZoomAndPan', label: 'Zoom / Déplacement', shortLabel: 'Zoom', available: true },
     {
       id: 'Scroll',
       label: 'Coupes',
       shortLabel: 'Coupes',
-      available: isCoarsePointer && isReady && sliceCount > 1,
+      available: isCoarsePointer && sliceCount > 1,
+      disabledTitle:
+        sliceCount < 2
+          ? 'Une seule coupe'
+          : 'Réservé à l’écran tactile : balayer pour changer de coupe',
     },
   ]
 

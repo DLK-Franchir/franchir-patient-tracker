@@ -44,7 +44,13 @@ export type DicomViewerChromeProps = {
   progress: number
   viewportMessage: string
 
-  tools: { id: DicomTool; label: string; shortLabel: string; available: boolean }[]
+  tools: {
+    id: DicomTool
+    label: string
+    shortLabel: string
+    available: boolean
+    disabledTitle?: string
+  }[]
   tool: DicomTool
   activateTool: (tool: DicomTool) => void
   handleZoomStep: (step: number) => void

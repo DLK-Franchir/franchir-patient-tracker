@@ -10,7 +10,14 @@ import { ViewerInfoBubble } from './viewer-info-bubble'
 export type WindowPreset = (typeof WL_PRESETS)[number]
 
 export type DicomViewerToolbarProps = {
-  tools: { id: DicomTool; label: string; shortLabel: string; available: boolean }[]
+  tools: {
+    id: DicomTool
+    label: string
+    shortLabel: string
+    available: boolean
+    /** Affiché au survol quand le bouton est grisé. */
+    disabledTitle?: string
+  }[]
   tool: DicomTool
   isReady: boolean
   activateTool: (tool: DicomTool) => void
@@ -103,26 +110,40 @@ export function DicomViewerToolbar({
           </button>
         ) : null}
 
-        {tools
-          .filter(t => t.available)
-          .map(t => (
+        {tools.map(t => {
+          const button = (
             <button
-              key={t.id}
+              key={t.available ? t.id : undefined}
               type="button"
-              onClick={() => activateTool(t.id)}
-              disabled={!isReady}
-              aria-pressed={tool === t.id}
+              onClick={() => {
+                if (t.available) activateTool(t.id)
+              }}
+              disabled={!isReady || !t.available}
+              aria-pressed={t.available && tool === t.id}
               aria-label={t.label}
+              title={t.available ? t.label : undefined}
               className={TOOL_BTN}
               style={{
-                backgroundColor: tool === t.id ? VIEWER_ACCENT : 'rgba(255,255,255,0.08)',
+                backgroundColor:
+                  t.available && tool === t.id ? VIEWER_ACCENT : 'rgba(255,255,255,0.08)',
                 color: '#FFFFFF',
               }}
             >
               <span className="sm:hidden">{t.shortLabel}</span>
               <span className="hidden sm:inline">{t.label}</span>
             </button>
-          ))}
+          )
+          if (t.available) return button
+          return (
+            <span
+              key={t.id}
+              title={t.disabledTitle ?? 'Indisponible pour cette image'}
+              className="inline-flex"
+            >
+              {button}
+            </span>
+          )
+        })}
 
         <div className="flex items-center gap-1 sm:hidden">
           <button

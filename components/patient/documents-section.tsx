@@ -1068,6 +1068,13 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                 modality={selectedItem.modality ?? null}
                 onClose={() => setSelectedId(null)}
                 onImagingTelemetry={reportImagingTelemetry}
+                onDownloadSeries={
+                  selectedItem.kind === 'dicom-series' ? handleDownloadSeries : undefined
+                }
+                onDownloadStudy={
+                  selectedItem.kind === 'dicom-series' ? handleDownloadStudy : undefined
+                }
+                downloadBusy={downloadBusy}
               />
             ) : (
               <>

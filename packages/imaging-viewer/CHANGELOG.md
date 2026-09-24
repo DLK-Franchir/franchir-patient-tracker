@@ -1,5 +1,12 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.3
+
+- **Même barre d’outils** sur le lecteur principal et le repli JPEG 2000
+  (Fatima, séries Tania en JPEG 2000) : Fenêtrage, Zoom, Inverser, Miroir,
+  Distance, Angle, Cobb, Ciné, Comparer, MPR. Un outil inutilisable reste
+  visible et grisé, avec la raison au survol.
+
 ## 0.15.2
 
 - **Radios JPEG 2000 (Fatima)** : si Cornerstone ne décode pas l’image, ou si le
