@@ -33,16 +33,15 @@ export function viewerToolHint(input: {
   sliceCount: number
 }): string {
   const { navMode, fileCount, tool, sliceCount } = input
-  if (navMode === 'sequential' && fileCount > 1) {
-    return '← → : fichier précédent / suivant'
-  }
-  if (tool === 'Scroll' && sliceCount > 1) {
-    return 'Molette ou ← → : changer de coupe'
-  }
+  const hasSlices = sliceCount > 1 || (navMode === 'sequential' && fileCount > 1)
+  const scrollHint = hasSlices ? ' · molette ou ← → : coupes' : ''
   if (tool === 'ZoomAndPan') {
-    return 'Glisser : déplacer · pincement ou +/- : zoom'
+    return `Glisser : déplacer · +/- : zoom${scrollHint}`
   }
-  return 'Glisser : ajuster le fenêtrage (activez Coupes pour naviguer)'
+  if (tool === 'Scroll') {
+    return 'Glisser ou molette : changer de coupe'
+  }
+  return `Glisser : fenêtrage${scrollHint} · I : inverser`
 }
 
 export function viewerMobileHint(input: {
@@ -54,7 +53,10 @@ export function viewerMobileHint(input: {
     return 'Pincez ou utilisez +/- pour zoomer · glissez pour déplacer'
   }
   if (tool === 'Scroll' && sliceCount > 1) {
-    return 'Balayez ou utilisez Préc./Suiv. pour changer de coupe'
+    return 'Balayez ou utilisez le curseur pour changer de coupe'
+  }
+  if (sliceCount > 1) {
+    return 'Curseur ou Préc./Suiv. : coupes · Zoom pour agrandir'
   }
   return "Choisissez Zoom pour agrandir l'image"
 }

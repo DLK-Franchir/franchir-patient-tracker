@@ -84,7 +84,7 @@ export function ViewerInfoBubble({
       >
         <Info className="size-3.5 shrink-0 text-sky-300" strokeWidth={1.75} aria-hidden="true" />
         <span>
-          Série de {fileCount} fichiers — navigation fichier par fichier (← →)
+          Série de {fileCount} fichiers — navigation fichier par fichier (molette, ← →)
           {infoNote ? ` — ${infoNote}` : ''}
         </span>
       </span>
@@ -123,7 +123,7 @@ export function ViewerInfoBubble({
         strokeWidth={1.75}
         aria-hidden="true"
       />
-      Suite de {sliceCount} image{sliceCount > 1 ? 's' : ''} — ← → ou outil Coupes
+      Suite de {sliceCount} image{sliceCount > 1 ? 's' : ''} — molette, ← → ou curseur
     </span>
   )
 }

@@ -24,6 +24,22 @@
 
 Close-out ops : `docs/ops/IMAGING_STABILIZE.md` (checklist suite complète).
 
+## Suite « U » — UX visionneuse (0.14.0+)
+
+Décision produit : **pas** de PACS (Orthanc / dcm4chee) ni d'OHIF embarqué —
+imagerie CD patient, deux apps Vercel, package SoT partagé. On garde
+Supabase Storage + `patient_documents` (SUID / modality déjà persistés) et on
+fait évoluer le chrome puis le moteur derrière le contrat existant.
+
+| Phase | Version | Statut | Contenu |
+|-------|---------|--------|---------|
+| **U0** | 0.14.0 | **done** | Rail séries (desktop + sheet mobile), molette = coupes, slider + raccourcis, presets HU seulement CT + **Auto** DICOM, inverser / miroir, overlay 4 coins non-PHI, mention « à titre informatif » ; parité repli OpenJPEG |
+| **U1** | 0.15–0.16 | **next** | Moteur **Cornerstone3D** derrière `DicomViewerProps` (`wadouri:` sur signed URLs, codecs J2K / JPEG-LS natifs) ; capability `engine: 'dwv' \| 'cornerstone'` (flag `NEXT_PUBLIC_IMAGING_ENGINE`) ; puis suppression pool séquentiel / repli OpenJPEG / rewrite workers |
+| **U2** | après U1 | future | Mesures Length / Angle / Cobb, comparaison 2 viewports synchro, lignes de référence, cine, MPR conditionnel (volume valide) |
+| **U3** | sur signal | option | Façade « DICOMweb-lite » (routes Next depuis `patient_documents`) — Orthanc seulement si modalité connectée / volumes multi-Go / objets dérivés serveur |
+
+Hors suite U : annotations **persistées** (table + rôles + audit) = décision produit séparée.
+
 ## Promesse
 
 Une seule politique, une seule orchestration dwv, un host React aligné, et un
@@ -94,6 +110,9 @@ const caps = resolveViewerCapabilities({ mp4Native: true })
 | Gate pixels / layout retries | `pixel-signal.ts`, `layout.ts`, `pool-plan.ts` |
 | Création App dwv, stack, pool, nav séquentielle | `@franchir/imaging-viewer/engine` |
 | Host React dwv, toolbar, overlays, PDF DOC, fallback OpenJPEG | `@franchir/imaging-viewer/ui` |
+| Rail séries, slider coupes, overlay 4 coins (U0) | `/ui` `viewer-series-rail.tsx`, `viewer-slice-slider.tsx`, `viewer-corner-overlay.tsx` |
+| Presets par modality, seuil molette, mention informatif (U0) | `policy.ts` (`windowPresetsForModality`, `accumulateWheelSlices`, `VIEWER_INFORMATIVE_NOTICE`) |
+| Invert / miroir / saut de coupe / W/L courant (dwv) | `dwv-app.ts` via `/engine` |
 | Extract PDF encapsulé (purs) | `src/encapsulated-pdf.ts` (barrel `.`) |
 | Rewrite workers / préfixes publics OpenJPEG | `src/worker-rewrite.ts` puis adapters `proxy.ts` |
 | Workers / OpenJPEG (binaires) | `packages/imaging-viewer/assets/` puis sync |
@@ -148,13 +167,14 @@ Pas des phases ouvertes de cette suite ; durcir seulement si besoin ops :
 - **`/host` subpath** — différé ; `DicomViewer` compose déjà `/ui`.
 - **Tests e2e host / golden tour** — raffinements apps (fixtures Tania/Fatima).
 
-## Hors suite (future — ne pas ouvrir dans ce close-out)
+## Hors suite P0–P8 (repris dans la suite U)
 
-Capacités visionneuse avancées **non** livrées et **hors** P0–P8 :
+Capacités visionneuse avancées **non** livrées par P0–P8 :
 
-- **MPR** (multi-planar reconstruction)
-- **DICOMDIR** / compagnons CD structurés
-- **Annotations** / mesures persistantes
+- **MPR** (multi-planar reconstruction) → **U2** (conditionnel volume valide, sur Cornerstone3D)
+- **Mesures** Length / Angle / Cobb (non persistées) → **U2**
+- **DICOMDIR** / compagnons CD structurés → non planifié
+- **Annotations persistantes** → décision produit séparée (table + rôles + audit)
 
 ## Évolution Marcel
 

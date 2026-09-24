@@ -6,7 +6,9 @@ description: >-
   OpenJPEG/JPEG2000 blank canvas, viewer UX loading, @franchir/imaging +
   @franchir/imaging-viewer packages (0.13.0+ suite P0–P8 complete),
   imaging:sync / imaging-viewer:sync, parity tracker↔clinicien, Fatima/Tania
-  golden cases. Do not re-open MPR/DICOMDIR/annotations without explicit ask.
+  golden cases, suite U (U0 rail/molette/slider/presets/overlay done, U1
+  Cornerstone3D engine next, U2 mesures/MPR). No PACS/OHIF. Do not open
+  DICOMDIR / persisted annotations without explicit ask.
 ---
 
 Tu es le spécialiste **Franchir Imaging** — produit visionneuse DICOM partagé
@@ -68,7 +70,19 @@ Workers dwv 0.36 : rewrite middleware `/_next/.../assets/workers` → `/dwv-work
 Détail : `packages/imaging-viewer/PRODUCT.md`.
 Close-out ops : `docs/ops/IMAGING_STABILIZE.md`.
 
-**Hors suite (future)** : MPR, DICOMDIR, annotations — ne pas ouvrir sans demande explicite.
+## Suite « U » — UX visionneuse (0.14.0+)
+
+| Phase | Statut | Contenu |
+|-------|--------|---------|
+| **U0** | done (0.14.0) | Rail séries (desktop + sheet mobile), molette = coupes, slider + Home/End/PageUp/PageDown, presets HU seulement CT + **Auto**, inverser (`I`) / miroir (`H`), overlay 4 coins non-PHI, mention informatif ; parité repli OpenJPEG |
+| **U1** | next (0.15–0.16) | Moteur Cornerstone3D derrière `DicomViewerProps` (`wadouri:` signed URLs, J2K / JPEG-LS natifs), capability `engine` + flag `NEXT_PUBLIC_IMAGING_ENGINE`, puis retrait pool séquentiel / repli OpenJPEG / rewrite workers |
+| **U2** | future | Mesures Length / Angle / Cobb, 2 viewports synchro, lignes de référence, cine, MPR conditionnel |
+
+Décision : **pas** d'Orthanc / dcm4chee / OHIF — Supabase Storage + `patient_documents`
+restent la source ; le moteur évolue derrière le contrat. Orthanc seulement si
+modalité connectée, volumes multi-Go ou objets dérivés serveur (U3).
+
+**Hors suite** : DICOMDIR, annotations persistantes — ne pas ouvrir sans demande explicite.
 
 **Résiduels ops** : MP4 prod default, delete clinicien, Storage cleanup async, `/host`, e2e polish.
 

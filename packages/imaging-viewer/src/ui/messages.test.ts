@@ -32,7 +32,7 @@ describe('viewportLoadingMessage', () => {
 })
 
 describe('viewer hints', () => {
-  it('oriente la nav fichier en sequential', () => {
+  it('annonce molette = coupes en sequential comme en stack (U0)', () => {
     expect(
       viewerToolHint({
         navMode: 'sequential',
@@ -40,7 +40,16 @@ describe('viewer hints', () => {
         tool: 'WindowLevel',
         sliceCount: 1,
       }),
-    ).toMatch(/fichier/)
+    ).toMatch(/molette ou ← → : coupes/)
+    expect(
+      viewerToolHint({ navMode: 'stack', fileCount: 20, tool: 'ZoomAndPan', sliceCount: 20 }),
+    ).toMatch(/molette ou ← → : coupes/)
+  })
+
+  it('ne parle pas de coupes sur une image unique', () => {
+    expect(
+      viewerToolHint({ navMode: 'stack', fileCount: 1, tool: 'WindowLevel', sliceCount: 1 }),
+    ).not.toMatch(/coupes/)
   })
 
   it('mobile hint zoom', () => {

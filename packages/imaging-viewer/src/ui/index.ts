@@ -23,7 +23,11 @@ export {
 export {
   DicomViewerToolbar,
   type DicomViewerToolbarProps,
+  type WindowPreset,
 } from './viewer-toolbar'
+export { DicomSeriesRail, type DicomSeriesRailProps } from './viewer-series-rail'
+export { DicomCornerOverlay, type DicomCornerOverlayProps } from './viewer-corner-overlay'
+export { DicomSliceSlider, type DicomSliceSliderProps } from './viewer-slice-slider'
 export {
   DicomJpeg2000FallbackViewer,
   type DicomJpeg2000FallbackViewerProps,

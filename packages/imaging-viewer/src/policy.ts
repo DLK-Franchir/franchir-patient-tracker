@@ -1,6 +1,9 @@
 import type { NavMode, ViewerCapabilities, ViewerInfoKind, ViewerStatus } from './contract'
 
-/** Presets fenêtrage courants en neurochirurgie / IRM rachis. */
+/**
+ * Presets fenêtrage en unités Hounsfield — pertinents uniquement pour le
+ * scanner (CT). Sur IRM / radio ils n'ont pas de sens : masqués (U0).
+ */
 export const WL_PRESETS = [
   { id: 'soft', label: 'Tissus mous', center: 40, width: 400 },
   { id: 'bone', label: 'Os', center: 300, width: 1500 },
@@ -8,6 +11,78 @@ export const WL_PRESETS = [
 ] as const
 
 export type WlPresetId = (typeof WL_PRESETS)[number]['id']
+
+/** Modalités pour lesquelles les presets HU sont proposés. */
+export const HU_PRESET_MODALITIES: readonly string[] = ['CT']
+
+/** Normalise une modality DICOM (`' mr '` → `'MR'`), `null` si vide. */
+export function normalizeModality(modality: string | null | undefined): string | null {
+  const key = (modality ?? '').trim().toUpperCase()
+  return key.length > 0 ? key : null
+}
+
+/**
+ * Presets à afficher pour la modality ouverte. Inconnue → aucun preset HU
+ * (le bouton « Auto » reste toujours disponible).
+ */
+export function windowPresetsForModality(
+  modality: string | null | undefined
+): readonly (typeof WL_PRESETS)[number][] {
+  const key = normalizeModality(modality)
+  if (!key) return []
+  return HU_PRESET_MODALITIES.includes(key) ? WL_PRESETS : []
+}
+
+/** Seuil deltaY (px) cumulé avant de changer de coupe au trackpad. */
+export const WHEEL_SLICE_STEP_PX = 24
+/** Au-delà, un événement seul est un cran de souris : exactement une coupe. */
+export const WHEEL_NOTCH_PX = 50
+
+/**
+ * Convertit un événement molette en nombre de coupes (signé) + reste cumulé.
+ * - `deltaMode` ligne/page (Firefox) ou cran souris (|deltaY| ≥ `WHEEL_NOTCH_PX`)
+ *   → **une** coupe par cran (Horos / RadiAnt), reste remis à zéro.
+ * - Petits deltas trackpad → cumul jusqu'au seuil `WHEEL_SLICE_STEP_PX`.
+ */
+export function accumulateWheelSlices(
+  accumulated: number,
+  deltaY: number,
+  deltaMode: number = 0,
+  stepPx: number = WHEEL_SLICE_STEP_PX
+): { steps: number; remainder: number } {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return { steps: 0, remainder: accumulated }
+  if (deltaMode !== 0 || Math.abs(deltaY) >= WHEEL_NOTCH_PX) {
+    return { steps: deltaY > 0 ? 1 : -1, remainder: 0 }
+  }
+  const total = accumulated + deltaY
+  const steps = Math.trunc(total / stepPx)
+  return { steps, remainder: total - steps * stepPx }
+}
+
+/** Mention affichée dans le chrome : visionneuse de consultation, pas de diagnostic. */
+export const VIEWER_INFORMATIVE_NOTICE =
+  'Visualisation à titre informatif — ne remplace pas la lecture diagnostique.'
+
+/** Texte overlay W/L (arrondi, unités libres : HU pour CT, valeurs brutes sinon). */
+export function formatWindowLevelOverlay(
+  wl: { center: number; width: number } | null | undefined
+): string | null {
+  if (!wl || !Number.isFinite(wl.center) || !Number.isFinite(wl.width)) return null
+  return `F ${Math.round(wl.width)} / C ${Math.round(wl.center)}`
+}
+
+/** Libellé haut-gauche overlay : `MR · SAG T2` / `CT` / description seule. */
+export function formatSeriesOverlayLabel(input: {
+  modality?: string | null
+  description?: string | null
+}): string | null {
+  const modality = normalizeModality(input.modality)
+  const description = (input.description ?? '').trim()
+  if (modality && description) return `${modality} · ${description}`
+  if (modality) return modality
+  if (description) return description
+  return null
+}
 
 /** Limite mémoire : une App dwv isolée par fichier en mode séquentiel. */
 export const MAX_SEQUENTIAL_POOL = 50
@@ -34,7 +109,7 @@ export const DEFAULT_VIEWER_CAPABILITIES: ViewerCapabilities = {
 
 /** Fusion shallow des overrides app sur les defaults produit. */
 export function resolveViewerCapabilities(
-  overrides?: Partial<ViewerCapabilities> | null,
+  overrides?: Partial<ViewerCapabilities> | null
 ): ViewerCapabilities {
   if (!overrides) return { ...DEFAULT_VIEWER_CAPABILITIES }
   return { ...DEFAULT_VIEWER_CAPABILITIES, ...overrides }
@@ -70,9 +145,7 @@ export function orientationFallbackMessage(seriesName?: string | null): string {
  * codage (« selective arithmetic coding bypass », marqueur COD) utilisées par
  * des radios DX. Dans ce cas on bascule vers le viewer de repli OpenJPEG.
  */
-export function isUnsupportedJpeg2000Error(
-  message: string | null | undefined,
-): boolean {
+export function isUnsupportedJpeg2000Error(message: string | null | undefined): boolean {
   if (!message?.trim()) return false
   const lower = message.toLowerCase()
   return (
@@ -119,7 +192,11 @@ export function formatDicomLoadError(message: string | null | undefined): string
   ) {
     return 'Format DICOM non supporté (JPEG Lossless) — contactez le support'
   }
-  if (lower.includes('codec') || lower.includes('decompress') || lower.includes('transfer syntax')) {
+  if (
+    lower.includes('codec') ||
+    lower.includes('decompress') ||
+    lower.includes('transfer syntax')
+  ) {
     return 'Format DICOM non supporté — contactez le support'
   }
   if (
