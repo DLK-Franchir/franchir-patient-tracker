@@ -16,6 +16,7 @@ import {
   MAX_DOCUMENTS_LISTED,
   PATIENT_DOCUMENTS_BUCKET,
 } from '@/lib/documents/patient-documents'
+import { fetchPatientDocumentRows } from '@/lib/documents/fetch-patient-document-rows'
 
 /** Plafond série ZIP (sync) — au-delà, risque timeout Vercel. */
 export const MAX_SERIES_EXPORT_FILES = 500
@@ -498,31 +499,36 @@ export async function loadPatientDicomExportRows(
   supabase: SupabaseClient,
   patientId: string,
 ): Promise<DicomExportRow[]> {
-  const { data: rows, error } = await supabase
-    .from('patient_documents')
-    .select(
+  // Pagination PostgREST : `.limit(MAX)` seul est tronqué à max_rows=1000.
+  const { rows } = await fetchPatientDocumentRows<{
+    id: string
+    file_path: string
+    file_name: string
+    size_bytes: number | null
+    sop_instance_uid: string | null
+    series_instance_uid: string | null
+    series_description: string | null
+    body_part: string | null
+    instance_number: number | null
+    acquisition_datetime: string | null
+  }>(supabase, patientId, {
+    select:
       'id, file_path, file_name, size_bytes, sop_instance_uid, series_instance_uid, series_description, body_part, instance_number, acquisition_datetime, kind',
-    )
-    .eq('patient_id', patientId)
-    .eq('kind', 'dicom')
-    .order('created_at', { ascending: false })
-    .limit(MAX_DOCUMENTS_LISTED)
+    kind: 'dicom',
+    limit: MAX_DOCUMENTS_LISTED,
+  })
 
-  if (error) {
-    throw new Error('Failed to list dicom documents for export')
-  }
-
-  return (rows ?? []).map((row) => ({
-    id: row.id as string,
-    filePath: row.file_path as string,
-    fileName: row.file_name as string,
-    sizeBytes: (row.size_bytes as number | null) ?? null,
-    seriesInstanceUid: (row.series_instance_uid as string | null) ?? null,
-    seriesDescription: (row.series_description as string | null) ?? null,
-    bodyPart: (row.body_part as string | null) ?? null,
-    instanceNumber: (row.instance_number as number | null) ?? null,
-    sopInstanceUid: (row.sop_instance_uid as string | null) ?? null,
-    acquisitionDatetime: (row.acquisition_datetime as string | null) ?? null,
+  return rows.map((row) => ({
+    id: row.id,
+    filePath: row.file_path,
+    fileName: row.file_name,
+    sizeBytes: row.size_bytes ?? null,
+    seriesInstanceUid: row.series_instance_uid ?? null,
+    seriesDescription: row.series_description ?? null,
+    bodyPart: row.body_part ?? null,
+    instanceNumber: row.instance_number ?? null,
+    sopInstanceUid: row.sop_instance_uid ?? null,
+    acquisitionDatetime: row.acquisition_datetime ?? null,
   }))
 }
 

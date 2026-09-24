@@ -43,6 +43,22 @@ export const SIGNED_URL_TTL_SECONDS = 1800
 export const MAX_DOCUMENTS_LISTED = 6000
 
 /**
+ * Taille de page PostgREST. Le projet Supabase (et `supabase/config.toml`)
+ * impose `max_rows = 1000` : un `.limit(6000)` seul est silencieusement
+ * tronqué à 1000 → ~13 séries au lieu de ~36 sur les gros dossiers.
+ * Le listing pagine donc par tranches ≤ cette valeur.
+ */
+export const DOCUMENTS_LIST_PAGE_SIZE = 1000
+
+/**
+ * Taille de lot `createSignedUrls`. Un seul appel avec des milliers de
+ * chemins échoue partiellement ; les URLs manquantes étaient ignorées
+ * (`if (!signedUrl) continue`) et faisaient disparaître les séries récentes
+ * après le re-tri ASC.
+ */
+export const SIGNED_URL_BATCH_SIZE = 100
+
+/**
  * Catégorie de stockage persistée dans patient_documents.kind :
  *  - 'dicom'    : imagerie DICOM (visionneuse dwv)
  *  - 'document' : PDF / image / autre document
