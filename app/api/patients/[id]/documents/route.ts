@@ -80,8 +80,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const service = createServiceRoleClient()
-    const documents = await listPatientDocuments(service, patientId)
-    const response = NextResponse.json({ documents })
+    const { documents, listingTruncated } = await listPatientDocuments(service, patientId)
+    const response = NextResponse.json({ documents, listingTruncated })
     response.headers.set('Cache-Control', 'no-store')
     return response
   } catch (error) {

@@ -6,7 +6,7 @@ App-local wiring around `@franchir/imaging-viewer` (package SoT). Do not put aut
 
 | Concern | Module |
 |---------|--------|
-| Listing + batch signed URLs | `lib/documents/list-patient-documents.ts` (TTL `SIGNED_URL_TTL_SECONDS` = 1800) |
+| Listing + batch signed URLs | `lib/documents/list-patient-documents.ts` (TTL `SIGNED_URL_TTL_SECONDS` = 1800 ; plafond `MAX_DOCUMENTS_LISTED` = 6000, **plus récents d’abord**) |
 | Soft-refresh before open | `lib/documents/signed-url-freshness.ts` + `components/patient/documents-section.tsx` |
 | Pont Q imaging (no Range enrich by default) | `lib/integrations/fetch-questionnaire-imaging.ts` (`enrichMetadata=0`) |
 | Series / DOC PDF grouping | `@franchir/imaging` via `groupDicomFilesByMetadata` |
