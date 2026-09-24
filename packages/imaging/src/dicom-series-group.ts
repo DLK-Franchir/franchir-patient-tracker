@@ -497,6 +497,26 @@ const META_MODALITY_LABELS: Record<string, string> = {
   DOC: 'Document',
 }
 
+/**
+ * Modalités DICOM sans pixels visualisables dans la visionneuse (parasites CD/PACS).
+ * Ex. Structured Report « Compte rendu », Presentation State, Key Object Selection.
+ * DOC (PDF encapsulé) est volontairement exclu : carte PDF dédiée.
+ */
+const NON_IMAGE_DICOM_MODALITIES = new Set([
+  'SR',
+  'PR',
+  'KO',
+  'RTSTRUCT',
+  'RTDOSE',
+  'RTPLAN',
+  'SEG',
+])
+
+export function isNonImageDicomModality(modality: string | null | undefined): boolean {
+  const key = (modality ?? '').trim().toUpperCase()
+  return key.length > 0 && NON_IMAGE_DICOM_MODALITIES.has(key)
+}
+
 export function dicomModalityLabel(modality: string | null | undefined): string | null {
   const key = (modality ?? '').trim().toUpperCase()
   if (!key) return null

@@ -24,6 +24,7 @@ export {
   groupDicomFilesByMetadata,
   groupDicomFilesIntoSeries,
   isEncapsulatedPdfGroupId,
+  isNonImageDicomModality,
   pickPreferredBootstrapIndex,
   stripStorageTimestampPrefix,
   type DicomMetaSeriesGroup,

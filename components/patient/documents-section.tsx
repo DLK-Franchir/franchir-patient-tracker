@@ -32,7 +32,7 @@ import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
-import { groupDicomFilesByMetadata } from '@/lib/imaging/dicom-series-group'
+import { groupDicomFilesByMetadata, isNonImageDicomModality } from '@/lib/imaging/dicom-series-group'
 import { filterQuestionnaireImagingAgainstTracker } from '@/lib/imaging/dedupe-imaging-sources'
 import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
 import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
@@ -160,7 +160,9 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
     }
   }
 
-  const dicomDocs = docs.filter((d) => d.renderType === 'dicom')
+  const dicomDocs = docs.filter(
+    (d) => d.renderType === 'dicom' && !isNonImageDicomModality(d.modality),
+  )
   for (const series of groupDicomFilesByMetadata(
     dicomDocs.map((d) => ({
       name: d.fileName,
@@ -177,6 +179,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   )) {
     const first = series.files[0]
     if (!first) continue
+    if (isNonImageDicomModality(first.modality)) continue
     const kind =
       series.isEncapsulatedPdf && VIEWER_CAPS.encapsulatedPdf
         ? 'dicom-pdf-series'
@@ -231,10 +234,13 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
         seriesDescription: f.seriesDescription,
         sopInstanceUid: f.sopInstanceUid,
         instanceNumber: f.instanceNumber,
+        // Pont Q n'expose pas encore modality — filtre SR côté tracker only.
+        modality: null as string | null,
       })),
   )) {
     const first = series.files[0]
     if (!first) continue
+    if (isNonImageDicomModality(first.modality)) continue
     const kind =
       series.isEncapsulatedPdf && VIEWER_CAPS.encapsulatedPdf
         ? 'questionnaire-dicom-pdf-series'
