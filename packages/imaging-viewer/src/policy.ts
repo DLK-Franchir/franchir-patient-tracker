@@ -1,4 +1,10 @@
-import type { NavMode, ViewerCapabilities, ViewerInfoKind, ViewerStatus } from './contract'
+import type {
+  NavMode,
+  ViewerCapabilities,
+  ViewerEngine,
+  ViewerInfoKind,
+  ViewerStatus,
+} from './contract'
 
 /**
  * Presets fenêtrage en unités Hounsfield — pertinents uniquement pour le
@@ -96,7 +102,22 @@ export const RENDER_READY_DELAYS_MS = [400, 800, 1500, 3000, 6000, 10000, 15000]
 export const STACK_PROGRESS_FALLBACK_MS = 600
 export const LAYOUT_RETRY_DELAYS_MS = [0, 50, 150, 400, 800] as const
 
+/** Dossier public des `.wasm` Cornerstone (voir `assets/cornerstone`, sync → `public/`). */
+export const CORNERSTONE_WASM_PUBLIC_DIR = '/cornerstone/'
+
+const VIEWER_ENGINES: readonly ViewerEngine[] = ['dwv', 'cornerstone']
+
+/** `NEXT_PUBLIC_IMAGING_ENGINE` (ou autre source) → moteur valide, sinon `null`. */
+export function parseViewerEngine(raw: string | null | undefined): ViewerEngine | null {
+  const key = (raw ?? '').trim().toLowerCase()
+  if (key === 'cornerstone' || key === 'cs' || key === 'cornerstone3d') return 'cornerstone'
+  if (key === 'dwv') return 'dwv'
+  return VIEWER_ENGINES.includes(key as ViewerEngine) ? (key as ViewerEngine) : null
+}
+
 export const DEFAULT_VIEWER_CAPABILITIES: ViewerCapabilities = {
+  engine: 'dwv',
+  cornerstoneWasmBasePath: CORNERSTONE_WASM_PUBLIC_DIR,
   maxSequentialPool: MAX_SEQUENTIAL_POOL,
   maxPoolLoadConcurrency: MAX_POOL_LOAD_CONCURRENCY,
   stackMode: true,
@@ -152,6 +173,57 @@ export function isUnsupportedJpeg2000Error(message: string | null | undefined): 
     lower.includes('jpx') ||
     lower.includes('selectivearithmeticcodingbypass') ||
     (lower.includes('unsupported') && lower.includes('cod options'))
+  )
+}
+
+/** JPEG 2000 DICOM (lossless .90 / lossy .91) — radios DX type Fatima. */
+const JPEG2000_TRANSFER_SYNTAXES = new Set(['1.2.840.10008.1.2.4.90', '1.2.840.10008.1.2.4.91'])
+
+export function isJpeg2000TransferSyntax(uid: string | null | undefined): boolean {
+  return JPEG2000_TRANSFER_SYNTAXES.has((uid ?? '').trim())
+}
+
+/** UID JPEG 2000 lu dans les premiers octets d'un fichier Part 10 (en-tête méta). */
+export function jpeg2000UidInBytes(bytes: Uint8Array): string | null {
+  const slice = bytes.subarray(0, Math.min(bytes.length, 16384))
+  const text = new TextDecoder('latin1').decode(slice)
+  return text.match(/1\.2\.840\.10008\.1\.2\.4\.9[01]/)?.[0] ?? null
+}
+
+/**
+ * Message d'un rejet Cornerstone. Le loader wadouri rejette parfois
+ * `{ error, dataSet }` au lieu d'un `Error` — `String(err)` vaut alors
+ * `[object Object]`.
+ */
+export function loadErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object') {
+    const record = error as { message?: unknown; error?: unknown }
+    if (typeof record.message === 'string' && record.message.trim()) return record.message
+    if (record.error !== undefined && record.error !== error) return loadErrorMessage(record.error)
+  }
+  return ''
+}
+
+/**
+ * Le moteur Cornerstone n'a pas produit une image JPEG 2000 lisible.
+ * On bascule vers le viewer OpenJPEG (même chemin que dwv).
+ */
+export function isJpeg2000LoadFailure(input: {
+  message?: string | null
+  transferSyntax?: string | null
+}): boolean {
+  const message = input.message ?? ''
+  if (isUnsupportedJpeg2000Error(message)) return true
+  if (isJpeg2000TransferSyntax(input.transferSyntax)) return true
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('jpeg2000') ||
+    lower.includes('jpeg 2000') ||
+    lower.includes('openjpeg') ||
+    lower.includes('1.2.840.10008.1.2.4.90') ||
+    lower.includes('1.2.840.10008.1.2.4.91')
   )
 }
 

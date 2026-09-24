@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV,
   },
   transpilePackages: ['@franchir/synthesis-contract', '@franchir/imaging-viewer'],
+  // Glues Emscripten `@cornerstonejs/codec-*` référencent `fs` (branche Node
+  // morte côté navigateur) : alias vide, équivalent webpack `fallback: { fs: false }`.
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: './lib/imaging/empty-module.ts' },
+    },
+  },
   // dwv workers : rewrites SoT `@franchir/imaging-viewer/worker-rewrite`.
   // Les chemins sous `/_next/*` restent au middleware (`proxy.ts`).
   async rewrites() {

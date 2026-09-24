@@ -18,12 +18,14 @@ export type {
   PoolEntry,
   PoolEntryStatus,
   ViewerCapabilities,
+  ViewerEngine,
   ViewerInfoKind,
   ViewerSeries,
   ViewerStatus,
 } from './contract'
 
 export {
+  CORNERSTONE_WASM_PUBLIC_DIR,
   DEFAULT_VIEWER_CAPABILITIES,
   LAYOUT_RETRY_DELAYS_MS,
   MAX_POOL_LOAD_CONCURRENCY,
@@ -48,6 +50,7 @@ export {
   nextLayerGroupId,
   normalizeModality,
   orientationFallbackMessage,
+  parseViewerEngine,
   resetLayerGroupIdCounterForTests,
   resolveViewerCapabilities,
   resolveViewerInfoKind,
@@ -80,6 +83,7 @@ export {
 } from './encapsulated-pdf'
 
 export {
+  CORNERSTONE_PUBLIC_DIR,
   DWV_ASSETS_WORKERS_SEGMENT,
   DWV_NEXT_CONFIG_REWRITES,
   DWV_NEXT_WORKER_MATCHER,

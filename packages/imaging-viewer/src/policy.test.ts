@@ -12,7 +12,10 @@ import {
   formatSeriesOverlayLabel,
   formatWindowLevelOverlay,
   isStackOrientationMismatch,
+  isJpeg2000LoadFailure,
   isUnsupportedJpeg2000Error,
+  jpeg2000UidInBytes,
+  loadErrorMessage,
   normalizeModality,
   orientationFallbackMessage,
   resolveViewerCapabilities,
@@ -137,6 +140,23 @@ describe('isUnsupportedJpeg2000Error', () => {
     )
     expect(isUnsupportedJpeg2000Error('codec not supported')).toBe(false)
     expect(isUnsupportedJpeg2000Error(null)).toBe(false)
+  })
+})
+
+describe('repli JPEG 2000 Cornerstone', () => {
+  it('déplie un rejet { error } du loader wadouri', () => {
+    expect(loadErrorMessage({ error: new Error('JPX Error: decode') })).toBe('JPX Error: decode')
+    expect(loadErrorMessage(new Error('direct'))).toBe('direct')
+    expect(loadErrorMessage({ error: { message: 'nested' } })).toBe('nested')
+  })
+
+  it('reconnaît une radio JPEG 2000 même si le message est opaque', () => {
+    expect(isJpeg2000LoadFailure({ transferSyntax: '1.2.840.10008.1.2.4.90' })).toBe(true)
+    expect(isJpeg2000LoadFailure({ message: 'JPX Error: Unsupported COD options' })).toBe(true)
+    expect(isJpeg2000LoadFailure({ message: 'orientation mismatch' })).toBe(false)
+    const header = new TextEncoder().encode('DICM....1.2.840.10008.1.2.4.91....')
+    expect(jpeg2000UidInBytes(header)).toBe('1.2.840.10008.1.2.4.91')
+    expect(jpeg2000UidInBytes(new TextEncoder().encode('1.2.840.10008.1.2.1'))).toBeNull()
   })
 })
 

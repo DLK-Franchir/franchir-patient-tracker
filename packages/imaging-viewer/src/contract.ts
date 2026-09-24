@@ -40,13 +40,7 @@ export type DwvLoadEvent = {
 
 export type ViewerStatus = 'loading' | 'rendering' | 'ready' | 'error'
 
-export type ViewerInfoKind =
-  | 'loading'
-  | 'single'
-  | 'stack'
-  | 'partial'
-  | 'sequential'
-  | 'error'
+export type ViewerInfoKind = 'loading' | 'single' | 'stack' | 'partial' | 'sequential' | 'error'
 
 export type NavMode = 'stack' | 'sequential'
 
@@ -72,7 +66,19 @@ export type PoolEntry<TApp = unknown> = ImagingPoolEntry<TApp>
  * Feature flags légers — defaults package = prod Marcel/clinicien.
  * Overrides app via `resolveViewerCapabilities` (ex. MP4 staging).
  */
+/**
+ * Moteur de rendu (U1). `dwv` = historique (stack / pool / repli OpenJPEG) ;
+ * `cornerstone` = Cornerstone3D StackViewport (`wadouri:` sur URLs signées,
+ * codecs J2K / JPEG-LS / JPEG natifs). Flip prod via adapters app
+ * (`NEXT_PUBLIC_IMAGING_ENGINE=cornerstone`).
+ */
+export type ViewerEngine = 'dwv' | 'cornerstone'
+
 export type ViewerCapabilities = {
+  /** Moteur — défaut package `dwv` tant que U1 n'est pas validé en prod. */
+  engine: ViewerEngine
+  /** Base URL publique des `.wasm` Cornerstone (installés depuis `assets/cornerstone`). */
+  cornerstoneWasmBasePath: string
   maxSequentialPool: number
   maxPoolLoadConcurrency: number
   stackMode: boolean

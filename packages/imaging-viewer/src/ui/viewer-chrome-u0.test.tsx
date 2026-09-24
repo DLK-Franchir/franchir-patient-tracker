@@ -5,6 +5,7 @@ import { WL_PRESETS } from '../policy'
 import { DicomCornerOverlay } from './viewer-corner-overlay'
 import { DicomSeriesRail } from './viewer-series-rail'
 import { DicomSliceSlider } from './viewer-slice-slider'
+import { ViewerAdvancedTools } from './viewer-advanced-tools'
 import { DicomViewerToolbar, type DicomViewerToolbarProps } from './viewer-toolbar'
 
 const series: ImagingSeries[] = [
@@ -130,7 +131,13 @@ function toolbarProps(overrides: Partial<DicomViewerToolbarProps> = {}): DicomVi
     tools: [
       { id: 'WindowLevel', label: 'Fenêtrage', shortLabel: 'Fenêt.', available: true },
       { id: 'ZoomAndPan', label: 'Zoom / Déplacement', shortLabel: 'Zoom', available: true },
-      { id: 'Scroll', label: 'Coupes', shortLabel: 'Coupes', available: false },
+      {
+        id: 'Scroll',
+        label: 'Coupes',
+        shortLabel: 'Coupes',
+        available: false,
+        disabledTitle: 'Réservé à l’écran tactile',
+      },
     ],
     tool: 'WindowLevel',
     isReady: true,
@@ -167,7 +174,8 @@ describe('DicomViewerToolbar (U0)', () => {
     expect(html).toContain('data-testid="dicom-invert"')
     expect(html).toContain('data-testid="dicom-flip-h"')
     expect(html).not.toContain('dicom-wl-preset-')
-    expect(html).not.toContain('>Coupes<')
+    expect(html).toContain('>Coupes<')
+    expect(html).toContain('Réservé à l’écran tactile')
   })
 
   it('CT : presets HU visibles', () => {
@@ -187,5 +195,37 @@ describe('DicomViewerToolbar (U0)', () => {
     )
     expect(html).toContain('data-testid="dicom-series-sheet-open"')
     expect(html).toContain('md:hidden')
+  })
+})
+
+describe('ViewerAdvancedTools', () => {
+  it('garde Distance, Angle, Cobb, Ciné, Comparer et MPR visibles mais grisés', () => {
+    const html = renderToStaticMarkup(
+      <ViewerAdvancedTools
+        measureEnabled={false}
+        measureKind={null}
+        measureTitle={() => 'Indisponible sur les images JPEG 2000'}
+        cineEnabled={false}
+        cineTitle="Il faut au moins deux coupes"
+        compareEnabled={false}
+        compareTitle="Il faut au moins deux séries"
+        mprEnabled={false}
+        mprTitle="Les trois vues sont indisponibles"
+      />
+    )
+    for (const id of [
+      'dicom-tool-length',
+      'dicom-tool-angle',
+      'dicom-tool-cobb',
+      'dicom-cine',
+      'dicom-compare',
+      'dicom-mpr-toggle',
+    ]) {
+      expect(html).toContain(`data-testid="${id}"`)
+    }
+    expect(html).toContain('disabled')
+    expect(html).toContain('Indisponible sur les images JPEG 2000')
+    expect(html).toContain('Il faut au moins deux coupes')
+    expect(html).toContain('Les trois vues sont indisponibles')
   })
 })

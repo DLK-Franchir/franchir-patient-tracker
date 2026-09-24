@@ -43,7 +43,7 @@ const qRoot =
 
 const DEST = path.join(qRoot, "packages", "imaging-viewer");
 
-const PUBLIC_ASSET_DIRS = ["dwv-workers", "openjpeg"];
+const PUBLIC_ASSET_DIRS = ["dwv-workers", "openjpeg", "cornerstone"];
 
 function fail(msg) {
   console.error(`imaging-viewer:sync FAIL: ${msg}`);
@@ -270,10 +270,27 @@ if (checkOnly) {
   process.exit(0);
 }
 
-if (!qExists) fail(`questionnaires root not found: ${qRoot}`);
+if (!qExists && !trackerOnly) fail(`questionnaires root not found: ${qRoot}`);
 
 const assetManifest = writeAssetsManifest();
 installAssets(TRACKER_ROOT);
+
+if (trackerOnly) {
+  // MANIFEST + public/ tracker only (CI / lane sans sibling Q) — le pin Q
+  // reste à faire depuis un checkout avec les deux repos.
+  console.info(
+    JSON.stringify({
+      synced: true,
+      trackerOnly: true,
+      version: srcVersion,
+      assetsInstalled: {
+        tracker: path.join(TRACKER_ROOT, "public"),
+        count: Object.keys(assetManifest.files).length,
+      },
+    }),
+  );
+  process.exit(0);
+}
 
 mkdirSync(path.dirname(DEST), { recursive: true });
 rmSync(DEST, { recursive: true, force: true });

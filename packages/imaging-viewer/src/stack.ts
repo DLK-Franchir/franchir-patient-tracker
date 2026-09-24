@@ -149,9 +149,9 @@ export function useDicomStackMode(params: StackModeParams) {
       setStatus('rendering')
       layoutTimerIds = scheduleLayoutRetries(app, () => !disposed && loadSucceeded)
       addWindowLevelPresets(app)
-      app.setTool('WindowLevel')
-      toolRef.current = 'WindowLevel'
-      setTool('WindowLevel')
+      // Outil initial = choix du host (tactile → ZoomAndPan), pas un reset forcé.
+      app.setTool(toolRef.current)
+      setTool(toolRef.current)
       publishSliceCount(readSliceCount(app))
       const index = readSliceIndex(app)
       if (index !== null) setSliceIndex(index)
@@ -162,7 +162,7 @@ export function useDicomStackMode(params: StackModeParams) {
           markReady()
           return
         }
-        void waitForRenderableImage(app, RENDER_READY_DELAYS_MS).then((ready) => {
+        void waitForRenderableImage(app, RENDER_READY_DELAYS_MS).then(ready => {
           if (!ready && seriesUrls.length > 1) {
             switchToSequentialFallback()
             return
@@ -179,9 +179,7 @@ export function useDicomStackMode(params: StackModeParams) {
               reason: 'empty_pixel_buffer',
             })
             setStatus('error')
-            setErrorMessage(
-              formatDicomLoadError('décodage du flux compressé impossible (codec)'),
-            )
+            setErrorMessage(formatDicomLoadError('décodage du flux compressé impossible (codec)'))
             return
           }
           markReady()
@@ -198,7 +196,7 @@ export function useDicomStackMode(params: StackModeParams) {
         if (seriesUrls.length > 1) {
           const estimated = Math.max(
             1,
-            Math.min(seriesUrls.length, Math.round((pct / 100) * seriesUrls.length)),
+            Math.min(seriesUrls.length, Math.round((pct / 100) * seriesUrls.length))
           )
           setPreloadLoaded(estimated)
         }
@@ -228,8 +226,7 @@ export function useDicomStackMode(params: StackModeParams) {
 
     const onError = (event: DwvLoadEvent) => {
       if (disposed) return
-      const message =
-        typeof event.error === 'string' ? event.error : (event.error?.message ?? null)
+      const message = typeof event.error === 'string' ? event.error : (event.error?.message ?? null)
 
       if (isUnsupportedJpeg2000Error(message)) {
         emitImagingTelemetry(onImagingTelemetryRef?.current, {
@@ -297,7 +294,7 @@ export function useDicomStackMode(params: StackModeParams) {
 
     app.loadURLs(seriesUrls.filter(Boolean))
 
-    const resizeObserver = new ResizeObserver((entries) => {
+    const resizeObserver = new ResizeObserver(entries => {
       if (disposed) return
       const rect = entries[0]?.contentRect
       if (!rect || rect.width < 1 || rect.height < 1) return

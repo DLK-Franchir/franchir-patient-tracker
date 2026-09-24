@@ -1,5 +1,69 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.3
+
+- **Même barre d’outils** sur le lecteur principal et le repli JPEG 2000
+  (Fatima, séries Tania en JPEG 2000) : Fenêtrage, Zoom, Inverser, Miroir,
+  Distance, Angle, Cobb, Ciné, Comparer, MPR. Un outil inutilisable reste
+  visible et grisé, avec la raison au survol.
+
+## 0.15.2
+
+- **Radios JPEG 2000 (Fatima)** : si Cornerstone ne décode pas l’image, ou si le
+  canvas reste un aplat, bascule vers le viewer OpenJPEG (même repli que dwv).
+- **MPR** : le message explique les trois vues (de face, de profil, du dessus)
+  au lieu d’afficher l’erreur technique du moteur. Le contexte WebGL de la
+  coupe est relâché avant d’ouvrir les trois plans.
+
+## 0.15.1
+
+- **U2 — mesures, comparaison, ciné, MPR** (moteur Cornerstone uniquement ; dwv
+  inchangé, flag toujours off par défaut) :
+  - Distance, angle et Cobb en calque SVG, coordonnées patient (mm / °),
+    **non persistées** (pas de table, pas de PHI dans le libellé).
+  - Ciné (~8 images/s) sur une série de plus d'une coupe.
+  - Comparaison : second viewport, défilement et fenêtrage synchronisés,
+    choix de la série comparée. Ligne de référence (intersection des plans)
+    quand l'orientation patient est présente et les plans ne sont pas parallèles.
+  - MPR : bouton actif seulement si `isValidVolume` (orientation, taille et
+    espacement homogènes) ; trois vues axial / sagittal / coronal. Sinon le
+    bouton reste inactif.
+  - Comparaison : chaque viewport a son overlay (série, coupe, W/L). Un échec
+    de la série comparée s'affiche dans son panneau au lieu d'un viewport vide.
+
+## 0.15.0
+
+- **U1 — moteur Cornerstone3D derrière le contrat** (`DicomViewerProps` inchangé) :
+  - Capability `engine: 'dwv' | 'cornerstone'` (défaut **`dwv`**) +
+    `cornerstoneWasmBasePath` (`/cornerstone/`) ; `parseViewerEngine()` pour le
+    flag app `NEXT_PUBLIC_IMAGING_ENGINE`.
+  - `DicomViewer` = switch moteur : host dwv historique (`DicomViewerDwv`) ou
+    host Cornerstone chargé en **dynamic import** (`DicomViewerCornerstone`,
+    subpath `/engine-cs`). Erreur de chunk / init → **repli dwv** (télémétrie
+    `series_open_ms` `outcome: fallback`, `reason: engine_unavailable`).
+  - Chrome partagé `DicomViewerChrome` (header, rail, toolbar, overlay, slider,
+    mention) — identique pour les deux moteurs.
+  - Engine : `StackViewport` `wadouri:` sur URLs signées, préchargement borné
+    (`maxPoolLoadConcurrency`), fichiers illisibles ignorés à la navigation,
+    W/L / invert / flip / zoom / presets / Auto via `viewport.setProperties` /
+    `setCamera`. Orientations hétérogènes acceptées → **plus de pool séquentiel
+    ni de repli OpenJPEG** sur ce moteur. `useLegacyMetadataProvider: true`
+    (provider « naturalized » 5.x perd le pixel data sous préchargement concurrent).
+  - Assets : `assets/cornerstone/*.wasm` (OpenJPEG, CharLS JPEG-LS, libjpeg-turbo,
+    OpenJPH) → `public/cornerstone/` via `imaging-viewer:sync` ; préfixe public
+    `CORNERSTONE_PUBLIC_DIR` hors auth middleware. Worker bundlé par Next.
+  - Télémétrie : `engine: 'cornerstone'` accepté (`ImagingTelemetryEngine`).
+  - Gestes pointeur **sans** `@cornerstonejs/tools` (`interaction.ts`) : le worker
+    `computeWorker` de tools bloque le build Turbopack et U1 n'a besoin que de
+    fenêtrage / zoom / pan / coupes. Peer deps optionnelles
+    `@cornerstonejs/core` + `@cornerstonejs/dicom-image-loader` ^5.10.
+  - Next : alias Turbopack `fs` → module vide (`lib/imaging/empty-module.ts`) —
+    les glues Emscripten `@cornerstonejs/codec-*` référencent `fs` (branche Node).
+- dwv : **fix** « Réinitialiser » après un miroir laissait un canvas noir ;
+  outil initial tactile (`ZoomAndPan`) posé par le host au lieu d'un reset forcé.
+- Script `sync-imaging-viewer-package.mjs --tracker-only` : MANIFEST + `public/`
+  tracker sans sibling Q.
+
 ## 0.14.0
 
 - **U0 — quick wins UX** (host dwv **et** repli OpenJPEG, parité Marcel / clinicien) :
@@ -31,7 +95,6 @@
   - Apps : cron cleanup Storage TTL (tracker) — voir runbook
 
 ## 0.13.2
-
 
 - MP4 prod readiness (docs / contrat) :
   - `mp4Native` documenté comme **ops flip** (Marcel + clinicien) — default

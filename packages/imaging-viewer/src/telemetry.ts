@@ -90,7 +90,7 @@ export const IMAGING_TELEMETRY_ALERT_THRESHOLDS = {
 
 export type ImagingTelemetryAlertThresholds = typeof IMAGING_TELEMETRY_ALERT_THRESHOLDS
 
-export type ImagingTelemetryEngine = 'dwv' | 'openjpeg'
+export type ImagingTelemetryEngine = 'dwv' | 'openjpeg' | 'cornerstone'
 
 export type ImagingTelemetryOutcome = 'ready' | 'error' | 'fallback'
 
@@ -146,14 +146,26 @@ export function isImagingTelemetryEvent(value: unknown): value is ImagingTelemet
   if (!value || typeof value !== 'object') return false
   const e = value as Record<string, unknown>
   if (!isImagingTelemetryEventName(e.name)) return false
-  if (e.durationMs !== undefined && (typeof e.durationMs !== 'number' || !Number.isFinite(e.durationMs))) {
+  if (
+    e.durationMs !== undefined &&
+    (typeof e.durationMs !== 'number' || !Number.isFinite(e.durationMs))
+  ) {
     return false
   }
   if (e.navMode !== undefined && e.navMode !== 'stack' && e.navMode !== 'sequential') return false
-  if (e.fileCount !== undefined && (typeof e.fileCount !== 'number' || !Number.isFinite(e.fileCount))) {
+  if (
+    e.fileCount !== undefined &&
+    (typeof e.fileCount !== 'number' || !Number.isFinite(e.fileCount))
+  ) {
     return false
   }
-  if (e.engine !== undefined && e.engine !== 'dwv' && e.engine !== 'openjpeg') return false
+  if (
+    e.engine !== undefined &&
+    e.engine !== 'dwv' &&
+    e.engine !== 'openjpeg' &&
+    e.engine !== 'cornerstone'
+  )
+    return false
   if (
     e.outcome !== undefined &&
     e.outcome !== 'ready' &&
@@ -173,7 +185,7 @@ export function isImagingTelemetryEvent(value: unknown): value is ImagingTelemet
  * Ignore les champs absents ; tronque durationMs à l’entier.
  */
 export function imagingTelemetryToAnalyticsProps(
-  event: ImagingTelemetryEvent,
+  event: ImagingTelemetryEvent
 ): Record<string, string | number> {
   const props: Record<string, string | number> = { name: event.name }
   if (typeof event.durationMs === 'number' && Number.isFinite(event.durationMs)) {
@@ -192,7 +204,7 @@ export function imagingTelemetryToAnalyticsProps(
 /** Appelle le handler sans jamais faire planter le viewer. */
 export function emitImagingTelemetry(
   handler: ImagingTelemetryHandler | null | undefined,
-  event: ImagingTelemetryEvent,
+  event: ImagingTelemetryEvent
 ): void {
   if (!handler) return
   if (!isImagingTelemetryEvent(event)) return

@@ -13,18 +13,18 @@ Agent: `.cursor/agents/franchir-imaging-stabilize.md`
 
 Use this once after the imaging suite lands (or after a large multi-PR imaging merge). Mark when verified.
 
-| # | Item | How | Pass |
-|---|------|-----|------|
-| 1 | Roadmap PRODUCT closed | `packages/imaging-viewer/PRODUCT.md` — P0–P8 **done**, residuals = ops only, MPR/DICOMDIR/annotations = future | ☐ |
-| 2 | Pin `@franchir/imaging` | Tracker: `npm run imaging:check` | ☐ |
-| 3 | Pin `@franchir/imaging-viewer` ≥ 0.13.0 | Tracker: `npm run imaging-viewer:check` (Q sibling digest match) | ☐ |
-| 4 | Golden path CI | `npm run imaging:golden-path -- --ci` | ☐ |
-| 5 | P7 async export live | Staging/prod: Fatima-scale study → `export-async` job + signed TTL (no PHI in tickets) | ☐ |
-| 6 | P8 telemetry contract | `GET /api/internal/imaging/telemetry-summary` (Bearer) + glance thresholds in [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md) | ☐ |
-| 7 | mp4Native parity | Marcel + clinicien: staging/preview/flag only (`NEXT_PUBLIC_ENABLE_MP4_VIEWER`) — prod default still off | ☐ |
-| 8 | Post-deploy smoke | Tania + Fatima — runbook section **Post-deploy smoke** (anonymized fixtures only) | ☐ |
-| 9 | Branch hygiene | Imaging feature branches whose PRs are **MERGED** deleted remotely | ☐ |
-| 10 | Agents current | `.cursor/agents/franchir-imaging*.md` reflect ~0.13.0+ suite complete | ☐ |
+| #   | Item                                    | How                                                                                                                            | Pass |
+| --- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| 1   | Roadmap PRODUCT closed                  | `packages/imaging-viewer/PRODUCT.md` — P0–P8 **done**, residuals = ops only, MPR/DICOMDIR/annotations = future                 | ☐    |
+| 2   | Pin `@franchir/imaging`                 | Tracker: `npm run imaging:check`                                                                                               | ☐    |
+| 3   | Pin `@franchir/imaging-viewer` ≥ 0.13.0 | Tracker: `npm run imaging-viewer:check` (Q sibling digest match)                                                               | ☐    |
+| 4   | Golden path CI                          | `npm run imaging:golden-path -- --ci`                                                                                          | ☐    |
+| 5   | P7 async export live                    | Staging/prod: Fatima-scale study → `export-async` job + signed TTL (no PHI in tickets)                                         | ☐    |
+| 6   | P8 telemetry contract                   | `GET /api/internal/imaging/telemetry-summary` (Bearer) + glance thresholds in [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md) | ☐    |
+| 7   | mp4Native parity                        | Marcel + clinicien: staging/preview/flag only (`NEXT_PUBLIC_ENABLE_MP4_VIEWER`) — prod default still off                       | ☐    |
+| 8   | Post-deploy smoke                       | Tania + Fatima — runbook section **Post-deploy smoke** (anonymized fixtures only)                                              | ☐    |
+| 9   | Branch hygiene                          | Imaging feature branches whose PRs are **MERGED** deleted remotely                                                             | ☐    |
+| 10  | Agents current                          | `.cursor/agents/franchir-imaging*.md` reflect ~0.13.0+ suite complete                                                          | ☐    |
 
 **Suite terminée** when rows 1–10 are checked (or explicitly waived with reason in the PR).
 
@@ -36,11 +36,11 @@ Q pointer: `Franchir_Questionnaires_Patients/docs/ops/IMAGING_STABILIZE.md` → 
 
 ### 1. SoT sync / pin parity
 
-| Check | Command (tracker root) | Pass |
-|-------|------------------------|------|
-| `@franchir/imaging` pin | `npm run imaging:check` | Tracker + Q sibling digest match |
-| `@franchir/imaging-viewer` pin | `npm run imaging-viewer:check` | Version + assets + `public/` install |
-| Golden path CI | `npm run imaging:golden-path -- --ci` | Exit 0 (fixtures + viewer check; skips Q `imaging:check`) |
+| Check                          | Command (tracker root)                | Pass                                                      |
+| ------------------------------ | ------------------------------------- | --------------------------------------------------------- |
+| `@franchir/imaging` pin        | `npm run imaging:check`               | Tracker + Q sibling digest match                          |
+| `@franchir/imaging-viewer` pin | `npm run imaging-viewer:check`        | Version + assets + `public/` install                      |
+| Golden path CI                 | `npm run imaging:golden-path -- --ci` | Exit 0 (fixtures + viewer check; skips Q `imaging:check`) |
 
 Rules: edit packages **only** in tracker → bump version/CHANGELOG → `imaging*:sync` → PR tracker first, then Q pin. Never fix-only-in-Q.
 
@@ -57,13 +57,13 @@ Pointers: [`IMAGING_ADAPTERS.md`](./IMAGING_ADAPTERS.md).
 After deploy, watch product analytics for spikes (no patient ids / SUIDs / URLs in tickets).
 Numeric thresholds + gtag/Plausible how-to: [`IMAGING_TELEMETRY.md`](./IMAGING_TELEMETRY.md) (P8).
 
-| Signal | Threshold (≈1 h) | Suspect |
-|--------|------------------|---------|
-| `imaging_ready_without_pixels` | ≥ 5 | Worker rewrite / blank-canvas gate |
-| `imaging_worker_asset_fail` | ≥ 3 | `public/dwv-workers` / `/_next` rewrite |
-| `imaging_openjpeg_fallback` | (watch TTFP) | Expected for some DX |
-| p95 `imaging_time_to_first_paint` / `series_open_ms` | ≥ 15s / 30s | Signed URL / decode / pool |
-| `imaging_dicom_export` error rate | ≥ 20% | Chunked ZIP / async Storage |
+| Signal                                               | Threshold (≈1 h) | Suspect                                 |
+| ---------------------------------------------------- | ---------------- | --------------------------------------- |
+| `imaging_ready_without_pixels`                       | ≥ 5              | Worker rewrite / blank-canvas gate      |
+| `imaging_worker_asset_fail`                          | ≥ 3              | `public/dwv-workers` / `/_next` rewrite |
+| `imaging_openjpeg_fallback`                          | (watch TTFP)     | Expected for some DX                    |
+| p95 `imaging_time_to_first_paint` / `series_open_ms` | ≥ 15s / 30s      | Signed URL / decode / pool              |
+| `imaging_dicom_export` error rate                    | ≥ 20%            | Chunked ZIP / async Storage             |
 
 Contract smoke (Bearer sync/return):
 `GET /api/internal/imaging/telemetry-summary`.
@@ -89,8 +89,9 @@ Delete remote imaging branches whose PRs are **MERGED** (or clearly superseded).
 ## Suite U (UX visionneuse, 0.14.0+)
 
 - **U0 done (0.14.0)** — rail séries, molette = coupes, slider, presets HU seulement CT + Auto, inverser / miroir, overlay 4 coins, mention informatif ; parité repli OpenJPEG. Smoke : ouvrir Tania → rail 11 séries cliquable (desktop) / bouton « Séries » (mobile) ; molette change de coupe sans changer d'outil ; IRM sans presets HU.
-- **U1 next** — moteur Cornerstone3D flaggé (`engine`), puis retrait dwv. Voir `packages/imaging-viewer/PRODUCT.md`.
-- **U2 future** — mesures, 2 viewports, MPR conditionnel.
+- **U1a done (0.15.0, flag off)** — moteur Cornerstone3D derrière le contrat (`engine`, `NEXT_PUBLIC_IMAGING_ENGINE=cornerstone`), wasm `public/cornerstone/`, repli dwv. Smoke post-flip : `docs/ops/IMAGING_ADAPTERS.md` (section moteur).
+- **U1b next** — flip preview → prod deux apps, puis retrait dwv (pool séquentiel, repli OpenJPEG, rewrite workers).
+- **U2 done (0.15.3, flag off, Cornerstone seulement)** — Distance / Angle / Cobb non persistées, comparaison 2 vues (scroll + W/L), lignes de référence, ciné, MPR si `isValidVolume`. dwv ne les expose pas. JPEG 2000 non décodé par Cornerstone → même barre, outils impossibles grisés.
 
 ## Hors suite
 

@@ -10,6 +10,7 @@ describe('proxy matcher', () => {
     expect(re.test('/dwv-workers/jpegloss.worker.min.js')).toBe(false)
     expect(re.test('/assets/workers/jpegloss.worker.min.js')).toBe(false)
     expect(re.test('/openjpeg/openjpegjs.js')).toBe(false)
+    expect(re.test('/cornerstone/openjpegwasm_decode.wasm')).toBe(false)
     expect(re.test('/dashboard')).toBe(true)
   })
 
