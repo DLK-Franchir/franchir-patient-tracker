@@ -1,5 +1,13 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.2
+
+- **Radios JPEG 2000 (Fatima)** : si Cornerstone ne décode pas l’image, ou si le
+  canvas reste un aplat, bascule vers le viewer OpenJPEG (même repli que dwv).
+- **MPR** : le message explique les trois vues (de face, de profil, du dessus)
+  au lieu d’afficher l’erreur technique du moteur. Le contexte WebGL de la
+  coupe est relâché avant d’ouvrir les trois plans.
+
 ## 0.15.1
 
 - **U2 — mesures, comparaison, ciné, MPR** (moteur Cornerstone uniquement ; dwv

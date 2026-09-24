@@ -8,6 +8,7 @@ import { useEffect, type RefObject } from 'react'
 import {
   Enums as csEnums,
   RenderingEngine,
+  cache,
   eventTarget,
   getRenderingEngine,
   imageLoader,
@@ -16,7 +17,14 @@ import {
   type Types as CsTypes,
 } from '@cornerstonejs/core'
 import type { DicomTool, ViewerCapabilities } from '../contract'
-import { formatDicomLoadError, normalizeModality } from '../policy'
+import { hasPixelSignal } from '../pixel-signal'
+import {
+  formatDicomLoadError,
+  isJpeg2000LoadFailure,
+  jpeg2000UidInBytes,
+  loadErrorMessage,
+  normalizeModality,
+} from '../policy'
 import { emitImagingTelemetry, type ImagingTelemetryHandler } from '../telemetry'
 import { ensureCornerstone } from './init'
 import { attachCsInteractions } from './interaction'
@@ -46,6 +54,8 @@ export type CsStackParams = {
   setModality: (value: string | null) => void
   setFailedIndexes: (value: Set<number>) => void
   onSliceCountResolvedRef: RefObject<((count: number) => void) | undefined>
+  /** Bascule vers le viewer OpenJPEG (radios DX JPEG 2000). */
+  onJpeg2000UnsupportedRef?: RefObject<(() => void) | undefined>
   /** `false` : détruit le viewport sans en recréer (comparaison / MPR). */
   active?: boolean
 }
@@ -61,6 +71,74 @@ export const CS_RENDER_READY_FALLBACK_MS = 1500
 
 export function toImageId(url: string): string {
   return `wadouri:${url}`
+}
+
+function readTransferSyntax(imageId: string): string | null {
+  try {
+    const mod = metaData.get('transferSyntax', imageId) as
+      | { transferSyntaxUID?: string }
+      | undefined
+    return mod?.transferSyntaxUID ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Vrai seulement si l'image JPEG 2000 décodée est un aplat (canvas noir). */
+function jpeg2000PixelsAreFlat(imageId: string): boolean {
+  if (!isJpeg2000LoadFailure({ transferSyntax: readTransferSyntax(imageId) })) return false
+  try {
+    const data = cache.getImage(imageId)?.getPixelData()
+    if (
+      !data ||
+      !(
+        data instanceof Int8Array ||
+        data instanceof Uint8Array ||
+        data instanceof Int16Array ||
+        data instanceof Uint16Array ||
+        data instanceof Int32Array ||
+        data instanceof Uint32Array
+      )
+    ) {
+      return false
+    }
+    return !hasPixelSignal(data)
+  } catch {
+    return false
+  }
+}
+
+/** Lit l'UID de transfer syntax dans l'en-tête, sans télécharger le pixel data. */
+async function sniffJpeg2000Url(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { headers: { Range: 'bytes=0-8191' } })
+    if (!response.ok && response.status !== 206) return false
+    const reader = response.body?.getReader()
+    if (!reader) {
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      return jpeg2000UidInBytes(bytes) !== null
+    }
+    const chunks: Uint8Array[] = []
+    let total = 0
+    while (total < 8192) {
+      const { done, value } = await reader.read()
+      if (done || !value) break
+      chunks.push(value)
+      total += value.length
+    }
+    await reader.cancel().catch(() => undefined)
+    const bytes = new Uint8Array(Math.min(8192, total))
+    let offset = 0
+    for (const chunk of chunks) {
+      const count = Math.min(chunk.length, bytes.length - offset)
+      bytes.set(chunk.subarray(0, count), offset)
+      offset += count
+      if (offset >= bytes.length) break
+    }
+    return jpeg2000UidInBytes(bytes) !== null
+  } catch {
+    return false
+  }
 }
 
 function readCsWindowLevel(
@@ -107,6 +185,7 @@ export function useCornerstoneStack(params: CsStackParams) {
     setModality,
     setFailedIndexes,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     active = true,
   } = params
 
@@ -118,6 +197,7 @@ export function useCornerstoneStack(params: CsStackParams) {
     if (urls.length === 0) return
 
     let disposed = false
+    let jpeg2000FallbackSent = false
     const hostId = nextHostId()
     const viewportId = `${hostId}-vp`
     const imageIds = urls.map(toImageId)
@@ -141,6 +221,28 @@ export function useCornerstoneStack(params: CsStackParams) {
       setErrorMessage(formatDicomLoadError(message))
       setStatus('error')
     }
+
+    const requestJpeg2000Fallback = () => {
+      if (disposed || jpeg2000FallbackSent || !capabilities.jpeg2000OpenJpegFallback) return false
+      if (!onJpeg2000UnsupportedRef?.current) return false
+      jpeg2000FallbackSent = true
+      emitImagingTelemetry(onImagingTelemetryRef?.current, {
+        name: 'openjpeg_fallback',
+        navMode: 'stack',
+        fileCount: imageIds.length,
+        engine: 'cornerstone',
+        outcome: 'fallback',
+        reason: 'unsupported_j2k',
+      })
+      onJpeg2000UnsupportedRef?.current?.()
+      return true
+    }
+
+    const jpeg2000Failure = (message: string) =>
+      isJpeg2000LoadFailure({
+        message,
+        transferSyntax: readTransferSyntax(imageIds[0] ?? ''),
+      })
 
     const run = async () => {
       try {
@@ -190,8 +292,10 @@ export function useCornerstoneStack(params: CsStackParams) {
       }
       const onRendered = () => {
         if (disposed || firstRendered) return
+        const imageId = viewport.getCurrentImageId()
+        if (imageId && jpeg2000PixelsAreFlat(imageId) && requestJpeg2000Fallback()) return
         firstRendered = true
-        setModality(readCsModality(viewport.getCurrentImageId()))
+        setModality(readCsModality(imageId))
         syncWl()
         setStatus('ready')
       }
@@ -199,6 +303,14 @@ export function useCornerstoneStack(params: CsStackParams) {
         if (disposed) return
         const detail = (evt as CustomEvent<{ imageId?: string; error?: unknown }>).detail
         const index = detail?.imageId ? imageIds.indexOf(detail.imageId) : -1
+        if (
+          index === 0 &&
+          !firstRendered &&
+          jpeg2000Failure(loadErrorMessage(detail?.error)) &&
+          requestJpeg2000Fallback()
+        ) {
+          return
+        }
         if (index >= 0) {
           failed.add(index)
           setFailedIndexes(new Set(failed))
@@ -235,7 +347,17 @@ export function useCornerstoneStack(params: CsStackParams) {
         }, CS_RENDER_READY_FALLBACK_MS)
       } catch (err) {
         if (disposed) return
-        const message = err instanceof Error ? err.message : String(err ?? '')
+        const message = loadErrorMessage(err)
+        if (jpeg2000Failure(message) && requestJpeg2000Fallback()) return
+        if (
+          capabilities.jpeg2000OpenJpegFallback &&
+          urls[0] &&
+          (await sniffJpeg2000Url(urls[0])) &&
+          requestJpeg2000Fallback()
+        ) {
+          return
+        }
+        if (disposed) return
         emitImagingTelemetry(onImagingTelemetryRef?.current, {
           name: 'ready_without_pixels',
           navMode: 'stack',
@@ -308,6 +430,7 @@ export function useCornerstoneStack(params: CsStackParams) {
     setModality,
     setFailedIndexes,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     active,
   ])
 }

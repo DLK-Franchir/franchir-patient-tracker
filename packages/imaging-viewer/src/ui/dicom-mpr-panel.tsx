@@ -20,6 +20,17 @@ import { ensureCornerstone } from '../engine-cs/init'
 import { attachCsInteractions } from '../engine-cs/interaction'
 import { seriesSupportsMpr } from '../engine-cs/reference'
 
+const MPR_UNAVAILABLE =
+  'MPR reconstruit les coupes en trois vues : de face, de profil et du dessus. Cette série ne peut pas l’être : les coupes n’ont pas la même taille ou le même espacement.'
+
+const MPR_FAILED =
+  'MPR reconstruit les coupes en trois vues : de face, de profil et du dessus. Le calcul a échoué pour cette série. Les coupes habituelles restent disponibles.'
+
+function mprReason(err: unknown): string {
+  const text = err instanceof Error ? err.message : String(err ?? '')
+  return text.replace(/https?:\/\/\S+/g, '[url]').slice(0, 180)
+}
+
 const PLANES = [
   { id: 'axial', label: 'Axial', orientation: csEnums.OrientationAxis.AXIAL },
   { id: 'sagittal', label: 'Sagittal', orientation: csEnums.OrientationAxis.SAGITTAL },
@@ -55,18 +66,24 @@ export function DicomMprPanel({
     const viewportIds = PLANES.map(plane => `${engineId}-${plane.id}`)
     let detach: Array<() => void> = []
 
-    const fail = (text: string) => {
-      if (!disposed) setMessage(text)
+    const fail = (err: unknown) => {
+      if (disposed) return
+      console.error('[DicomViewer/cs] MPR', mprReason(err))
+      setMessage(MPR_FAILED)
     }
 
     const run = async () => {
+      await new Promise<void>(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+      if (disposed) return
       try {
         await ensureCornerstone({
           wasmBasePath: capabilities.cornerstoneWasmBasePath,
           maxWebWorkers: Math.max(1, Math.min(4, capabilities.maxPoolLoadConcurrency)),
         })
       } catch (err) {
-        fail(err instanceof Error ? err.message : 'initialisation MPR impossible')
+        fail(err)
         return
       }
       if (disposed) return
@@ -118,7 +135,7 @@ export function DicomMprPanel({
         await setVolumesForViewports(engine, [{ volumeId }], viewportIds, true)
         if (!disposed) setReady(true)
       } catch (err) {
-        fail(err instanceof Error ? err.message : 'volume MPR illisible')
+        fail(err)
       }
     }
 
@@ -173,8 +190,7 @@ export function DicomMprPanel({
         <div className="absolute inset-0 flex items-center justify-center bg-[#0B1020]/80 p-6 text-center">
           <div>
             <p className="text-sm text-white/85" data-testid="dicom-mpr-unavailable">
-              {message ??
-                'MPR indisponible pour cette série : orientation ou espacement non homogène.'}
+              {message ?? MPR_UNAVAILABLE}
             </p>
             <button
               type="button"

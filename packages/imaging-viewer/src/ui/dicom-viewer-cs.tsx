@@ -63,12 +63,14 @@ export function DicomViewerCornerstone({
   onDownloadSeries,
   onDownloadStudy,
   downloadBusy = false,
+  onJpeg2000Unsupported,
 }: DicomViewerProps) {
   const surfaceRef = useRef<HTMLDivElement>(null)
   const elementRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<CsStackHandle | null>(null)
   const onSliceCountResolvedRef = useRef(onSliceCountResolved)
   const onImagingTelemetryRef = useRef(onImagingTelemetry)
+  const onJpeg2000UnsupportedRef = useRef(onJpeg2000Unsupported)
   const openStartedAtRef = useRef(0)
   const paintedRef = useRef(false)
   const openReportedRef = useRef(false)
@@ -107,6 +109,9 @@ export function DicomViewerCornerstone({
   useEffect(() => {
     onImagingTelemetryRef.current = onImagingTelemetry
   }, [onImagingTelemetry])
+  useEffect(() => {
+    onJpeg2000UnsupportedRef.current = onJpeg2000Unsupported
+  }, [onJpeg2000Unsupported])
 
   const [status, setStatus] = useState<'loading' | 'rendering' | 'ready' | 'error'>('loading')
   const [progress, setProgress] = useState(0)
@@ -232,6 +237,7 @@ export function DicomViewerCornerstone({
     setModality: setCsModality,
     setFailedIndexes,
     onSliceCountResolvedRef,
+    onJpeg2000UnsupportedRef,
     active: !mprOpen,
   })
 
@@ -682,8 +688,8 @@ export function DicomViewerCornerstone({
         aria-pressed={mprOpen}
         title={
           volumeOk
-            ? 'Trois plans (axial, sagittal, coronal)'
-            : 'MPR indisponible : série non homogène'
+            ? 'Reconstruit les coupes en trois vues : de face, de profil et du dessus'
+            : 'MPR impossible : les coupes n’ont pas la même taille ou le même espacement'
         }
         onClick={() => {
           setCompareOn(false)
