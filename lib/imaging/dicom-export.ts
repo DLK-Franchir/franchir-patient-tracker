@@ -505,7 +505,7 @@ export async function loadPatientDicomExportRows(
     )
     .eq('patient_id', patientId)
     .eq('kind', 'dicom')
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(MAX_DOCUMENTS_LISTED)
 
   if (error) {

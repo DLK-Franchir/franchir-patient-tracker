@@ -282,6 +282,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const seriesDeepLink = searchParams.get('series')
   const deepLinkAppliedRef = useRef(false)
   const [documents, setDocuments] = useState<PatientDocument[]>([])
+  const [listingTruncated, setListingTruncated] = useState(false)
   const [questionnaireFiles, setQuestionnaireFiles] = useState<QuestionnaireImagingFile[]>([])
   const [listedAtMs, setListedAtMs] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -341,6 +342,7 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       }
       const data = await docsRes.json()
       setDocuments(data.documents ?? [])
+      setListingTruncated(Boolean(data.listingTruncated))
       setListedAtMs(Date.now())
       setError(null)
       return true
@@ -795,6 +797,15 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900"
         >
           {uploadSuccess}
+        </div>
+      )}
+      {listingTruncated && (
+        <div
+          role="status"
+          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          Dossier volumineux : affichage limité aux fichiers les plus récents. Les séries
+          les plus anciennes peuvent être masquées.
         </div>
       )}
       {canManage && showUpload && (

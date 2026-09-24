@@ -31,12 +31,13 @@ export async function GET(request: Request) {
     }
 
     const service = createServiceRoleClient()
-    const documents = await listPatientDocuments(service, trackerPatientId)
+    const { documents, listingTruncated } = await listPatientDocuments(service, trackerPatientId)
 
     const response = NextResponse.json({
       documents: documents
         .map((doc) => toQuestionnairesImagingDocument(doc))
         .filter((doc): doc is NonNullable<typeof doc> => doc !== null),
+      listingTruncated,
     })
     response.headers.set('Cache-Control', 'no-store')
     return response
