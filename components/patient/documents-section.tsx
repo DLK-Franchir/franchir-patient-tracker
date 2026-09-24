@@ -234,6 +234,8 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
         seriesDescription: f.seriesDescription,
         sopInstanceUid: f.sopInstanceUid,
         instanceNumber: f.instanceNumber,
+        // Pont Q n'expose pas encore modality — filtre SR côté tracker only.
+        modality: null as string | null,
       })),
   )) {
     const first = series.files[0]
