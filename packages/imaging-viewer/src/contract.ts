@@ -14,6 +14,10 @@ export type ImagingSeries = {
   urls: string[]
   /** Nombre de fichiers DICOM dans le groupe (peut différer du nombre de coupes dwv). */
   fileCount: number
+  /** Modality DICOM (0008,0060) : MR, CT, CR, DX, US… — pilote presets + overlay (U0). */
+  modality?: string | null
+  /** SeriesDescription (0008,103E) — overlay viewport + rail séries (U0). */
+  description?: string | null
 }
 
 /** Alias historique apps (`ViewerSeries`). */
@@ -98,6 +102,13 @@ export type DicomViewerProps = {
   activeSeriesIndex?: number
   onNextSeries?: () => void
   onPrevSeries?: () => void
+  /** Saut direct vers une série du rail (U0). Sans ce callback, le rail est masqué. */
+  onSelectSeries?: (index: number) => void
+  /**
+   * Modality de la série ouverte (presets / overlay). Optionnel : le host lit
+   * d'abord la modality dwv de l'image, puis `series[activeSeriesIndex].modality`.
+   */
+  modality?: string | null
   onClose?: () => void
   onSliceCountResolved?: (count: number) => void
   /**

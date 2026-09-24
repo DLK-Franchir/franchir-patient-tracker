@@ -8,9 +8,15 @@ export {
   addWindowLevelPresets,
   createDwvApp,
   destroyDwvApp,
+  flipViewLayer,
   hasRenderableImage,
+  readModality,
   readSliceCount,
   readSliceIndex,
+  readWindowLevel,
+  resetWindowLevel,
+  setSliceIndex,
+  toggleInvert,
   waitForRenderableImage,
 } from './dwv-app'
 

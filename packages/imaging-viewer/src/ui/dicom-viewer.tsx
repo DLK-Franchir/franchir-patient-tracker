@@ -7,37 +7,43 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { App } from 'dwv'
-import type {
-  DicomTool,
-  DicomViewerProps,
-  ImagingPoolEntry,
-  NavMode,
-} from '../contract'
+import type { DicomTool, DicomViewerProps, ImagingPoolEntry, NavMode } from '../contract'
 import {
   type WlPresetId,
   WL_PRESETS,
+  VIEWER_INFORMATIVE_NOTICE,
+  accumulateWheelSlices,
   nextLayerGroupId,
+  normalizeModality,
   resolveViewerCapabilities,
   resolveViewerInfoKind,
+  windowPresetsForModality,
 } from '../policy'
+import {
+  flipViewLayer,
+  readModality,
+  readWindowLevel,
+  resetWindowLevel,
+  setSliceIndex as setDwvSliceIndex,
+  toggleInvert,
+} from '../dwv-app'
 import { useDicomStackMode } from '../stack'
 import { useDicomSequentialPool } from '../pool'
 import { useDicomSequentialNavigation } from '../sequential'
 import { DicomSeriesHeader } from './viewer-series-header'
 import { DicomViewerToolbar } from './viewer-toolbar'
 import { DicomViewportErrorOverlay, DicomViewportLoadingOverlay } from './viewer-overlays'
-import {
-  VIEWER_BG,
-  viewerMobileHint,
-  viewerToolHint,
-  viewportLoadingMessage,
-} from './messages'
+import { DicomSeriesRail } from './viewer-series-rail'
+import { DicomCornerOverlay } from './viewer-corner-overlay'
+import { DicomSliceSlider } from './viewer-slice-slider'
+import { VIEWER_BG, viewerMobileHint, viewerToolHint, viewportLoadingMessage } from './messages'
 import { useDwvViewportResize } from './use-dwv-viewport-resize'
 import { emitImagingTelemetry, nowMs } from '../telemetry'
 
 export type { DicomViewerProps }
 
 type PoolEntry = ImagingPoolEntry<App>
+type WindowLevelState = { center: number; width: number } | null
 
 export function DicomViewer({
   urls,
@@ -48,6 +54,8 @@ export function DicomViewer({
   activeSeriesIndex = 0,
   onNextSeries,
   onPrevSeries,
+  onSelectSeries,
+  modality: modalityProp,
   onClose,
   onSliceCountResolved,
   capabilities: capabilitiesOverride,
@@ -70,6 +78,7 @@ export function DicomViewer({
   const openStartedAtRef = useRef(0)
   const paintedRef = useRef(false)
   const openReportedRef = useRef(false)
+  const wheelAccumRef = useRef(0)
   const [layerGroupId] = useState(nextLayerGroupId)
   const capabilities = resolveViewerCapabilities(capabilitiesOverride)
 
@@ -99,10 +108,28 @@ export function DicomViewer({
   const [fileIndex, setFileIndex] = useState(0)
   const [poolWarning, setPoolWarning] = useState<string | null>(null)
   const [sequentialFallbackNote, setSequentialFallbackNote] = useState<string | null>(null)
+  const [windowLevel, setWindowLevel] = useState<WindowLevelState>(null)
+  const [inverted, setInverted] = useState(false)
+  const [dwvModality, setDwvModality] = useState<string | null>(null)
+  const [seriesSheetOpen, setSeriesSheetOpen] = useState(false)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches
+  )
 
   useEffect(() => {
     fileIndexRef.current = fileIndex
   }, [fileIndex])
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia('(pointer: coarse)')
+    const onChange = (event: MediaQueryListEvent) => setIsCoarsePointer(event.matches)
+    media.addEventListener?.('change', onChange)
+    return () => media.removeEventListener?.('change', onChange)
+  }, [])
 
   const fileCount = urls.length
   const isBusy = status === 'loading' || status === 'rendering'
@@ -110,9 +137,14 @@ export function DicomViewer({
 
   const seriesCount = series?.length ?? 0
   const hasSeriesNav = seriesCount > 1 && onNextSeries && onPrevSeries
+  const hasSeriesRail = seriesCount > 1 && Boolean(onSelectSeries) && fullscreen
   const showHeader = Boolean(
-    fullscreen || onClose || hasSeriesNav || onDownloadSeries || onDownloadStudy,
+    fullscreen || onClose || hasSeriesNav || onDownloadSeries || onDownloadStudy
   )
+
+  const activeSeries = series?.[activeSeriesIndex]
+  const modality = dwvModality ?? normalizeModality(modalityProp ?? activeSeries?.modality)
+  const presets = windowPresetsForModality(modality)
 
   const infoKind = resolveViewerInfoKind({
     isBusy,
@@ -138,12 +170,17 @@ export function DicomViewer({
     setErrorMessage(null)
     setPoolWarning(null)
     setSequentialFallbackNote(null)
+    setWindowLevel(null)
+    setInverted(false)
+    setDwvModality(null)
+    setSeriesSheetOpen(false)
   }
 
   useEffect(() => {
     openStartedAtRef.current = nowMs()
     paintedRef.current = false
     openReportedRef.current = false
+    wheelAccumRef.current = 0
   }, [urlsKey])
 
   useEffect(() => {
@@ -235,6 +272,23 @@ export function DicomViewer({
     setErrorMessage,
   })
 
+  // Overlay W/L + modality : suit la vue active (change en mode séquentiel).
+  useEffect(() => {
+    if (status !== 'ready') return
+    const app = appRef.current
+    if (!app) return
+    const sync = () => {
+      setWindowLevel(readWindowLevel(app))
+    }
+    sync()
+    const detected = readModality(app)
+    if (detected) setDwvModality(detected)
+    app.addEventListener('wlchange', sync)
+    return () => {
+      app.removeEventListener('wlchange', sync)
+    }
+  }, [status, navMode, fileIndex])
+
   const activateTool = useCallback((next: DicomTool) => {
     const app = appRef.current
     if (!app) return
@@ -249,6 +303,8 @@ export function DicomViewer({
     app.resetZoomPan()
     app.resetViews()
     app.fitToContainer()
+    setActivePreset(null)
+    setWindowLevel(readWindowLevel(app))
   }, [])
 
   const handleZoomStep = useCallback((step: number) => {
@@ -285,17 +341,61 @@ export function DicomViewer({
         /* preset may fail on non-grayscale modalities */
       }
     },
-    [getViewController],
+    [getViewController]
+  )
+
+  const handleAutoWindow = useCallback(() => {
+    const app = appRef.current
+    if (!app) return
+    resetWindowLevel(app)
+    setActivePreset(null)
+    setWindowLevel(readWindowLevel(app))
+  }, [])
+
+  const handleToggleInvert = useCallback(() => {
+    const app = appRef.current
+    if (!app) return
+    const next = toggleInvert(app)
+    if (next !== null) setInverted(next)
+  }, [])
+
+  const handleFlipHorizontal = useCallback(() => {
+    const app = appRef.current
+    if (!app) return
+    flipViewLayer(app, 'x')
+  }, [])
+
+  const goToSlice = useCallback(
+    (target: number) => {
+      if (navMode === 'sequential' && fileCount > 1) {
+        setFileIndex(Math.max(0, Math.min(fileCount - 1, target)))
+        return
+      }
+      const app = appRef.current
+      if (!app) return
+      if (setDwvSliceIndex(app, target)) {
+        setSliceIndex(Math.max(0, Math.min(sliceCount - 1, target)))
+      }
+    },
+    [navMode, fileCount, sliceCount]
   )
 
   const navigateSlice = useCallback(
-    (delta: 1 | -1) => {
+    (delta: number) => {
+      if (delta === 0) return
       if (navMode === 'sequential' && fileCount > 1) {
-        setFileIndex((prev) => Math.max(0, Math.min(fileCount - 1, prev + delta)))
+        setFileIndex(prev => Math.max(0, Math.min(fileCount - 1, prev + delta)))
         return
       }
       const controller = getViewController()
       if (!controller) return
+      if (Math.abs(delta) !== 1) {
+        const app = appRef.current
+        if (app) {
+          setDwvSliceIndex(app, controller.getCurrentIndexScrollValue() + delta)
+        }
+        return
+      }
       try {
         const helper = controller.getPositionHelper()
         if (delta > 0) helper.incrementPositionAlongScroll()
@@ -304,23 +404,60 @@ export function DicomViewer({
         /* single-frame data has no scroll dimension */
       }
     },
-    [navMode, fileCount, getViewController],
+    [navMode, fileCount, getViewController]
   )
+
+  const displaySliceIndex = navMode === 'sequential' ? fileIndex : sliceIndex
+  const displayTotal = navMode === 'sequential' && fileCount > 1 ? fileCount : sliceCount
+  const canNavigateSlices =
+    isReady && (sliceCount > 1 || (navMode === 'sequential' && fileCount > 1))
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       if (status !== 'ready') return
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+      const key = event.key
+      const consume = () => {
         event.preventDefault()
         event.stopPropagation()
+      }
+      if (key === 'ArrowLeft' || key === 'ArrowDown') {
+        consume()
         navigateSlice(-1)
-      } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
-        event.preventDefault()
-        event.stopPropagation()
+      } else if (key === 'ArrowRight' || key === 'ArrowUp') {
+        consume()
         navigateSlice(1)
+      } else if (key === 'PageDown') {
+        consume()
+        navigateSlice(Math.max(1, Math.round(displayTotal / 10)))
+      } else if (key === 'PageUp') {
+        consume()
+        navigateSlice(-Math.max(1, Math.round(displayTotal / 10)))
+      } else if (key === 'Home') {
+        consume()
+        goToSlice(0)
+      } else if (key === 'End') {
+        consume()
+        goToSlice(displayTotal - 1)
+      } else if (key === 'i' || key === 'I') {
+        consume()
+        handleToggleInvert()
+      } else if (key === 'h' || key === 'H') {
+        consume()
+        handleFlipHorizontal()
+      } else if (key === 'r' || key === 'R') {
+        consume()
+        handleReset()
       }
     },
-    [status, navigateSlice],
+    [
+      status,
+      navigateSlice,
+      goToSlice,
+      displayTotal,
+      handleToggleInvert,
+      handleFlipHorizontal,
+      handleReset,
+    ]
   )
 
   const handleSurfacePointerEnter = useCallback(() => {
@@ -340,27 +477,36 @@ export function DicomViewer({
     toolRef.current = tool
   }, [tool])
 
+  // Molette = coupes, quel que soit l'outil actif (Horos / RadiAnt / OsiriX).
+  // Capture avant dwv pour un comportement identique en stack et séquentiel ;
+  // le scroll de page est toujours bloqué au-dessus du viewport.
   useEffect(() => {
     const surface = surfaceRef.current
     if (!surface) return
-    const blockWheelUnlessScroll = (event: WheelEvent) => {
-      if (status !== 'ready' || toolRef.current !== 'Scroll') {
-        event.preventDefault()
-        event.stopPropagation()
-      }
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (!canNavigateSlices) return
+      const { steps, remainder } = accumulateWheelSlices(
+        wheelAccumRef.current,
+        event.deltaY,
+        event.deltaMode
+      )
+      wheelAccumRef.current = remainder
+      if (steps !== 0) navigateSlice(steps)
     }
-    surface.addEventListener('wheel', blockWheelUnlessScroll, { passive: false, capture: true })
+    surface.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => {
-      surface.removeEventListener('wheel', blockWheelUnlessScroll, { capture: true })
+      surface.removeEventListener('wheel', onWheel, { capture: true })
     }
-  }, [status])
+  }, [canNavigateSlices, navigateSlice])
 
   useEffect(() => {
     if (status !== 'ready') return
-    if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) {
+    if (isCoarsePointer) {
       activateTool('ZoomAndPan')
     }
-  }, [status, activateTool])
+  }, [status, isCoarsePointer, activateTool])
 
   useDwvViewportResize(surfaceRef, appRef, status === 'ready')
 
@@ -368,10 +514,11 @@ export function DicomViewer({
     { id: 'WindowLevel', label: 'Fenêtrage', shortLabel: 'Fenêt.', available: true },
     { id: 'ZoomAndPan', label: 'Zoom / Déplacement', shortLabel: 'Zoom', available: true },
     {
+      // Tactile uniquement : au pointeur, la molette fait déjà défiler les coupes.
       id: 'Scroll',
       label: 'Coupes',
       shortLabel: 'Coupes',
-      available: isReady && sliceCount > 1 && navMode === 'stack',
+      available: isCoarsePointer && isReady && sliceCount > 1 && navMode === 'stack',
     },
   ]
 
@@ -383,9 +530,6 @@ export function DicomViewer({
     preloadLoaded,
   })
 
-  const displaySliceIndex = navMode === 'sequential' ? fileIndex : sliceIndex
-  const displayTotal = navMode === 'sequential' && fileCount > 1 ? fileCount : sliceCount
-  const canNavigateSlices = isReady && (sliceCount > 1 || (navMode === 'sequential' && fileCount > 1))
   const preloadMode =
     (navMode === 'sequential' && fileCount > 1) ||
     (navMode === 'stack' && fileCount > 1 && preloadLoaded > 0)
@@ -393,7 +537,8 @@ export function DicomViewer({
   const hint = viewerToolHint({ navMode, fileCount, tool, sliceCount })
   const mobileHint = viewerMobileHint({ tool, sliceCount })
 
-  const infoNote = navMode === 'sequential' ? sequentialFallbackNote ?? poolWarning : null
+  const infoNote = navMode === 'sequential' ? (sequentialFallbackNote ?? poolWarning) : null
+  const sliceUnit = navMode === 'sequential' && fileCount > 1 ? 'fichier' : 'coupe'
 
   return (
     <div
@@ -424,68 +569,127 @@ export function DicomViewer({
         />
       ) : null}
 
-      <DicomViewerToolbar
-        tools={tools}
-        tool={tool}
-        isReady={isReady}
-        activateTool={activateTool}
-        handleZoomStep={handleZoomStep}
-        activePreset={activePreset}
-        applyWindowPreset={applyWindowPreset}
-        handleReset={handleReset}
-        canNavigateSlices={canNavigateSlices}
-        navigateSlice={navigateSlice}
-        displaySliceIndex={displaySliceIndex}
-        displayTotal={displayTotal}
-        navMode={navMode}
-        showHeader={showHeader}
-        infoKind={infoKind}
-        sliceCount={sliceCount}
-        fileCount={fileCount}
-        errorMessage={errorMessage}
-        infoNote={infoNote}
-        preloadLoaded={preloadLoaded}
-        preloadMode={preloadMode}
-        hint={hint}
-        mobileHint={mobileHint}
-      />
-
-      <div
-        ref={surfaceRef}
-        className="relative min-h-[240px] flex-1 touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30 sm:min-h-[360px]"
-        role="application"
-        tabIndex={0}
-        aria-label={`Visionneuse DICOM : ${name}. Flèches gauche/droite : changer de coupe.`}
-        onPointerEnter={handleSurfacePointerEnter}
-      >
-        <div
-          ref={containerRef}
-          id={layerGroupId}
-          className="absolute inset-0"
-          style={{ display: navMode === 'sequential' ? 'none' : 'block' }}
-        />
-        <div
-          ref={poolHostRef}
-          className="absolute inset-0"
-          style={{ display: navMode === 'sequential' ? 'block' : 'none' }}
-          data-testid="dicom-pool-host"
-        />
-
-        {isBusy ? (
-          <DicomViewportLoadingOverlay
-            message={viewportMessage}
-            progress={status === 'loading' ? progress : undefined}
+      <div className="relative flex min-h-0 flex-1">
+        {hasSeriesRail && series ? (
+          <DicomSeriesRail
+            variant="rail"
+            series={series}
+            activeIndex={activeSeriesIndex}
+            busy={isBusy}
+            onSelect={index => onSelectSeries?.(index)}
           />
         ) : null}
 
-        {status === 'error' ? (
-          <DicomViewportErrorOverlay
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <DicomViewerToolbar
+            tools={tools}
+            tool={tool}
+            isReady={isReady}
+            activateTool={activateTool}
+            handleZoomStep={handleZoomStep}
+            activePreset={activePreset}
+            presets={presets}
+            applyWindowPreset={applyWindowPreset}
+            handleAutoWindow={handleAutoWindow}
+            handleReset={handleReset}
+            inverted={inverted}
+            handleToggleInvert={handleToggleInvert}
+            handleFlipHorizontal={handleFlipHorizontal}
+            canNavigateSlices={canNavigateSlices}
+            navigateSlice={navigateSlice}
+            displaySliceIndex={displaySliceIndex}
+            displayTotal={displayTotal}
+            navMode={navMode}
+            showHeader={showHeader}
+            infoKind={infoKind}
+            sliceCount={sliceCount}
+            fileCount={fileCount}
             errorMessage={errorMessage}
-            warning={poolWarning}
-            downloadHref={urls[0]}
-            downloadName={name}
+            infoNote={infoNote}
+            preloadLoaded={preloadLoaded}
+            preloadMode={preloadMode}
+            hint={hint}
+            mobileHint={mobileHint}
+            seriesCount={hasSeriesRail ? seriesCount : 0}
+            onOpenSeriesSheet={hasSeriesRail ? () => setSeriesSheetOpen(true) : undefined}
           />
-        ) : null}
+
+          <div
+            ref={surfaceRef}
+            className="relative min-h-[240px] flex-1 touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30 sm:min-h-[360px]"
+            role="application"
+            tabIndex={0}
+            aria-label={`Visionneuse DICOM : ${name}. Molette ou flèches : changer de coupe. I : inverser.`}
+            onPointerEnter={handleSurfacePointerEnter}
+          >
+            <div
+              ref={containerRef}
+              id={layerGroupId}
+              className="absolute inset-0"
+              style={{ display: navMode === 'sequential' ? 'none' : 'block' }}
+            />
+            <div
+              ref={poolHostRef}
+              className="absolute inset-0"
+              style={{ display: navMode === 'sequential' ? 'block' : 'none' }}
+              data-testid="dicom-pool-host"
+            />
+
+            {isReady ? (
+              <DicomCornerOverlay
+                modality={modality}
+                description={activeSeries?.description}
+                sliceIndex={displaySliceIndex}
+                sliceTotal={displayTotal}
+                windowLevel={windowLevel}
+                inverted={inverted}
+                unit={sliceUnit}
+              />
+            ) : null}
+
+            {isBusy ? (
+              <DicomViewportLoadingOverlay
+                message={viewportMessage}
+                progress={status === 'loading' ? progress : undefined}
+              />
+            ) : null}
+
+            {status === 'error' ? (
+              <DicomViewportErrorOverlay
+                errorMessage={errorMessage}
+                warning={poolWarning}
+                downloadHref={urls[0]}
+                downloadName={name}
+              />
+            ) : null}
+          </div>
+
+          <DicomSliceSlider
+            index={displaySliceIndex}
+            total={canNavigateSlices ? displayTotal : 1}
+            disabled={!isReady}
+            onChange={goToSlice}
+            unit={sliceUnit}
+          />
+
+          <p
+            className="shrink-0 px-4 py-1 text-center text-[10px] text-white/40"
+            data-testid="dicom-informative-notice"
+          >
+            {VIEWER_INFORMATIVE_NOTICE}
+          </p>
+
+          {seriesSheetOpen && hasSeriesRail && series ? (
+            <DicomSeriesRail
+              variant="sheet"
+              series={series}
+              activeIndex={activeSeriesIndex}
+              busy={isBusy}
+              onSelect={index => onSelectSeries?.(index)}
+              onClose={() => setSeriesSheetOpen(false)}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   )

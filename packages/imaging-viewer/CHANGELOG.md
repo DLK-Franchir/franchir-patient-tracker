@@ -1,5 +1,28 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.14.0
+
+- **U0 — quick wins UX** (host dwv **et** repli OpenJPEG, parité Marcel / clinicien) :
+  - **Rail séries** (`DicomSeriesRail`) : colonne desktop + sheet mobile, saut
+    direct vers une série (libellé, badge modality, nb fichiers). Contrat :
+    `ImagingSeries.modality` / `.description`, prop `onSelectSeries` (+ `modality`).
+  - **Molette = coupes** quel que soit l'outil (`accumulateWheelSlices`, seuil
+    trackpad) ; outil « Coupes » réservé au tactile. Repli OpenJPEG : molette =
+    coupes, Ctrl/⌘ + molette = zoom.
+  - **Slider de coupes** (`DicomSliceSlider`) + raccourcis Home / End / PageUp /
+    PageDown, `I` inverser, `H` miroir horizontal, `R` réinitialiser.
+  - **Presets fenêtrage par modality** (`windowPresetsForModality`) : HU
+    seulement sur CT ; bouton **Auto** = W/L DICOM (`resetWindowLevel`). La
+    modality est lue depuis dwv (`readModality`) puis depuis la série.
+  - **Inverser** (`toggleInvert`, colour map `invPlain`) et **miroir** (`flipViewLayer`).
+  - **Overlay 4 coins** (`DicomCornerOverlay`, non-PHI) : modality · description,
+    coupe n / N, W/L courant (`wlchange`), badge « Inversé ».
+  - Mention `VIEWER_INFORMATIVE_NOTICE` (consultation, pas de diagnostic) sous le viewport.
+  - Repli OpenJPEG : header `DicomSeriesHeader` partagé, rail + nav séries,
+    slider, invert, overlay.
+- Engine : `setSliceIndex`, `readWindowLevel`, `readModality`, `resetWindowLevel`,
+  `toggleInvert`, `flipViewLayer` exportés depuis `/engine`.
+
 ## 0.13.3
 
 - P7 residual polish (lane A) :

@@ -6,8 +6,18 @@
  * fenêtrage VOI + canvas (nav coupe, WL souris, zoom).
  */
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react'
-import { AlertTriangle, ArrowLeft, ArrowRight, X } from 'lucide-react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type WheelEvent,
+} from 'react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Contrast, Layers } from 'lucide-react'
+import type { ImagingSeries, ViewerInfoKind } from '../contract'
+import { VIEWER_INFORMATIVE_NOTICE, accumulateWheelSlices, normalizeModality } from '../policy'
 import { parseDicomForFallback } from './decode/dicom-j2k-extract'
 import { decodeJpeg2000, type DecodedFrame } from './decode/jpeg2000-decode'
 import {
@@ -17,6 +27,10 @@ import {
   type WindowLevel,
 } from './decode/dicom-windowing'
 import { VIEWER_BG } from './messages'
+import { DicomSeriesHeader } from './viewer-series-header'
+import { DicomSeriesRail } from './viewer-series-rail'
+import { DicomCornerOverlay } from './viewer-corner-overlay'
+import { DicomSliceSlider } from './viewer-slice-slider'
 import { emitImagingTelemetry, nowMs, type ImagingTelemetryHandler } from '../telemetry'
 
 type FrameData = {
@@ -32,6 +46,13 @@ export type DicomJpeg2000FallbackViewerProps = {
   fullscreen?: boolean
   onClose?: () => void
   onImagingTelemetry?: ImagingTelemetryHandler
+  /** Parité host dwv (U0) : rail + nav séries pour ne pas dégrader la navigation en repli. */
+  series?: ImagingSeries[]
+  activeSeriesIndex?: number
+  onNextSeries?: () => void
+  onPrevSeries?: () => void
+  onSelectSeries?: (index: number) => void
+  modality?: string | null
 }
 
 /** Remount on series change so index/cache/refs reset without setState-in-effect. */
@@ -45,9 +66,18 @@ function DicomJpeg2000FallbackViewerInner({
   fullscreen = false,
   onClose,
   onImagingTelemetry,
+  series,
+  activeSeriesIndex = 0,
+  onNextSeries,
+  onPrevSeries,
+  onSelectSeries,
+  modality: modalityProp,
 }: DicomJpeg2000FallbackViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
+  const wheelAccumRef = useRef(0)
+  const [inverted, setInverted] = useState(false)
+  const [seriesSheetOpen, setSeriesSheetOpen] = useState(false)
   const cacheRef = useRef<Map<number, FrameData>>(new Map())
   const inflightRef = useRef<Map<number, Promise<FrameData | null>>>(new Map())
   // Sérialise les décodages : heap WASM OpenJPEG partagé.
@@ -113,7 +143,7 @@ function DicomJpeg2000FallbackViewerInner({
       const promise = (async () => {
         const prior = decodeChainRef.current
         let release!: () => void
-        decodeChainRef.current = new Promise<void>((resolve) => {
+        decodeChainRef.current = new Promise<void>(resolve => {
           release = resolve
         })
         await prior.catch(() => {})
@@ -152,7 +182,7 @@ function DicomJpeg2000FallbackViewerInner({
       void promise.catch(() => {}).finally(() => inflightRef.current.delete(target))
       return promise
     },
-    [urls],
+    [urls]
   )
 
   useEffect(() => {
@@ -245,12 +275,13 @@ function DicomJpeg2000FallbackViewerInner({
     if (status !== 'ready' || !wl) return
     const data = cacheRef.current.get(index)
     if (!data) return
-    const rgba = grayPixelsToRgba(data.frame.pixels, wl, data.isMonochrome1)
+    // MONOCHROME1 est déjà inversé par le décodeur ; « Inverser » bascule ce choix.
+    const rgba = grayPixelsToRgba(data.frame.pixels, wl, data.isMonochrome1 !== inverted)
     const imageData = new ImageData(data.frame.width, data.frame.height)
     imageData.data.set(rgba)
     rgbaRef.current = imageData
     paint()
-  }, [status, wl, index, paint])
+  }, [status, wl, index, paint, inverted])
 
   useEffect(() => {
     paint()
@@ -290,7 +321,7 @@ function DicomJpeg2000FallbackViewerInner({
     const dx = e.clientX - drag.x
     const dy = e.clientY - drag.y
     if (drag.mode === 'pan') {
-      setView((v) => ({ ...v, panX: drag.pan.x + dx, panY: drag.pan.y + dy }))
+      setView(v => ({ ...v, panX: drag.pan.x + dx, panY: drag.pan.y + dy }))
     } else {
       const data = cacheRef.current.get(index)
       const span = data ? Math.max(1, data.range.max - data.range.min) : 4096
@@ -311,10 +342,20 @@ function DicomJpeg2000FallbackViewerInner({
     }
   }
 
+  const zoomBy = (factor: number) => {
+    setView(v => ({ ...v, zoom: Math.min(8, Math.max(0.5, v.zoom * factor)) }))
+  }
+
+  // Molette = coupes (comme le host dwv) ; Ctrl/⌘ + molette ou image unique = zoom.
   const onWheel = (e: WheelEvent) => {
     if (status !== 'ready') return
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
-    setView((v) => ({ ...v, zoom: Math.min(8, Math.max(0.5, v.zoom * factor)) }))
+    if (fileCount <= 1 || e.ctrlKey || e.metaKey) {
+      zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15)
+      return
+    }
+    const { steps, remainder } = accumulateWheelSlices(wheelAccumRef.current, e.deltaY, e.deltaMode)
+    wheelAccumRef.current = remainder
+    if (steps !== 0) navigate(steps)
   }
 
   const resetView = () => {
@@ -323,8 +364,12 @@ function DicomJpeg2000FallbackViewerInner({
     setView({ zoom: 1, panX: 0, panY: 0 })
   }
 
-  const navigate = (delta: 1 | -1) => {
-    setIndex((prev) => Math.max(0, Math.min(fileCount - 1, prev + delta)))
+  const navigate = (delta: number) => {
+    setIndex(prev => Math.max(0, Math.min(fileCount - 1, prev + delta)))
+  }
+
+  const goTo = (target: number) => {
+    setIndex(Math.max(0, Math.min(fileCount - 1, target)))
   }
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -334,6 +379,24 @@ function DicomJpeg2000FallbackViewerInner({
     } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
       e.preventDefault()
       navigate(1)
+    } else if (e.key === 'PageDown') {
+      e.preventDefault()
+      navigate(Math.max(1, Math.round(fileCount / 10)))
+    } else if (e.key === 'PageUp') {
+      e.preventDefault()
+      navigate(-Math.max(1, Math.round(fileCount / 10)))
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      goTo(0)
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      goTo(fileCount - 1)
+    } else if (e.key === 'i' || e.key === 'I') {
+      e.preventDefault()
+      setInverted(v => !v)
+    } else if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault()
+      resetView()
     }
   }
 
@@ -345,17 +408,30 @@ function DicomJpeg2000FallbackViewerInner({
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
       if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
         e.preventDefault()
-        setIndex((prev) => Math.min(fileCount - 1, prev + 1))
+        setIndex(prev => Math.min(fileCount - 1, prev + 1))
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
         e.preventDefault()
-        setIndex((prev) => Math.max(0, prev - 1))
+        setIndex(prev => Math.max(0, prev - 1))
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [fileCount])
 
-  const showHeader = Boolean(fullscreen || onClose)
+  const seriesCount = series?.length ?? 0
+  const hasSeriesNav = seriesCount > 1 && Boolean(onNextSeries && onPrevSeries)
+  const hasSeriesRail = seriesCount > 1 && Boolean(onSelectSeries) && fullscreen
+  const showHeader = Boolean(fullscreen || onClose || hasSeriesNav)
+  const activeSeries = series?.[activeSeriesIndex]
+  const modality = normalizeModality(modalityProp ?? activeSeries?.modality)
+  const infoKind: ViewerInfoKind =
+    status === 'loading'
+      ? 'loading'
+      : status === 'error'
+        ? 'error'
+        : fileCount > 1
+          ? 'sequential'
+          : 'single'
 
   return (
     <div
@@ -364,119 +440,208 @@ function DicomJpeg2000FallbackViewerInner({
       data-testid="dicom-fallback-root"
     >
       {showHeader ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3">
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{name}</p>
-          {onClose ? (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fermer la visionneuse"
-              className="inline-flex items-center justify-center rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
-            >
-              <X className="size-5" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
+        <DicomSeriesHeader
+          name={name}
+          seriesCount={seriesCount}
+          activeSeriesIndex={activeSeriesIndex}
+          isBusy={status === 'loading'}
+          infoKind={infoKind}
+          sliceCount={fileCount}
+          fileCount={fileCount}
+          errorMessage={errorMessage}
+          infoNote="JPEG 2000 — rendu OpenJPEG"
+          onPrevSeries={hasSeriesNav ? onPrevSeries : undefined}
+          onNextSeries={hasSeriesNav ? onNextSeries : undefined}
+          onClose={onClose}
+        />
       ) : null}
 
-      <div className="flex max-w-full flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2">
-        <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-medium text-amber-200">
-          JPEG 2000 — rendu OpenJPEG
-        </span>
-        <button
-          type="button"
-          onClick={resetView}
-          disabled={status !== 'ready'}
-          className="inline-flex min-h-9 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
-        >
-          Réinit.
-        </button>
-        {fileCount > 1 ? (
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              disabled={index <= 0}
-              aria-label="Image précédente"
-              className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-30"
-            >
-              <ArrowLeft className="size-3.5" aria-hidden="true" />
-              Préc.
-            </button>
-            <span
-              className="px-1 text-xs tabular-nums text-white/60"
-              data-testid="dicom-fallback-indicator"
-            >
-              {index + 1} / {fileCount}
-            </span>
-            {decodedCount < fileCount ? (
-              <span
-                className="hidden text-[10px] tabular-nums text-white/40 sm:inline"
-                title="Coupes décodées et mises en cache"
+      <div className="relative flex min-h-0 flex-1">
+        {hasSeriesRail && series ? (
+          <DicomSeriesRail
+            variant="rail"
+            series={series}
+            activeIndex={activeSeriesIndex}
+            busy={status === 'loading'}
+            onSelect={i => onSelectSeries?.(i)}
+          />
+        ) : null}
+
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex max-w-full flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2">
+            {hasSeriesRail ? (
+              <button
+                type="button"
+                onClick={() => setSeriesSheetOpen(true)}
+                aria-label={`Choisir une série (${seriesCount})`}
+                className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white md:hidden"
+                data-testid="dicom-series-sheet-open"
               >
-                ({decodedCount}/{fileCount} préchargées)
+                <Layers className="size-4" aria-hidden="true" />
+                Séries
+              </button>
+            ) : null}
+            {!showHeader ? (
+              <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-medium text-amber-200">
+                JPEG 2000 — rendu OpenJPEG
               </span>
             ) : null}
             <button
               type="button"
-              onClick={() => navigate(1)}
-              disabled={index >= fileCount - 1}
-              aria-label="Image suivante"
-              className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-30"
+              onClick={() => setInverted(v => !v)}
+              disabled={status !== 'ready'}
+              aria-pressed={inverted}
+              aria-label="Inverser les niveaux de gris (I)"
+              title="Inverser (I)"
+              className="inline-flex min-h-9 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
+              style={{ backgroundColor: inverted ? 'rgba(56,178,172,0.35)' : undefined }}
+              data-testid="dicom-invert"
             >
-              Suiv.
-              <ArrowRight className="size-3.5" aria-hidden="true" />
+              <Contrast className="size-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Inverser</span>
             </button>
-          </div>
-        ) : null}
-        <span className="ml-auto hidden text-[11px] text-white/40 sm:block">
-          Glisser : fenêtrage · Maj+glisser : déplacer · molette : zoom
-        </span>
-      </div>
-
-      <div
-        ref={surfaceRef}
-        className="relative min-h-[240px] flex-1 touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30 sm:min-h-[360px]"
-        role="application"
-        tabIndex={0}
-        aria-label={`Visionneuse DICOM JPEG 2000 : ${name}`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onWheel={onWheel}
-        onKeyDown={onKeyDown}
-      >
-        <canvas ref={canvasRef} className="absolute inset-0" />
-
-        {status === 'loading' ? (
-          <div
-            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3"
-            style={{ backgroundColor: `${VIEWER_BG}d9` }}
-          >
-            <div
-              className="size-8 animate-spin rounded-full border-2 border-amber-200/30 border-t-amber-100"
-              aria-hidden
-            />
-            <p className="text-sm font-medium text-white/90">Décodage de l&apos;image…</p>
-          </div>
-        ) : null}
-
-        {status === 'error' ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-            <AlertTriangle className="size-8 text-white/80" strokeWidth={1.75} aria-hidden="true" />
-            <p className="text-sm font-medium text-white">Impossible d&apos;afficher ce DICOM</p>
-            <p className="text-xs text-white/50">
-              {errorMessage ?? 'Le fichier est peut-être corrompu ou illisible.'}
-            </p>
-            <a
-              href={urls[index]}
-              download={name}
-              className="mt-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20"
+            <button
+              type="button"
+              onClick={resetView}
+              disabled={status !== 'ready'}
+              className="inline-flex min-h-9 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
             >
-              Télécharger le fichier
-            </a>
+              Réinit.
+            </button>
+            {fileCount > 1 ? (
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  disabled={index <= 0}
+                  aria-label="Image précédente"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-30"
+                >
+                  <ArrowLeft className="size-3.5" aria-hidden="true" />
+                  Préc.
+                </button>
+                <span
+                  className="px-1 text-xs tabular-nums text-white/60"
+                  data-testid="dicom-fallback-indicator"
+                >
+                  {index + 1} / {fileCount}
+                </span>
+                {decodedCount < fileCount ? (
+                  <span
+                    className="hidden text-[10px] tabular-nums text-white/40 sm:inline"
+                    title="Coupes décodées et mises en cache"
+                  >
+                    ({decodedCount}/{fileCount} préchargées)
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => navigate(1)}
+                  disabled={index >= fileCount - 1}
+                  aria-label="Image suivante"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-30"
+                >
+                  Suiv.
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            ) : null}
+            <span className="ml-auto hidden text-[11px] text-white/40 sm:block">
+              {fileCount > 1
+                ? 'Glisser : fenêtrage · Maj+glisser : déplacer · molette : coupes · Ctrl+molette : zoom'
+                : 'Glisser : fenêtrage · Maj+glisser : déplacer · molette : zoom'}
+            </span>
           </div>
-        ) : null}
+
+          <div
+            ref={surfaceRef}
+            className="relative min-h-[240px] flex-1 touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30 sm:min-h-[360px]"
+            role="application"
+            tabIndex={0}
+            aria-label={`Visionneuse DICOM JPEG 2000 : ${name}`}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onWheel={onWheel}
+            onKeyDown={onKeyDown}
+          >
+            <canvas ref={canvasRef} className="absolute inset-0" />
+
+            {status === 'ready' ? (
+              <DicomCornerOverlay
+                modality={modality}
+                description={activeSeries?.description}
+                sliceIndex={index}
+                sliceTotal={fileCount}
+                windowLevel={wl}
+                inverted={inverted}
+                unit="coupe"
+              />
+            ) : null}
+
+            {status === 'loading' ? (
+              <div
+                className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3"
+                style={{ backgroundColor: `${VIEWER_BG}d9` }}
+              >
+                <div
+                  className="size-8 animate-spin rounded-full border-2 border-amber-200/30 border-t-amber-100"
+                  aria-hidden
+                />
+                <p className="text-sm font-medium text-white/90">Décodage de l&apos;image…</p>
+              </div>
+            ) : null}
+
+            {status === 'error' ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                <AlertTriangle
+                  className="size-8 text-white/80"
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+                <p className="text-sm font-medium text-white">
+                  Impossible d&apos;afficher ce DICOM
+                </p>
+                <p className="text-xs text-white/50">
+                  {errorMessage ?? 'Le fichier est peut-être corrompu ou illisible.'}
+                </p>
+                <a
+                  href={urls[index]}
+                  download={name}
+                  className="mt-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20"
+                >
+                  Télécharger le fichier
+                </a>
+              </div>
+            ) : null}
+          </div>
+
+          <DicomSliceSlider
+            index={index}
+            total={fileCount}
+            disabled={status === 'error'}
+            onChange={goTo}
+            unit="coupe"
+          />
+
+          <p
+            className="shrink-0 px-4 py-1 text-center text-[10px] text-white/40"
+            data-testid="dicom-informative-notice"
+          >
+            {VIEWER_INFORMATIVE_NOTICE}
+          </p>
+
+          {seriesSheetOpen && hasSeriesRail && series ? (
+            <DicomSeriesRail
+              variant="sheet"
+              series={series}
+              activeIndex={activeSeriesIndex}
+              busy={status === 'loading'}
+              onSelect={i => onSelectSeries?.(i)}
+              onClose={() => setSeriesSheetOpen(false)}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   )

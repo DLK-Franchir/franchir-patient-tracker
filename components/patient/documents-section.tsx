@@ -110,6 +110,8 @@ type ViewerItem =
       firstUrl: string
       groupId: string
       documentIds: string[]
+      modality?: string | null
+      seriesDescription?: string | null
     }
   | {
       kind: 'dicom-pdf-series'
@@ -134,6 +136,8 @@ type ViewerItem =
       urls: string[]
       firstUrl: string
       groupId: string
+      modality?: string | null
+      seriesDescription?: string | null
     }
   | {
       kind: 'questionnaire-dicom-pdf-series'
@@ -187,6 +191,8 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
       firstUrl: first.url,
       groupId: series.groupId,
       documentIds,
+      modality: first.modality ?? null,
+      seriesDescription: first.seriesDescription ?? null,
     })
   }
 
@@ -240,6 +246,8 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
       urls: series.files.map((f) => f.url),
       firstUrl: first.url,
       groupId: series.groupId,
+      modality: null,
+      seriesDescription: first.seriesDescription ?? null,
     })
   }
 
@@ -257,6 +265,8 @@ function buildDicomViewerSeries(items: ViewerItem[]): ViewerSeries[] {
       label: item.name,
       urls: item.urls,
       fileCount: item.urls.length,
+      modality: item.modality ?? null,
+      description: item.seriesDescription ?? null,
     }))
 }
 
@@ -538,6 +548,16 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
       void openViewer(nextItem.id)
     },
     [dicomItems, items, openViewer, selectedId],
+  )
+
+  /** Rail séries (U0) : saut direct par index dans `dicomViewerSeries`. */
+  const selectDicomSeries = useCallback(
+    (index: number) => {
+      const target = dicomItems[index]
+      if (!target || target.id === selectedId) return
+      void openViewer(target.id)
+    },
+    [dicomItems, openViewer, selectedId],
   )
 
   const runSeriesZipDownload = useCallback(async (seriesKey: string, fileCount?: number) => {
@@ -1051,6 +1071,12 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                 urls={selectedItem.urls}
                 name={selectedName}
                 fullscreen
+                series={dicomViewerSeries}
+                activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(items, selectedItem.id))}
+                onNextSeries={() => navigateDicomSeries('next')}
+                onPrevSeries={() => navigateDicomSeries('prev')}
+                onSelectSeries={selectDicomSeries}
+                modality={selectedItem.modality ?? null}
                 onClose={() => setSelectedId(null)}
                 onImagingTelemetry={reportImagingTelemetry}
               />
@@ -1064,6 +1090,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(items, selectedItem.id))}
                   onNextSeries={() => navigateDicomSeries('next')}
                   onPrevSeries={() => navigateDicomSeries('prev')}
+                  onSelectSeries={selectDicomSeries}
+                  modality={selectedItem.modality ?? null}
                   onClose={() => setSelectedId(null)}
                   onImagingTelemetry={reportImagingTelemetry}
                   capabilities={VIEWER_CAPS}

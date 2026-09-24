@@ -86,11 +86,16 @@ Delete remote imaging branches whose PRs are **MERGED** (or clearly superseded).
 - Dedicated `/host` surface
 - Broader e2e host / golden tour polish
 
-## Hors suite (future)
+## Suite U (UX visionneuse, 0.14.0+)
 
-- MPR
+- **U0 done (0.14.0)** — rail séries, molette = coupes, slider, presets HU seulement CT + Auto, inverser / miroir, overlay 4 coins, mention informatif ; parité repli OpenJPEG. Smoke : ouvrir Tania → rail 11 séries cliquable (desktop) / bouton « Séries » (mobile) ; molette change de coupe sans changer d'outil ; IRM sans presets HU.
+- **U1 next** — moteur Cornerstone3D flaggé (`engine`), puis retrait dwv. Voir `packages/imaging-viewer/PRODUCT.md`.
+- **U2 future** — mesures, 2 viewports, MPR conditionnel.
+
+## Hors suite
+
 - DICOMDIR / CD companions
-- Annotations / persistent measurements
+- Annotations persistées (décision produit séparée)
 
 ---
 
