@@ -60,6 +60,81 @@ export function viewerMobileHint(input: { tool: DicomTool; sliceCount: number })
   return "Choisissez Zoom pour agrandir l'image"
 }
 
+/** Mode chrome pour la bulle de raccourcis (indépendant de NavMode moteur). */
+export type ViewerShortcutMode = 'stack' | 'compare' | 'mpr' | 'jpeg2000'
+
+export type ViewerShortcutChip = {
+  /** Libellé clavier / geste affiché en `kbd` contrasté. */
+  keys: string
+  /** Action associée. */
+  label: string
+}
+
+/**
+ * Puces de raccourcis dynamiques selon outil + mode.
+ * Texte déterministe, sans PHI — tests vitest sur le contenu.
+ */
+export function viewerShortcutChips(input: {
+  tool: DicomTool
+  mode: ViewerShortcutMode
+  hasSlices: boolean
+}): ViewerShortcutChip[] {
+  const { tool, mode, hasSlices } = input
+
+  if (mode === 'mpr') {
+    const chips: ViewerShortcutChip[] = [
+      { keys: 'Molette', label: 'coupes liées (3 vues)' },
+      { keys: 'Zoom', label: 'zoom sur la vue' },
+      { keys: 'Échap', label: 'quitter le MPR' },
+    ]
+    if (tool === 'WindowLevel') {
+      chips.unshift({ keys: 'Glisser', label: 'contraste' })
+    }
+    if (tool === 'ZoomAndPan') {
+      chips.unshift({ keys: 'Glisser', label: 'zoom' })
+      chips.splice(2, 0, { keys: 'Maj+glisser', label: 'déplacer' })
+    }
+    return chips
+  }
+
+  if (tool === 'ZoomAndPan') {
+    const chips: ViewerShortcutChip[] = [
+      { keys: 'Glisser', label: 'zoom' },
+      { keys: 'Molette', label: 'zoom' },
+      { keys: 'Maj+glisser', label: 'déplacer' },
+      { keys: 'Maj+molette', label: 'déplacer' },
+    ]
+    if (mode === 'compare') {
+      chips.push({ keys: 'Comparer', label: 'défilement synchronisé' })
+    }
+    if (mode === 'jpeg2000') {
+      chips.push({ keys: 'Mesures / MPR', label: 'indisponibles' })
+    }
+    return chips
+  }
+
+  if (tool === 'Scroll') {
+    return [
+      { keys: 'Glisser', label: 'coupes' },
+      { keys: 'Molette', label: 'coupes' },
+    ]
+  }
+
+  // Fenêtrage (défaut) et autres outils de lecture
+  const chips: ViewerShortcutChip[] = [{ keys: 'Glisser', label: 'contraste' }]
+  if (hasSlices || mode === 'compare') {
+    chips.push({ keys: 'Molette', label: mode === 'compare' ? 'coupes synchronisées' : 'coupes' })
+  }
+  chips.push({ keys: 'I', label: 'inverser' }, { keys: 'H', label: 'miroir' })
+  if (mode === 'jpeg2000') {
+    chips.push({ keys: 'Mesures / MPR', label: 'indisponibles' })
+  }
+  if (mode === 'compare' && tool === 'WindowLevel') {
+    chips.push({ keys: 'Comparer', label: 'W/L synchronisé' })
+  }
+  return chips
+}
+
 /** Accent teal Franchir (hex — indépendant des tokens Tailwind app). */
 export const VIEWER_ACCENT = '#38B2AC'
 export const VIEWER_BG = '#0B1020'

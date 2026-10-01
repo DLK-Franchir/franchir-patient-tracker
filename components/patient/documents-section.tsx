@@ -14,6 +14,7 @@ import {
   ArrowRight,
   AlertCircle,
   Play,
+  BookOpen,
 } from 'lucide-react'
 import {
   ImagingCardActionMenu,
@@ -98,6 +99,8 @@ const NativeMp4Viewer = dynamic(() => import('@/components/patient/native-mp4-vi
 type DocumentsSectionProps = {
   patientId: string
   canManage: boolean
+  /** Appelé après un extract de compte rendu (rafraîchir la carte dossier). */
+  onReportExtracted?: () => void
 }
 
 type ViewerItem =
@@ -283,7 +286,11 @@ function findDicomSeriesIndexById(items: ViewerItem[], selectedId: string): numb
   return dicomItems.findIndex((item) => item.id === selectedId)
 }
 
-export default function DocumentsSection({ patientId, canManage }: DocumentsSectionProps) {
+export default function DocumentsSection({
+  patientId,
+  canManage,
+  onReportExtracted,
+}: DocumentsSectionProps) {
   const searchParams = useSearchParams()
   const seriesDeepLink = searchParams.get('series')
   const deepLinkAppliedRef = useRef(false)
@@ -310,6 +317,8 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
   const [downloadProgress, setDownloadProgress] = useState<ExportProgressLike | null>(null)
   const [downloadTargetId, setDownloadTargetId] = useState<string | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [extractingDocId, setExtractingDocId] = useState<string | null>(null)
+  const [extractHint, setExtractHint] = useState<string | null>(null)
 
   const items = useMemo(() => {
     // Forward patient-images = copie du tracker : masquer les doublons Q.
@@ -622,6 +631,49 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
     void runStudyZipDownload()
   }, [runStudyZipDownload])
 
+  const resolveExtractableDocumentId = useCallback((item: ViewerItem): string | null => {
+    if (item.kind === 'file' && item.doc.renderType === 'pdf') {
+      return item.doc.id
+    }
+    if (item.kind === 'dicom-pdf-series' && item.documentIds.length > 0) {
+      return item.documentIds[0] ?? null
+    }
+    return null
+  }, [])
+
+  const handleExtractReport = useCallback(
+    async (item: ViewerItem) => {
+      const documentId = resolveExtractableDocumentId(item)
+      if (!documentId) return
+      setExtractingDocId(documentId)
+      setExtractHint(null)
+      try {
+        const res = await fetch(
+          `/api/patients/${patientId}/documents/${documentId}/report-extract`,
+          { method: 'POST' },
+        )
+        if (!res.ok) {
+          setExtractHint('Lecture du compte rendu impossible.')
+          return
+        }
+        const data = (await res.json()) as { report?: { status?: string } }
+        if (data.report?.status === 'no_text') {
+          setExtractHint('PDF sans texte — ouvrez le PDF pour le lire.')
+        } else if (data.report?.status === 'error') {
+          setExtractHint('Lecture impossible — ouvrez le PDF source.')
+        } else {
+          setExtractHint('Extrait disponible sous Imagerie & documents.')
+        }
+        onReportExtracted?.()
+      } catch {
+        setExtractHint('Lecture du compte rendu impossible.')
+      } finally {
+        setExtractingDocId(null)
+      }
+    },
+    [patientId, onReportExtracted, resolveExtractableDocumentId],
+  )
+
   const handleCardDownloadScope = useCallback(
     async (scope: ImagingDownloadScope) => {
       const item = items.find((i) => i.id === downloadTargetId)
@@ -805,6 +857,15 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
           {uploadSuccess}
         </div>
       )}
+      {extractHint && (
+        <div
+          role="status"
+          className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+          data-testid="report-extract-hint"
+        >
+          {extractHint}
+        </div>
+      )}
       {listingTruncated && (
         <div
           role="status"
@@ -892,6 +953,9 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
               item.kind === 'file' ||
               item.kind === 'questionnaire-file'
             const cardDownloadBusy = downloadBusy && downloadTargetId === item.id
+            const extractDocId = resolveExtractableDocumentId(item)
+            const canExtractReport = Boolean(extractDocId)
+            const extractBusy = Boolean(extractDocId && extractingDocId === extractDocId)
             return (
               <div key={itemKey} className="group relative">
                 <button
@@ -976,6 +1040,21 @@ export default function DocumentsSection({ patientId, canManage }: DocumentsSect
                   onDownload={() => requestCardDownload(item)}
                   onDelete={() => setDeleteTargetId(item.id)}
                 />
+                {canExtractReport ? (
+                  <button
+                    type="button"
+                    data-testid="lire-compte-rendu"
+                    disabled={extractBusy}
+                    onClick={event => {
+                      event.stopPropagation()
+                      void handleExtractReport(item)
+                    }}
+                    className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#1E2B70]/20 bg-[#1E2B70]/5 px-2 py-1.5 text-[11px] font-semibold text-[#1E2B70] transition hover:bg-[#1E2B70]/10 disabled:opacity-50"
+                  >
+                    <BookOpen className="size-3.5" aria-hidden />
+                    {extractBusy ? 'Lecture…' : 'Lire le compte rendu'}
+                  </button>
+                ) : null}
               </div>
             )
           })}

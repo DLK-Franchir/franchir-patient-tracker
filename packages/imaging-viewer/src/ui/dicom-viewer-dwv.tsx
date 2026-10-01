@@ -601,6 +601,7 @@ export function DicomViewerDwv({
       sliceUnit={sliceUnit}
       hint={hint}
       mobileHint={mobileHint}
+      shortcutMode="stack"
       modality={modality}
       description={activeSeries?.description}
       windowLevel={windowLevel}

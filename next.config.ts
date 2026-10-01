@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV,
   },
   transpilePackages: ['@franchir/synthesis-contract', '@franchir/imaging-viewer'],
+  serverExternalPackages: ['pdfjs-dist'],
   // Glues Emscripten `@cornerstonejs/codec-*` référencent `fs` (branche Node
   // morte côté navigateur) : alias vide, équivalent webpack `fallback: { fs: false }`.
   turbopack: {

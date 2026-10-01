@@ -130,6 +130,22 @@ export interface PatientDocument {
   instance_number: number | null
   /** Horodatage d'acquisition normalisé YYYYMMDDHHMMSS. */
   acquisition_datetime: string | null
+  /** Modality DICOM (0008,0060) — migration 20260918200000. */
+  modality?: string | null
+}
+
+/** Synthèse extractive d'un PDF / DOC radiologue (migration 20261001120000). */
+export type PatientDocumentReportStatus = 'ok' | 'no_text' | 'error'
+
+export interface PatientDocumentReport {
+  id: string
+  patient_id: string
+  document_id: string
+  status: PatientDocumentReportStatus
+  sections: Json
+  source_sha: string | null
+  extracted_at: string
+  error_code: string | null
 }
 
 export interface MedicalDecision {
@@ -244,6 +260,12 @@ export interface Database {
         Row: PatientDocument
         Insert: Omit<PatientDocument, 'id' | 'created_at'>
         Update: Partial<Omit<PatientDocument, 'id'>>
+      }
+      patient_document_reports: {
+        Row: PatientDocumentReport
+        Insert: Omit<PatientDocumentReport, 'id' | 'extracted_at'> &
+          Partial<Pick<PatientDocumentReport, 'extracted_at'>>
+        Update: Partial<Omit<PatientDocumentReport, 'id'>>
       }
     }
   }

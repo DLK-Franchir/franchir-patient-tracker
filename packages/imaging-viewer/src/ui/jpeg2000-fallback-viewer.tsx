@@ -539,6 +539,7 @@ function DicomJpeg2000FallbackViewerInner({
       sliceUnit="coupe"
       hint={viewerToolHint({ navMode: 'stack', fileCount, tool, sliceCount: fileCount })}
       mobileHint={viewerMobileHint({ tool, sliceCount: fileCount })}
+      shortcutMode="jpeg2000"
       modality={modality}
       description={activeSeries?.description}
       windowLevel={wl}
