@@ -46,7 +46,7 @@ export function gestureForPointer(
   if (event.button === 2 || event.ctrlKey || event.metaKey) return 'zoom'
   if (event.button === 1 || event.shiftKey) return 'pan'
   if (event.button !== 0) return null
-  if (tool === 'ZoomAndPan') return 'pan'
+  if (tool === 'ZoomAndPan') return 'zoom'
   if (tool === 'Scroll') return 'scroll'
   return 'wl'
 }
@@ -253,13 +253,24 @@ export function attachCsInteractions(options: CsInteractionOptions): () => void 
     if (!enableWheel) return
     event.preventDefault()
     event.stopPropagation()
-    // Ctrl/⌘ + molette = zoom (comme le host stack) ; sinon = coupes.
-    if (event.ctrlKey || event.metaKey) {
+    const tool = getTool()
+    // Outil Zoom : molette = zoom (comportement attendu au clic sur « Zoom »).
+    // Ctrl/⌘ : zoom même hors outil Zoom. Sinon : coupes.
+    if (tool === 'ZoomAndPan' || event.ctrlKey || event.metaKey) {
       const viewport = getViewport()
       if (!viewport) return
       try {
         const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1
-        viewport.setZoom(clampZoom(viewport.getZoom() * factor))
+        const current = viewport.getZoom?.() ?? 1
+        if (Number.isFinite(current) && current > 0) {
+          viewport.setZoom(clampZoom(current * factor))
+        } else {
+          const camera = viewport.getCamera?.()
+          const scale = camera?.parallelScale
+          if (typeof scale === 'number' && scale > 0) {
+            viewport.setCamera({ ...camera, parallelScale: scale / factor })
+          }
+        }
         viewport.render()
       } catch {
         /* viewport détruit */

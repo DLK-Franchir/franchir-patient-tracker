@@ -95,10 +95,28 @@ export function csFlip(handle: CsStackHandle | null, axis: 'x' | 'y') {
 export function csZoomStep(handle: CsStackHandle | null, step: number) {
   const viewport = vp(handle)
   if (!viewport) return
+  const factor = 1 + step
   try {
-    const next = Math.max(0.1, Math.min(20, viewport.getZoom() * (1 + step)))
-    viewport.setZoom(next)
-    viewport.render()
+    const current = viewport.getZoom()
+    if (Number.isFinite(current) && current > 0) {
+      const next = Math.max(0.1, Math.min(20, current * factor))
+      viewport.setZoom(next)
+      const after = viewport.getZoom()
+      if (Number.isFinite(after) && Math.abs(after - next) < 0.001) {
+        viewport.render()
+        return
+      }
+    }
+  } catch {
+    /* fallback parallelScale */
+  }
+  try {
+    const camera = viewport.getCamera()
+    const scale = camera?.parallelScale
+    if (typeof scale === 'number' && scale > 0) {
+      viewport.setCamera({ ...camera, parallelScale: scale / factor })
+      viewport.render()
+    }
   } catch {
     /* viewport détruit */
   }

@@ -14,7 +14,7 @@ describe('gestureForPointer (U1)', () => {
 
   it('bouton gauche = outil actif', () => {
     expect(gestureForPointer({ button: 0, ...none }, 'WindowLevel')).toBe('wl')
-    expect(gestureForPointer({ button: 0, ...none }, 'ZoomAndPan')).toBe('pan')
+    expect(gestureForPointer({ button: 0, ...none }, 'ZoomAndPan')).toBe('zoom')
     expect(gestureForPointer({ button: 0, ...none }, 'Scroll')).toBe('scroll')
   })
 
@@ -24,6 +24,7 @@ describe('gestureForPointer (U1)', () => {
     expect(gestureForPointer({ button: 0, ...none, metaKey: true }, 'Scroll')).toBe('zoom')
     expect(gestureForPointer({ button: 1, ...none }, 'WindowLevel')).toBe('pan')
     expect(gestureForPointer({ button: 0, ...none, shiftKey: true }, 'WindowLevel')).toBe('pan')
+    expect(gestureForPointer({ button: 0, ...none, shiftKey: true }, 'ZoomAndPan')).toBe('pan')
   })
 
   it('ignore les boutons exotiques', () => {

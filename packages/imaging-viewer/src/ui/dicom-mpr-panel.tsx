@@ -1,12 +1,13 @@
 'use client'
 
 /**
- * MPR conditionnel (U2) — trois vues orthogonales si la série est un volume
- * homogène (même orientation, espacement, taille). Sinon un message, pas d'erreur.
+ * MPR conditionnel (U2) — trois vues orthogonales liées (même point 3D).
  *
- * Les gestes (fenêtrage, zoom, pan, molette = coupes) et les boutons chrome
- * (zoom +/-, Auto, Inverser, Miroir, Réinit.) s'appliquent aux viewports MPR,
- * pas à la pile stack fermée pendant que le MPR est ouvert.
+ * Comportement type Horos / RadiAnt :
+ * - molette (hors outil Zoom) : avance le plan sous le curseur, les deux
+ *   autres vues se recentrent sur le même point anatomique ;
+ * - outil Zoom : glisser ou molette = zoom ; Maj+glisser = déplacer ;
+ * - boutons chrome (+/-, Auto, Inverser…) : appliqués aux trois vues.
  */
 
 import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react'
@@ -55,6 +56,51 @@ export type DicomMprApi = {
   setWindowLevel: (center: number, width: number) => void
 }
 
+function eachViewport(
+  engine: RenderingEngine | undefined,
+  viewportIds: string[],
+  fn: (viewport: VolumeViewport, index: number) => void
+) {
+  if (!engine) return
+  viewportIds.forEach((id, index) => {
+    try {
+      const viewport = engine.getViewport(id) as VolumeViewport | undefined
+      if (viewport) fn(viewport, index)
+    } catch {
+      /* viewport détruit */
+    }
+  })
+}
+
+/** Zoom robuste : setZoom peut no-op si initialCamera absente → parallelScale. */
+function zoomViewport(viewport: VolumeViewport, factor: number) {
+  try {
+    const current = viewport.getZoom?.() ?? Number.NaN
+    if (Number.isFinite(current) && current > 0) {
+      const next = clampZoom(current * factor)
+      viewport.setZoom(next)
+      // Si setZoom a no-op (pas d'initialCamera), forcer via parallelScale.
+      const after = viewport.getZoom?.() ?? Number.NaN
+      if (Number.isFinite(after) && Math.abs(after - next) < 0.001) {
+        viewport.render()
+        return
+      }
+    }
+  } catch {
+    /* fallback below */
+  }
+  try {
+    const camera = viewport.getCamera()
+    const scale = camera?.parallelScale
+    if (typeof scale === 'number' && scale > 0) {
+      viewport.setCamera({ ...camera, parallelScale: scale / factor })
+      viewport.render()
+    }
+  } catch {
+    /* viewport détruit */
+  }
+}
+
 function scrollViewport(viewport: VolumeViewport | null, delta: number) {
   if (!viewport || delta === 0) return
   try {
@@ -70,19 +116,36 @@ function scrollViewport(viewport: VolumeViewport | null, delta: number) {
   }
 }
 
-function eachViewport(
-  engine: RenderingEngine | undefined,
-  viewportIds: string[],
-  fn: (viewport: VolumeViewport) => void
-) {
-  if (!engine) return
+/** Après scroll d'une vue : les autres se recentrent sur le même point 3D. */
+function syncLinkedPlanes(source: VolumeViewport, engine: RenderingEngine, viewportIds: string[]) {
+  let focal: [number, number, number] | null = null
+  try {
+    const point = source.getCamera()?.focalPoint
+    if (point && point.length >= 3) {
+      focal = [point[0]!, point[1]!, point[2]!]
+    }
+  } catch {
+    return
+  }
+  if (!focal) return
   for (const id of viewportIds) {
     try {
-      const viewport = engine.getViewport(id) as VolumeViewport | undefined
-      if (viewport) fn(viewport)
+      const viewport = engine.getViewport(id) as VolumeViewport
+      if (!viewport || viewport === source) continue
+      if (typeof viewport.jumpToWorld === 'function') {
+        viewport.jumpToWorld(focal)
+      } else {
+        viewport.setCamera({ focalPoint: focal })
+      }
+      viewport.render()
     } catch {
       /* viewport détruit */
     }
+  }
+  try {
+    source.render()
+  } catch {
+    /* viewport détruit */
   }
 }
 
@@ -98,7 +161,6 @@ export function DicomMprPanel({
   capabilities: ViewerCapabilities
   onClose: () => void
   getTool: () => DicomTool
-  /** Mis à jour quand l'outil chrome change (fenêtrage / zoom / coupes). */
   toolRef: RefObject<DicomTool>
   apiRef: MutableRefObject<DicomMprApi | null>
 }) {
@@ -106,8 +168,6 @@ export function DicomMprPanel({
   const sagittalRef = useRef<HTMLDivElement | null>(null)
   const coronalRef = useRef<HTMLDivElement | null>(null)
   const focusedIndexRef = useRef(1)
-  const engineIdRef = useRef<string | null>(null)
-  const viewportIdsRef = useRef<string[]>([])
   const [message, setMessage] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const imageKey = imageIds.join('\n')
@@ -126,8 +186,6 @@ export function DicomMprPanel({
     const engineId = `franchir-mpr-${Date.now()}`
     const volumeId = `cornerstoneStreamingImageVolume:${engineId}`
     const viewportIds = PLANES.map(plane => `${engineId}-${plane.id}`)
-    engineIdRef.current = engineId
-    viewportIdsRef.current = viewportIds
     let detach: Array<() => void> = []
 
     const fail = (err: unknown) => {
@@ -145,34 +203,34 @@ export function DicomMprPanel({
       }
     }
 
-    const getFocused = (): VolumeViewport | null => {
+    const scrollLinked = (sourceIndex: number, delta: number) => {
       const engine = getEngine()
-      if (!engine) return null
-      const id = viewportIds[focusedIndexRef.current] ?? viewportIds[1]
-      if (!id) return null
+      if (!engine) return
+      const sourceId = viewportIds[sourceIndex]
+      if (!sourceId) return
       try {
-        return engine.getViewport(id) as VolumeViewport
+        const source = engine.getViewport(sourceId) as VolumeViewport
+        scrollViewport(source, delta)
+        syncLinkedPlanes(source, engine, viewportIds)
       } catch {
-        return null
+        /* viewport détruit */
       }
     }
 
     const api: DicomMprApi = {
-      navigateSlices: delta => scrollViewport(getFocused(), delta),
+      navigateSlices: delta => {
+        scrollLinked(focusedIndexRef.current, delta)
+      },
       zoomStep: step => {
-        const viewport = getFocused()
-        if (!viewport) return
-        try {
-          viewport.setZoom(clampZoom(viewport.getZoom() * (1 + step)))
-          viewport.render()
-        } catch {
-          /* viewport détruit */
-        }
+        const factor = 1 + step
+        eachViewport(getEngine(), viewportIds, viewport => {
+          zoomViewport(viewport, factor)
+        })
       },
       resetView: () => {
         eachViewport(getEngine(), viewportIds, viewport => {
           try {
-            viewport.resetCamera()
+            viewport.resetCamera({ storeAsInitialCamera: true })
             viewport.resetProperties()
             viewport.render()
           } catch {
@@ -265,7 +323,11 @@ export function DicomMprPanel({
           focusedIndexRef.current = index
         }
         element.addEventListener('pointerenter', onFocus)
-        detach.push(() => element.removeEventListener('pointerenter', onFocus))
+        element.addEventListener('pointerdown', onFocus)
+        detach.push(() => {
+          element.removeEventListener('pointerenter', onFocus)
+          element.removeEventListener('pointerdown', onFocus)
+        })
         detach.push(
           attachCsInteractions({
             element,
@@ -278,14 +340,7 @@ export function DicomMprPanel({
             },
             getTool: () => toolRef.current ?? getTool(),
             enableWheel: true,
-            onNavigateSlices: delta => {
-              try {
-                const viewport = engine.getViewport(viewportIds[index]!) as VolumeViewport
-                scrollViewport(viewport, delta)
-              } catch {
-                /* viewport détruit */
-              }
-            },
+            onNavigateSlices: delta => scrollLinked(index, delta),
           })
         )
       })
@@ -298,6 +353,15 @@ export function DicomMprPanel({
         }
         if (disposed) return
         await setVolumesForViewports(engine, [{ volumeId }], viewportIds, true)
+        // Pose initialCamera pour que setZoom / boutons +/- fonctionnent.
+        eachViewport(engine, viewportIds, viewport => {
+          try {
+            viewport.resetCamera({ storeAsInitialCamera: true })
+            viewport.render()
+          } catch {
+            /* orientation déjà OK */
+          }
+        })
         if (!disposed) {
           apiRef.current = api
           setReady(true)
@@ -323,8 +387,6 @@ export function DicomMprPanel({
     return () => {
       disposed = true
       apiRef.current = null
-      engineIdRef.current = null
-      viewportIdsRef.current = []
       ro.disconnect()
       detach.forEach(fn => fn())
       detach = []
@@ -347,8 +409,8 @@ export function DicomMprPanel({
         className="shrink-0 border-b border-white/10 px-3 py-1.5 text-center text-[11px] text-white/55"
         data-testid="dicom-mpr-hint"
       >
-        Molette : coupes dans la vue sous le curseur · Ctrl+molette : zoom · glisser : outil actif
-        (fenêtrage / zoom) · fermez MPR pour revenir à la série
+        Molette : coupes (les 3 vues restent liées) · outil Zoom : glisser ou molette pour zoomer ·
+        Maj+glisser : déplacer · Échap : quitter le MPR
       </p>
       <div className="relative min-h-0 flex-1 grid grid-cols-1 gap-px bg-white/10 md:grid-cols-3">
         {PLANES.map((plane, index) => {

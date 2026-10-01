@@ -1,5 +1,12 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.6
+
+- **MPR pro** : les trois vues restent liées (même point anatomique au scroll) ;
+  outil Zoom = glisser ou molette zoome (plus de défilement de coupes) ;
+  boutons +/- / Auto / Inverser appliqués aux trois plans ; `setZoom` robuste
+  (fallback `parallelScale` si caméra initiale absente).
+
 ## 0.15.5
 
 - **MPR utilisable** : molette (coupes) et Ctrl+molette (zoom) sur chaque vue ;

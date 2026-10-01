@@ -36,7 +36,9 @@ export function viewerToolHint(input: {
   const hasSlices = sliceCount > 1 || (navMode === 'sequential' && fileCount > 1)
   const scrollHint = hasSlices ? ' · molette ou ← → : coupes' : ''
   if (tool === 'ZoomAndPan') {
-    return `Glisser : déplacer · +/- : zoom${scrollHint}`
+    return `Glisser : zoom · Maj+glisser : déplacer · molette : zoom${
+      hasSlices ? ' · fenêtrage pour les coupes' : ''
+    }`
   }
   if (tool === 'Scroll') {
     return 'Glisser ou molette : changer de coupe'
@@ -44,13 +46,10 @@ export function viewerToolHint(input: {
   return `Glisser : fenêtrage${scrollHint} · I : inverser`
 }
 
-export function viewerMobileHint(input: {
-  tool: DicomTool
-  sliceCount: number
-}): string {
+export function viewerMobileHint(input: { tool: DicomTool; sliceCount: number }): string {
   const { tool, sliceCount } = input
   if (tool === 'ZoomAndPan') {
-    return 'Pincez ou utilisez +/- pour zoomer · glissez pour déplacer'
+    return 'Glissez pour zoomer · Maj+glisser pour déplacer · molette : zoom'
   }
   if (tool === 'Scroll' && sliceCount > 1) {
     return 'Balayez ou utilisez le curseur pour changer de coupe'

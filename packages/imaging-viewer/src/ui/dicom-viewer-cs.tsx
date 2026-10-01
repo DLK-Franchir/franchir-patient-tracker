@@ -447,7 +447,7 @@ export function DicomViewerCornerstone({
     if (status === 'ready') surfaceRef.current?.focus({ preventScroll: true })
   }, [status])
 
-  // Molette = coupes (capture avant Cornerstone) ; scroll page bloqué au-dessus du viewport.
+  // Molette = coupes (capture avant Cornerstone) ; outil Zoom → molette = zoom.
   // En MPR la molette est gérée par chaque vue (ne pas capturer ici).
   useEffect(() => {
     const surface = surfaceRef.current
@@ -456,6 +456,18 @@ export function DicomViewerCornerstone({
       if (mprOpen) return
       event.preventDefault()
       event.stopPropagation()
+      const zoomTool = toolRef.current === 'ZoomAndPan' || event.ctrlKey || event.metaKey
+      if (zoomTool) {
+        const target = event.target
+        const step = event.deltaY < 0 ? 0.1 : -0.1
+        if (compareOn && target instanceof Node && compareElementRef.current?.contains(target)) {
+          csZoomStep(compareHandleRef.current, step)
+          return
+        }
+        csZoomStep(handleRef.current, step)
+        if (toolRef.current !== 'ZoomAndPan') activateTool('ZoomAndPan')
+        return
+      }
       if (!canNavigateSlices && !compareOn) return
       const { steps, remainder } = accumulateWheelSlices(
         wheelAccumRef.current,
@@ -473,7 +485,7 @@ export function DicomViewerCornerstone({
     }
     surface.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => surface.removeEventListener('wheel', onWheel, { capture: true })
-  }, [canNavigateSlices, navigateSlice, compareOn, mprOpen])
+  }, [canNavigateSlices, navigateSlice, compareOn, mprOpen, activateTool])
 
   // Le viewport suit la taille de la surface (rail replié, rotation mobile…).
   useEffect(() => {
