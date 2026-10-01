@@ -20,6 +20,11 @@ import {
 import { synthesizeRadiologistReport } from '@/lib/documents/synthesize-radiologist-report'
 import { isRadiologistReportCandidate } from '@/lib/documents/report-candidates'
 import { reportPdfAttempts } from '@/lib/documents/read-report-pdf'
+import {
+  isClinicalReportText,
+  REPORT_READ_REV,
+  stripReportBoilerplate,
+} from '@/lib/documents/report-triage'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('documents/report-pipeline')
@@ -58,23 +63,26 @@ function extractFailureCode(err: unknown): string {
 
 async function composeFromText(text: string, fileName: string) {
   const trimmed = text.replace(/\u0000/g, '').trim().slice(0, MAX_REPORT_TEXT_CHARS)
-  let sections = structureRadiologistReport(trimmed)
-  if (trimmed.length > 0 && !reportHasExtractedContent(sections)) {
-    sections = sections.map(s => (s.id === 'resultats' ? { ...s, text: trimmed, present: true } : s))
+  const cleaned = stripReportBoilerplate(trimmed)
+  const offTopic = trimmed.length > 0 && !isClinicalReportText(trimmed)
+  const source = cleaned || trimmed
+  let sections = structureRadiologistReport(offTopic ? '' : source)
+  if (!offTopic && source.length > 0 && !reportHasExtractedContent(sections)) {
+    sections = sections.map(s => (s.id === 'resultats' ? { ...s, text: source, present: true } : s))
   }
-  if (!trimmed) {
+  if (!trimmed || offTopic) {
     return {
       status: 'no_text' as const,
       sections,
-      error_code: 'no_text_layer',
+      error_code: offTopic ? 'off_topic' : 'no_text_layer',
       synthesis: null,
       synthesis_status: 'skipped' as const,
-      synthesis_model: null,
+      synthesis_model: `skip@${REPORT_READ_REV}`,
     }
   }
   const { synthesis, model } = await synthesizeRadiologistReport({
     sections,
-    rawText: trimmed,
+    rawText: source,
     fileName,
   })
   return {

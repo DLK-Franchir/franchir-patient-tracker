@@ -63,6 +63,20 @@ describe('isRadiologistReportCandidate', () => {
         mimeType: 'application/pdf',
       }),
     ).toBe(true)
+    expect(
+      isRadiologistReportCandidate({
+        fileName: 'SANDISK SOFTWARE.PDF',
+        kind: 'document',
+        mimeType: 'application/pdf',
+      }),
+    ).toBe(false)
+    expect(
+      isRadiologistReportCandidate({
+        fileName: 'RAPPORT RADIOLOGISTE DU 14-03-2026.PDF',
+        kind: 'document',
+        mimeType: 'application/pdf',
+      }),
+    ).toBe(true)
   })
 })
 
@@ -70,8 +84,25 @@ describe('reportNeedsFreshSynthesis', () => {
   it('relit les erreurs et saute une synthèse déjà prête', () => {
     expect(reportNeedsFreshSynthesis(undefined, false)).toBe(true)
     expect(reportNeedsFreshSynthesis({ status: 'error', synthesis_status: 'error' }, false)).toBe(true)
-    expect(reportNeedsFreshSynthesis({ status: 'ok', synthesis_status: 'ok' }, false)).toBe(false)
+    expect(
+      reportNeedsFreshSynthesis(
+        { status: 'ok', synthesis_status: 'ok', synthesis_model: 'deterministic@triage-2' },
+        false,
+      ),
+    ).toBe(false)
+    expect(
+      reportNeedsFreshSynthesis(
+        { status: 'ok', synthesis_status: 'ok', synthesis_model: 'deterministic' },
+        false,
+      ),
+    ).toBe(true)
     expect(reportNeedsFreshSynthesis({ status: 'ok', synthesis_status: 'ok' }, true)).toBe(true)
+    expect(
+      reportNeedsFreshSynthesis(
+        { status: 'no_text', synthesis_status: 'skipped', error_code: 'off_topic' },
+        false,
+      ),
+    ).toBe(false)
     expect(reportNeedsFreshSynthesis({ status: 'no_text', synthesis_status: 'skipped' }, false)).toBe(
       false,
     )

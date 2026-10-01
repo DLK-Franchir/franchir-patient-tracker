@@ -8,6 +8,11 @@ import {
   ABSENT_SECTION_LABEL,
   type ReportSection,
 } from '@/lib/documents/structure-radiologist-report'
+import {
+  REPORT_READ_REV,
+  stripReportBoilerplate,
+  tidyReportLine,
+} from '@/lib/documents/report-triage'
 
 export const radiologistSynthesisSchema = z.object({
   /** Une ligne : ce que le pro doit retenir en premier. */
@@ -40,12 +45,22 @@ function splitSentences(text: string): string[] {
 }
 
 function splitFindings(text: string): string[] {
-  const lines = text
+  const lines = stripReportBoilerplate(text)
     .split(/\n+/)
-    .map(s => s.replace(/^[-•*]\s*/, '').trim())
+    .map(tidyReportLine)
     .filter(s => s.length > 12)
-  if (lines.length >= 2) return lines.slice(0, 6)
-  return splitSentences(text).slice(0, 6)
+  if (lines.length >= 2) return lines.slice(0, 5)
+  return splitSentences(stripReportBoilerplate(text))
+    .map(tidyReportLine)
+    .filter(s => s.length > 12)
+    .slice(0, 5)
+}
+
+function firstClinicalSentence(text: string): string {
+  const cleaned = tidyReportLine(stripReportBoilerplate(text).split('\n')[0] ?? text)
+  const sentence = cleaned.split(/(?<=[.!?…])\s+/)[0] ?? cleaned
+  if (sentence.length > 180) return `${sentence.slice(0, 177).trim()}…`
+  return sentence
 }
 
 /**
@@ -62,9 +77,11 @@ export function buildDeterministicSynthesis(
   const technique = sectionText(sections, 'technique')
   const avis = sectionText(sections, 'avis')
 
-  const absentNotes = sections
-    .filter(s => !s.present)
-    .map(s => `${s.title} non mentionné dans le document`)
+  const presentCount = sections.filter(s => s.present).length
+  const absentNotes =
+    presentCount >= 2
+      ? sections.filter(s => !s.present).map(s => `${s.title} non mentionné dans le document`)
+      : []
 
   const findingSource = resultats ?? avis ?? conclusion ?? indication ?? ''
   const findings = splitFindings(findingSource)
@@ -77,8 +94,7 @@ export function buildDeterministicSynthesis(
 
   const headlineSource =
     conclusion ?? findings[findings.length - 1] ?? indication ?? fileName ?? 'Compte rendu'
-  const headline =
-    headlineSource.length > 160 ? `${headlineSource.slice(0, 157).trim()}…` : headlineSource
+  const headline = firstClinicalSentence(headlineSource) || 'Compte rendu'
 
   const contextParts: string[] = []
   if (indication) contextParts.push(indication)
@@ -88,7 +104,7 @@ export function buildDeterministicSynthesis(
     headline,
     context: contextParts.join('\n\n').slice(0, 600),
     keyFindings,
-    conclusion: (conclusion ?? avis ?? '').slice(0, 800),
+    conclusion: tidyReportLine(stripReportBoilerplate(conclusion ?? avis ?? '')).slice(0, 800),
     absentNotes,
   })
 }
@@ -101,9 +117,10 @@ Règles STRICTES :
 - N'invente AUCUN diagnostic, mesure, niveau vertébral, ni recommandation absente du texte.
 - Si une info manque, ne la complète pas : note-la dans absentNotes.
 - Français médical clair, phrases courtes.
-- headline = ce qu'il faut retenir en 1 ligne.
-- keyFindings = 2 à 6 puces essentielles (pas un copier-coller du document entier).
-- conclusion = reformulation concise de la conclusion radiologue si elle existe, sinon chaîne vide.`
+- headline = la conclusion clinique en UNE phrase. Pas de nom, pas de date de naissance, pas de téléphone.
+- keyFindings = 2 à 6 constatations cliniques (niveaux, sténose, conflit, technique utile). Jamais un pied de page.
+- conclusion = reformulation concise de la conclusion radiologue si elle existe, sinon chaîne vide.
+- Ignore totalement : coordonnées, sites web, adresses, numéros de dossier, mentions légales, publicités de rendez-vous, avis de reconnaissance vocale, pages « copie médecin référent ».`
 
 /**
  * Synthèse via Vercel AI Gateway si configuré, sinon brief déterministe.
@@ -114,11 +131,14 @@ export async function synthesizeRadiologistReport(input: {
   rawText: string
   fileName?: string | null
 }): Promise<{ synthesis: RadiologistSynthesis; model: string }> {
+  const cleaned = stripReportBoilerplate(input.rawText)
   const fallback = buildDeterministicSynthesis(input.sections, input.fileName)
-  const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY)
+  // Sur Vercel, le gateway s'authentifie par OIDC (VERCEL_OIDC_TOKEN).
+  // En local ou hors OIDC : AI_GATEWAY_API_KEY.
+  const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN)
 
-  if (!hasGateway || input.rawText.trim().length < 40) {
-    return { synthesis: fallback, model: 'deterministic' }
+  if (!hasGateway || cleaned.length < 40) {
+    return { synthesis: fallback, model: `deterministic@${REPORT_READ_REV}` }
   }
 
   try {
@@ -134,13 +154,13 @@ export async function synthesizeRadiologistReport(input: {
         `Fichier: ${input.fileName ?? 'compte-rendu.pdf'}`,
         '',
         'Texte du compte rendu (source unique) :',
-        input.rawText.slice(0, 24000),
+        cleaned.slice(0, 24000),
       ].join('\n'),
-      temperature: 0.2,
+      temperature: 0.1,
     })
 
-    return { synthesis: object, model: modelId }
+    return { synthesis: object, model: `${modelId}@${REPORT_READ_REV}` }
   } catch {
-    return { synthesis: fallback, model: 'deterministic-fallback' }
+    return { synthesis: fallback, model: `deterministic@${REPORT_READ_REV}` }
   }
 }

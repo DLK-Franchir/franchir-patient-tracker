@@ -46,11 +46,20 @@ const HEADER_ALIASES: { id: ReportSectionId; aliases: string[] }[] = [
   },
   {
     id: 'resultats',
-    aliases: ['resultat', 'resultats', 'description', 'analyse', 'observation', 'observations'],
+    aliases: [
+      'resultat',
+      'resultats',
+      'description',
+      'analyse',
+      'observation',
+      'observations',
+      'constatation',
+      'constatations',
+    ],
   },
   {
     id: 'conclusion',
-    aliases: ['conclusion', 'conclusions', 'synthese', 'en conclusion'],
+    aliases: ['conclusion', 'conclusions', 'synthese', 'en conclusion', 'impression', 'interpretation'],
   },
   {
     id: 'avis',
@@ -105,7 +114,7 @@ export function structureRadiologistReport(rawText: string): ReportSection[] {
   const normalized = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   // pdf.js joint souvent les lignes par espaces : re-split sur titres en bloc.
   const soft = normalized.replace(
-    /\b(INDICATIONS?|TECHNIQUE|PROTOCOLE|R[ÉE]SULTATS?|CONCLUSIONS?|AVIS|DESCRIPTION|OBSERVATIONS?)\b/gi,
+    /\b(INDICATIONS?|TECHNIQUE|PROTOCOLE|R[ÉE]SULTATS?|CONCLUSIONS?|AVIS|DESCRIPTION|OBSERVATIONS?|CONSTATATIONS?|INTERPR[ÉE]TATIONS?|IMPRESSIONS?)\b/gi,
     '\n$1',
   )
   const lines = soft.split('\n')

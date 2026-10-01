@@ -10,6 +10,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { assertStaffProfile } from '@/lib/access-control'
 import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
+import { reportNeedsFreshSynthesis } from '@/lib/documents/report-candidates'
 import {
   forgetNonCandidateReports,
   isRadiologistReportCandidate,
@@ -76,7 +77,7 @@ export async function POST(
 
   const { data: existing } = await service
     .from('patient_document_reports')
-    .select('document_id, status, synthesis_status, source_sha')
+    .select('document_id, status, synthesis_status, synthesis_model, error_code, source_sha')
     .eq('patient_id', patientId)
     .in(
       'document_id',
@@ -86,15 +87,9 @@ export async function POST(
   const force = _req.headers.get('x-franchir-force') === '1'
 
   const done = new Set(
-    force
-      ? []
-      : (existing ?? [])
-          .filter(
-            (r: { synthesis_status: string | null; status: string }) =>
-              r.synthesis_status === 'ok' ||
-              (r.status === 'no_text' && r.synthesis_status === 'skipped'),
-          )
-          .map((r: { document_id: string }) => r.document_id),
+    (existing ?? [])
+      .filter(r => !reportNeedsFreshSynthesis(r, force))
+      .map((r: { document_id: string }) => r.document_id),
   )
 
   const todo = candidates.filter(c => !done.has(c.id)).slice(0, MAX_PER_RUN)

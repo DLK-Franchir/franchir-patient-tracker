@@ -1,7 +1,9 @@
 /**
  * Quels fichiers du dossier sont de vrais comptes rendus radiologues.
- * Exclut questionnaires patients et artefacts de CD (Phoenix ZIP, DICOMDIR).
+ * Exclut questionnaires, PDF techniques de CD (licence, viewer) et artefacts.
  */
+
+import { isTechnicalDocumentName, REPORT_READ_REV } from '@/lib/documents/report-triage'
 
 export function isRadiologistReportCandidate(doc: {
   file_name?: string | null
@@ -18,7 +20,7 @@ export function isRadiologistReportCandidate(doc: {
   const series = (doc.series_description ?? doc.seriesDescription ?? '').trim()
   const blob = `${fileName} ${series}`.toLowerCase()
 
-  if (/phoenix|dicomdir|autorun|weasis|osirix|radiantviewer|ezdicom/.test(blob)) return false
+  if (isTechnicalDocumentName(blob)) return false
   if (/questionnaire|anamneze|consentement|\bndi\b|\bodi\b/.test(blob)) return false
 
   const mime = (doc.mime_type ?? doc.mimeType ?? '').toLowerCase()
@@ -38,11 +40,19 @@ export function isRadiologistReportCandidate(doc: {
  * Les erreurs (extract serveur, PDF non trouvé) sont retentées.
  */
 export function reportNeedsFreshSynthesis(
-  row: { status?: string | null; synthesis_status?: string | null } | null | undefined,
+  row: {
+    status?: string | null
+    synthesis_status?: string | null
+    synthesis_model?: string | null
+    error_code?: string | null
+  } | null | undefined,
   force: boolean,
 ): boolean {
   if (force || !row) return true
-  if (row.synthesis_status === 'ok') return false
+  if (row.error_code === 'off_topic') return false
   if (row.status === 'no_text' && row.synthesis_status === 'skipped') return false
+  if (row.synthesis_status === 'ok') {
+    return !(row.synthesis_model ?? '').includes(REPORT_READ_REV)
+  }
   return true
 }
