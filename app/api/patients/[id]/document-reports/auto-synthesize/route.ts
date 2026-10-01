@@ -11,7 +11,9 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { assertStaffProfile } from '@/lib/access-control'
 import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
 import {
+  forgetNonCandidateReports,
   isRadiologistReportCandidate,
+  REPORT_ROW_SELECT,
   runReportPipeline,
   type DocMeta,
 } from '@/lib/documents/report-pipeline'
@@ -56,6 +58,7 @@ export async function POST(
   if (scopeDeny) return scopeDeny
 
   const service = createServiceRoleClient()
+  await forgetNonCandidateReports(patientId)
 
   const { data: docs, error: docsError } = await service
     .from('patient_documents')
@@ -112,9 +115,7 @@ export async function POST(
 
   const { data: reports } = await service
     .from('patient_document_reports')
-    .select(
-      'id, patient_id, document_id, status, sections, synthesis, synthesis_status, synthesis_model, synthesized_at, extracted_at, error_code, patient_documents(file_name, series_description, mime_type, kind, modality)',
-    )
+    .select(REPORT_ROW_SELECT)
     .eq('patient_id', patientId)
     .order('synthesized_at', { ascending: false, nullsFirst: false })
 

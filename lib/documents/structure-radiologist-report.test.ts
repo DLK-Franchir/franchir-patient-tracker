@@ -49,6 +49,14 @@ Contrôle clinique.
     expect(sections.find(s => s.id === 'indication')?.present).toBe(true)
   })
 
+  it('range un compte rendu sans titres dans les résultats', () => {
+    const sections = structureRadiologistReport(
+      'Discopathie dégénérative L4-L5. Pas de conflit radiculaire.',
+    )
+    expect(sections.find(s => s.id === 'resultats')?.text).toMatch(/Discopathie/)
+    expect(sections.find(s => s.id === 'resultats')?.present).toBe(true)
+  })
+
   it('ne fabrique pas de diagnostic hors document', () => {
     const sections = structureRadiologistReport('')
     expect(sections.every(s => !s.present)).toBe(true)

@@ -1,5 +1,7 @@
 /**
  * Pipeline extract + synthèse pour un document patient (PDF / DOC DICOM).
+ * Le chemin fiable est la lecture dans le navigateur (`extractReportTextFromFile`)
+ * puis `persistSynthesisFromText`. Le téléchargement serveur reste un repli.
  * Aucun PHI dans les logs.
  */
 
@@ -9,17 +11,23 @@ import {
   isObjectKeyOwnedByPatient,
 } from '@/lib/documents/patient-documents'
 import { extractPdfText, sha256Hex } from '@/lib/documents/extract-pdf-text'
+import { MAX_REPORT_TEXT_CHARS } from '@/lib/documents/extract-report-text'
 import {
   reportHasExtractedContent,
   structureRadiologistReport,
   type ReportSection,
 } from '@/lib/documents/structure-radiologist-report'
 import { synthesizeRadiologistReport } from '@/lib/documents/synthesize-radiologist-report'
-import { extractEncapsulatedPdf } from '@/lib/imaging/dicom-content'
-import { findPdfSlice } from '@/lib/documents/pdf-bytes'
+import { isRadiologistReportCandidate } from '@/lib/documents/report-candidates'
+import { reportPdfAttempts } from '@/lib/documents/read-report-pdf'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('documents/report-pipeline')
+
+export { isRadiologistReportCandidate }
+
+export const REPORT_ROW_SELECT =
+  'id, patient_id, document_id, status, sections, synthesis, synthesis_status, synthesis_model, synthesized_at, extracted_at, error_code, patient_documents(file_name, series_description, mime_type, kind, modality)'
 
 export type DocMeta = {
   id: string
@@ -32,61 +40,6 @@ export type DocMeta = {
   series_description?: string | null
 }
 
-function looksLikePdf(name: string, mime: string | null): boolean {
-  const t = (mime ?? '').toLowerCase()
-  if (t === 'application/pdf') return true
-  return name.toLowerCase().endsWith('.pdf')
-}
-
-/** Documents éligibles à une synthèse CR (exclut questionnaires patients). */
-export function isRadiologistReportCandidate(doc: {
-  file_name?: string | null
-  fileName?: string | null
-  kind: string
-  mime_type?: string | null
-  mimeType?: string | null
-  modality?: string | null
-  series_description?: string | null
-  seriesDescription?: string | null
-  renderType?: string | null
-}): boolean {
-  const name = `${doc.file_name ?? doc.fileName ?? ''} ${doc.series_description ?? doc.seriesDescription ?? ''}`.toLowerCase()
-  if (/questionnaire|anamneze|consentement|\bndi\b|\bodi\b/.test(name)) return false
-
-  const mime = (doc.mime_type ?? doc.mimeType ?? '').toLowerCase()
-  const fileName = (doc.file_name ?? doc.fileName ?? '').toLowerCase()
-  if (mime === 'application/pdf' || fileName.endsWith('.pdf') || doc.renderType === 'pdf') {
-    return true
-  }
-
-  if (doc.kind === 'dicom') {
-    const mod = (doc.modality ?? '').toUpperCase()
-    if (mod === 'DOC') return true
-    if (/report|compte.?rendu|radiolog|\bcr\b/.test(name)) return true
-  }
-  return false
-}
-
-async function resolvePdfBytes(
-  fileBytes: Uint8Array,
-  row: DocMeta,
-): Promise<{ pdf: Uint8Array } | { error: string }> {
-  if (looksLikePdf(row.file_name, row.mime_type)) {
-    const pdf = findPdfSlice(fileBytes)
-    return pdf ? { pdf } : { error: 'not_a_pdf' }
-  }
-  if (row.kind === 'dicom') {
-    const encapsulated = extractEncapsulatedPdf(fileBytes)
-    const fromTag = encapsulated ? findPdfSlice(encapsulated) : null
-    if (fromTag && fromTag.byteLength > 8) return { pdf: fromTag }
-    // Le parseur DICOM peut rater le tag : on cherche %PDF dans le fichier.
-    const embedded = findPdfSlice(fileBytes)
-    if (embedded && embedded.byteLength > 8) return { pdf: embedded }
-    return { error: 'no_encapsulated_pdf' }
-  }
-  return { error: 'unsupported_mime' }
-}
-
 export type PipelineResult = {
   document_id: string
   status: 'ok' | 'no_text' | 'error'
@@ -94,13 +47,150 @@ export type PipelineResult = {
   error_code?: string | null
 }
 
+type Service = ReturnType<typeof createServiceRoleClient>
+
+function extractFailureCode(err: unknown): string {
+  const message = err instanceof Error ? err.message : ''
+  if (/workerSrc|fake worker|ENOENT|Cannot find module/i.test(message)) return 'worker_unavailable'
+  if (/standardFontDataUrl/i.test(message)) return 'extract_failed'
+  return 'extract_failed'
+}
+
+async function composeFromText(text: string, fileName: string) {
+  const trimmed = text.replace(/\u0000/g, '').trim().slice(0, MAX_REPORT_TEXT_CHARS)
+  let sections = structureRadiologistReport(trimmed)
+  if (trimmed.length > 0 && !reportHasExtractedContent(sections)) {
+    sections = sections.map(s => (s.id === 'resultats' ? { ...s, text: trimmed, present: true } : s))
+  }
+  if (!trimmed) {
+    return {
+      status: 'no_text' as const,
+      sections,
+      error_code: 'no_text_layer',
+      synthesis: null,
+      synthesis_status: 'skipped' as const,
+      synthesis_model: null,
+    }
+  }
+  const { synthesis, model } = await synthesizeRadiologistReport({
+    sections,
+    rawText: trimmed,
+    fileName,
+  })
+  return {
+    status: 'ok' as const,
+    sections,
+    error_code: null,
+    synthesis,
+    synthesis_status: 'ok' as const,
+    synthesis_model: model,
+  }
+}
+
+async function upsertReport(
+  service: Service,
+  payload: {
+    patient_id: string
+    document_id: string
+    status: 'ok' | 'no_text' | 'error'
+    sections: ReportSection[]
+    source_sha: string
+    error_code: string | null
+    synthesis: unknown
+    synthesis_status: 'ok' | 'error' | 'skipped' | 'pending'
+    synthesis_model: string | null
+  },
+) {
+  const row = {
+    ...payload,
+    extracted_at: new Date().toISOString(),
+    synthesized_at: payload.synthesis ? new Date().toISOString() : null,
+  }
+  const { error } = await service.from('patient_document_reports').upsert(row, { onConflict: 'document_id' })
+  if (error) {
+    log.error('Erreur upsert rapport', { code: error.code })
+    throw error
+  }
+}
+
 /**
- * Télécharge, extrait, structure et synthétise un document. Upsert en base.
+ * Retire les lignes d'erreur posées sur des fichiers qui ne sont pas des CR
+ * (Phoenix ZIP, DICOMDIR, questionnaires).
  */
-export async function runReportPipeline(
+export async function forgetNonCandidateReports(patientId: string): Promise<void> {
+  const service = createServiceRoleClient()
+  const { data: reports, error } = await service
+    .from('patient_document_reports')
+    .select('id, document_id')
+    .eq('patient_id', patientId)
+  if (error || !reports?.length) return
+
+  const { data: docs } = await service
+    .from('patient_documents')
+    .select('id, file_name, mime_type, kind, modality, series_description')
+    .in(
+      'id',
+      reports.map(r => r.document_id),
+    )
+
+  const byId = new Map((docs ?? []).map(d => [d.id, d]))
+  const drop = reports
+    .filter(r => {
+      const doc = byId.get(r.document_id)
+      if (!doc) return true
+      return !isRadiologistReportCandidate(doc)
+    })
+    .map(r => r.id)
+  if (drop.length === 0) return
+
+  const { error: deleteError } = await service.from('patient_document_reports').delete().in('id', drop)
+  if (deleteError) log.error('Erreur purge rapports hors CR', { code: deleteError.code })
+}
+
+/**
+ * Structure + synthèse à partir d'un texte déjà extrait (navigateur).
+ * Le document doit appartenir au patient et être un vrai CR.
+ */
+export async function persistSynthesisFromText(
   patientId: string,
   doc: DocMeta,
+  rawText: string,
 ): Promise<PipelineResult> {
+  if (!isObjectKeyOwnedByPatient(doc.file_path, patientId)) {
+    return {
+      document_id: doc.id,
+      status: 'error',
+      synthesis_status: 'error',
+      error_code: 'wrong_patient',
+    }
+  }
+
+  const composed = await composeFromText(rawText, doc.file_name)
+  const service = createServiceRoleClient()
+  const source = new TextEncoder().encode(rawText.slice(0, MAX_REPORT_TEXT_CHARS))
+  await upsertReport(service, {
+    patient_id: patientId,
+    document_id: doc.id,
+    status: composed.status,
+    sections: composed.sections,
+    source_sha: sha256Hex(source),
+    error_code: composed.error_code,
+    synthesis: composed.synthesis,
+    synthesis_status: composed.synthesis_status,
+    synthesis_model: composed.synthesis_model,
+  })
+  return {
+    document_id: doc.id,
+    status: composed.status,
+    synthesis_status: composed.synthesis_status,
+    error_code: composed.error_code,
+  }
+}
+
+/**
+ * Repli serveur : télécharge, extrait, synthétise. Préférer le navigateur.
+ */
+export async function runReportPipeline(patientId: string, doc: DocMeta): Promise<PipelineResult> {
   const service = createServiceRoleClient()
 
   if (!isObjectKeyOwnedByPatient(doc.file_path, patientId)) {
@@ -127,45 +217,58 @@ export async function runReportPipeline(
   }
 
   const fileBuffer = new Uint8Array(await blob.arrayBuffer())
-  const resolved = await resolvePdfBytes(fileBuffer, doc)
+  const attempts = reportPdfAttempts(fileBuffer, {
+    kind: doc.kind,
+    fileName: doc.file_name,
+    mimeType: doc.mime_type,
+  })
 
-  if ('error' in resolved) {
-    const sections = structureRadiologistReport('')
-    await upsertReport(service, {
-      patient_id: patientId,
-      document_id: doc.id,
-      status: 'error',
-      sections,
-      source_sha: sha256Hex(fileBuffer),
-      error_code: resolved.error,
-      synthesis: null,
-      synthesis_status: 'skipped',
-      synthesis_model: null,
-    })
-    return {
-      document_id: doc.id,
-      status: 'error',
-      synthesis_status: 'skipped',
-      error_code: resolved.error,
-    }
-  }
-
-  let text = ''
-  try {
-    text = await extractPdfText(resolved.pdf)
-  } catch (err) {
-    const reason =
-      err instanceof Error && /workerSrc|fake worker|ENOENT|Cannot find module/i.test(err.message)
-        ? 'worker_unavailable'
-        : 'extract_failed'
-    log.error('Échec extraction pdf.js', { code: reason })
+  if (attempts.length === 0) {
+    const errorCode = doc.kind === 'dicom' ? 'no_encapsulated_pdf' : 'not_a_pdf'
     await upsertReport(service, {
       patient_id: patientId,
       document_id: doc.id,
       status: 'error',
       sections: structureRadiologistReport(''),
-      source_sha: sha256Hex(resolved.pdf),
-      error_code: reason,
+      source_sha: sha256Hex(fileBuffer),
+      error_code: errorCode,
+      synthesis: null,
+      synthesis_status: 'skipped',
+      synthesis_model: null,
+    })
+    return {
+      document_id: doc.id,
+      status: 'error',
+      synthesis_status: 'skipped',
+      error_code: errorCode,
+    }
+  }
+
+  let text = ''
+  let used: Uint8Array | null = null
+  let lastCode = 'extract_failed'
+  for (const pdf of attempts) {
+    try {
+      const extracted = await extractPdfText(pdf)
+      if (extracted.length >= text.length) {
+        text = extracted
+        used = pdf
+      }
+      if (text.length > 40) break
+    } catch (err) {
+      lastCode = extractFailureCode(err)
+      log.error('Échec extraction PDF', { code: lastCode })
+    }
+  }
+
+  if (!used) {
+    await upsertReport(service, {
+      patient_id: patientId,
+      document_id: doc.id,
+      status: 'error',
+      sections: structureRadiologistReport(''),
+      source_sha: sha256Hex(attempts[0]!),
+      error_code: lastCode,
       synthesis: null,
       synthesis_status: 'error',
       synthesis_model: null,
@@ -174,88 +277,26 @@ export async function runReportPipeline(
       document_id: doc.id,
       status: 'error',
       synthesis_status: 'error',
-      error_code: reason,
+      error_code: lastCode,
     }
   }
 
-  let sections = structureRadiologistReport(text)
-  if (text.length > 0 && !reportHasExtractedContent(sections)) {
-    sections = sections.map(s =>
-      s.id === 'resultats' ? { ...s, text, present: true } : s,
-    )
-  }
-
-  const extractStatus: 'ok' | 'no_text' = text.length === 0 ? 'no_text' : 'ok'
-
-  if (extractStatus === 'no_text') {
-    await upsertReport(service, {
-      patient_id: patientId,
-      document_id: doc.id,
-      status: 'no_text',
-      sections,
-      source_sha: sha256Hex(resolved.pdf),
-      error_code: 'no_text_layer',
-      synthesis: null,
-      synthesis_status: 'skipped',
-      synthesis_model: null,
-    })
-    return {
-      document_id: doc.id,
-      status: 'no_text',
-      synthesis_status: 'skipped',
-      error_code: 'no_text_layer',
-    }
-  }
-
-  const { synthesis, model } = await synthesizeRadiologistReport({
-    sections,
-    rawText: text,
-    fileName: doc.file_name,
-  })
-
+  const composed = await composeFromText(text, doc.file_name)
   await upsertReport(service, {
     patient_id: patientId,
     document_id: doc.id,
-    status: 'ok',
-    sections,
-    source_sha: sha256Hex(resolved.pdf),
-    error_code: null,
-    synthesis,
-    synthesis_status: 'ok',
-    synthesis_model: model,
+    status: composed.status,
+    sections: composed.sections,
+    source_sha: sha256Hex(used),
+    error_code: composed.error_code,
+    synthesis: composed.synthesis,
+    synthesis_status: composed.synthesis_status,
+    synthesis_model: composed.synthesis_model,
   })
-
   return {
     document_id: doc.id,
-    status: 'ok',
-    synthesis_status: 'ok',
-  }
-}
-
-async function upsertReport(
-  service: ReturnType<typeof createServiceRoleClient>,
-  payload: {
-    patient_id: string
-    document_id: string
-    status: 'ok' | 'no_text' | 'error'
-    sections: ReportSection[]
-    source_sha: string
-    error_code: string | null
-    synthesis: unknown
-    synthesis_status: 'ok' | 'error' | 'skipped' | 'pending'
-    synthesis_model: string | null
-  },
-) {
-  const row = {
-    ...payload,
-    extracted_at: new Date().toISOString(),
-    synthesized_at: payload.synthesis ? new Date().toISOString() : null,
-  }
-  const { error } = await service
-    .from('patient_document_reports')
-    .upsert(row, { onConflict: 'document_id' })
-  if (error) {
-    log.error('Erreur upsert rapport', { code: error.code })
-    throw error
+    status: composed.status,
+    synthesis_status: composed.synthesis_status,
+    error_code: composed.error_code,
   }
 }

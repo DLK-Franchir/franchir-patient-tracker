@@ -39,6 +39,15 @@ function splitSentences(text: string): string[] {
     .filter(s => s.length > 12)
 }
 
+function splitFindings(text: string): string[] {
+  const lines = text
+    .split(/\n+/)
+    .map(s => s.replace(/^[-•*]\s*/, '').trim())
+    .filter(s => s.length > 12)
+  if (lines.length >= 2) return lines.slice(0, 6)
+  return splitSentences(text).slice(0, 6)
+}
+
 /**
  * Brief déterministe (sans LLM) : priorise conclusion + résultats,
  * jamais un dump de toutes les sections.
@@ -58,7 +67,7 @@ export function buildDeterministicSynthesis(
     .map(s => `${s.title} non mentionné dans le document`)
 
   const findingSource = resultats ?? avis ?? conclusion ?? indication ?? ''
-  const findings = splitSentences(findingSource).slice(0, 5)
+  const findings = splitFindings(findingSource)
   const keyFindings =
     findings.length > 0
       ? findings
@@ -66,7 +75,8 @@ export function buildDeterministicSynthesis(
         ? [findingSource.slice(0, 280)]
         : ['Aucun élément textuel exploitable dans le document.']
 
-  const headlineSource = conclusion ?? findings[0] ?? indication ?? fileName ?? 'Compte rendu'
+  const headlineSource =
+    conclusion ?? findings[findings.length - 1] ?? indication ?? fileName ?? 'Compte rendu'
   const headline =
     headlineSource.length > 160 ? `${headlineSource.slice(0, 157).trim()}…` : headlineSource
 

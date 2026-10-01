@@ -8,6 +8,8 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { assertStaffProfile } from '@/lib/access-control'
 import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
+import { isRadiologistReportCandidate } from '@/lib/documents/report-candidates'
+import { forgetNonCandidateReports, REPORT_ROW_SELECT } from '@/lib/documents/report-pipeline'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('api/patients/document-reports')
@@ -42,11 +44,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (scopeDeny) return scopeDeny
 
   const service = createServiceRoleClient()
+  await forgetNonCandidateReports(patientId)
+
   const { data, error } = await service
     .from('patient_document_reports')
-    .select(
-      'id, patient_id, document_id, status, sections, synthesis, synthesis_status, synthesis_model, synthesized_at, source_sha, extracted_at, error_code, patient_documents(file_name, mime_type, kind)',
-    )
+    .select(REPORT_ROW_SELECT)
     .eq('patient_id', patientId)
     .order('extracted_at', { ascending: false })
 
@@ -55,5 +57,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 
-  return NextResponse.json({ reports: data ?? [] })
+  const reports = (data ?? []).filter(row => {
+    const rel = row.patient_documents
+    const doc = Array.isArray(rel) ? rel[0] : rel
+    if (!doc) return false
+    return isRadiologistReportCandidate({
+      file_name: doc.file_name,
+      kind: doc.kind ?? 'document',
+      mime_type: doc.mime_type,
+      modality: doc.modality,
+      series_description: doc.series_description,
+    })
+  })
+
+  return NextResponse.json({ reports })
 }

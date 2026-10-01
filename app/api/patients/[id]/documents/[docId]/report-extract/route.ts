@@ -8,7 +8,8 @@ import { createServerClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { assertStaffProfile } from '@/lib/access-control'
 import { denyIfOutOfRoleScope } from '@/lib/patient-role-scope-guard'
-import { runReportPipeline, type DocMeta } from '@/lib/documents/report-pipeline'
+import { isRadiologistReportCandidate } from '@/lib/documents/report-candidates'
+import { REPORT_ROW_SELECT, runReportPipeline, type DocMeta } from '@/lib/documents/report-pipeline'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('api/patients/documents/report-extract')
@@ -48,7 +49,7 @@ export async function POST(
   const service = createServiceRoleClient()
   const { data: doc, error: fetchError } = await service
     .from('patient_documents')
-    .select('id, patient_id, file_path, file_name, mime_type, kind, modality')
+    .select('id, patient_id, file_path, file_name, mime_type, kind, modality, series_description')
     .eq('id', docId)
     .eq('patient_id', patientId)
     .maybeSingle()
@@ -60,13 +61,16 @@ export async function POST(
   if (!doc) {
     return NextResponse.json({ error: 'Document introuvable' }, { status: 404 })
   }
+  if (!isRadiologistReportCandidate(doc)) {
+    return NextResponse.json({ error: 'Ce fichier n’est pas un compte rendu' }, { status: 422 })
+  }
 
   try {
     const result = await runReportPipeline(patientId, doc as DocMeta)
     const { data: saved } = await service
       .from('patient_document_reports')
       .select(
-        'id, patient_id, document_id, status, sections, synthesis, synthesis_status, synthesis_model, synthesized_at, source_sha, extracted_at, error_code, patient_documents(file_name)',
+        REPORT_ROW_SELECT,
       )
       .eq('document_id', docId)
       .maybeSingle()
