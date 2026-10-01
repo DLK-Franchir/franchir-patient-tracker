@@ -4,8 +4,11 @@
  * Aucune donnée patient n'est loguée.
  */
 
-/** Incrémenté quand le tri change : les synthèses plus anciennes sont relues. */
-export const REPORT_READ_REV = 'triage-2'
+/**
+ * Incrémenté quand le tri ou le moteur de synthèse change.
+ * Les cartes déjà enregistrées sans cette révision sont relues une fois.
+ */
+export const REPORT_READ_REV = 'gateway-1'
 
 const TECHNICAL_NAME =
   /sandisk|western\s*digital|winzip|readme|autorun|eula|\blicen[cs]e\b|\blicence\b|copyright|phoenix|dicomdir|weasis|osirix|radiantviewer|ezdicom|horos|\bsetup\b|\binstall\b|mode d'emploi|notice logicielle|software\.pdf/

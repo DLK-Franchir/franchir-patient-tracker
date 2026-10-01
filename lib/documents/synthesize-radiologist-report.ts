@@ -133,8 +133,8 @@ export async function synthesizeRadiologistReport(input: {
 }): Promise<{ synthesis: RadiologistSynthesis; model: string }> {
   const cleaned = stripReportBoilerplate(input.rawText)
   const fallback = buildDeterministicSynthesis(input.sections, input.fileName)
-  // Sur Vercel, le gateway s'authentifie par OIDC (VERCEL_OIDC_TOKEN).
-  // En local ou hors OIDC : AI_GATEWAY_API_KEY.
+  // Production : AI_GATEWAY_API_KEY (Vercel AI Gateway). Le SDK la lit lui-même.
+  // VERCEL_OIDC_TOKEN est un repli automatique sur Vercel ; ce n'est pas une clé à coller.
   const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN)
 
   if (!hasGateway || cleaned.length < 40) {
@@ -160,7 +160,12 @@ export async function synthesizeRadiologistReport(input: {
     })
 
     return { synthesis: object, model: `${modelId}@${REPORT_READ_REV}` }
-  } catch {
+  } catch (err) {
+    const status =
+      typeof err === 'object' && err !== null && 'statusCode' in err
+        ? (err as { statusCode?: number }).statusCode
+        : undefined
+    console.error('[radiology-synthesis] gateway fallback', { status: status ?? 'unknown' })
     return { synthesis: fallback, model: `deterministic@${REPORT_READ_REV}` }
   }
 }
