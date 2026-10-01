@@ -30,6 +30,7 @@ import { useDicomStackMode } from '../stack'
 import { useDicomSequentialPool } from '../pool'
 import { useDicomSequentialNavigation } from '../sequential'
 import { DicomViewerChrome } from './viewer-chrome'
+import { ViewerAdvancedTools } from './viewer-advanced-tools'
 import { viewerMobileHint, viewerToolHint, viewportLoadingMessage } from './messages'
 import { useDwvViewportResize } from './use-dwv-viewport-resize'
 import { emitImagingTelemetry, nowMs } from '../telemetry'
@@ -537,6 +538,22 @@ export function DicomViewerDwv({
 
   const infoNote = navMode === 'sequential' ? (sequentialFallbackNote ?? poolWarning) : null
   const sliceUnit = navMode === 'sequential' && fileCount > 1 ? 'fichier' : 'coupe'
+  // Même barre que Cornerstone / OpenJPEG : outils U2 visibles, grisés ici
+  // (mesures / ciné / compare / MPR ne sont pas branchés sur dwv).
+  const unavailable = 'Indisponible sur ce lecteur'
+  const toolbarExtra = (
+    <ViewerAdvancedTools
+      measureEnabled={false}
+      measureKind={null}
+      measureTitle={() => unavailable}
+      cineEnabled={false}
+      cineTitle={sliceCount < 2 ? 'Il faut au moins deux coupes' : unavailable}
+      compareEnabled={false}
+      compareTitle={(series?.length ?? 0) < 2 ? 'Il faut au moins deux séries' : unavailable}
+      mprEnabled={false}
+      mprTitle="Les trois vues (de face, de profil, du dessus) sont indisponibles sur ce lecteur"
+    />
+  )
 
   return (
     <DicomViewerChrome
@@ -591,6 +608,7 @@ export function DicomViewerDwv({
       surfaceRef={surfaceRef}
       onKeyDown={handleKeyDown}
       onSurfacePointerEnter={handleSurfacePointerEnter}
+      toolbarExtra={toolbarExtra}
     >
       <div
         ref={containerRef}
