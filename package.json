@@ -54,6 +54,7 @@
     "react-hook-form": "^7.70.0",
     "resend": "^6.7.0",
     "tailwind-merge": "^2.6.0",
+    "unpdf": "^1.8.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

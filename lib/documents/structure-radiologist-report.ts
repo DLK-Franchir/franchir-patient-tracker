@@ -152,6 +152,8 @@ export function reportHasExtractedContent(sections: ReportSection[]): boolean {
 /** Message utilisateur pour un code d'erreur machine (jamais de PHI). */
 export function reportExtractErrorMessage(errorCode: string | null | undefined): string {
   switch (errorCode) {
+    case 'not_a_pdf':
+      return 'Ce fichier n’est pas un PDF lisible. Ouvrez-le dans la visionneuse.'
     case 'no_encapsulated_pdf':
       return 'Aucun PDF trouvé dans ce fichier DICOM. Ouvrez le fichier pour le consulter.'
     case 'unsupported_mime':
