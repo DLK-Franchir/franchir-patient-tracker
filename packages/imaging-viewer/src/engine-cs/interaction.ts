@@ -21,6 +21,11 @@ export type CsInteractionOptions = {
   onNavigateSlices: (delta: number) => void
   /** Déclenché après chaque modification W/L à la souris (overlay). */
   onWindowLevelChanged?: () => void
+  /**
+   * Molette → coupes sur cet élément. Désactivé par défaut : le host stack
+   * capture déjà la molette au-dessus du viewport.
+   */
+  enableWheel?: boolean
 }
 
 type Gesture = 'wl' | 'pan' | 'zoom' | 'scroll'
@@ -83,7 +88,14 @@ function applyWl(viewport: Viewport, wl: { center: number; width: number }) {
 }
 
 export function attachCsInteractions(options: CsInteractionOptions): () => void {
-  const { element, getViewport, getTool, onNavigateSlices, onWindowLevelChanged } = options
+  const {
+    element,
+    getViewport,
+    getTool,
+    onNavigateSlices,
+    onWindowLevelChanged,
+    enableWheel = false,
+  } = options
 
   const pointers = new Map<number, PointerState>()
   let gesture: Gesture | null = null
@@ -93,6 +105,7 @@ export function attachCsInteractions(options: CsInteractionOptions): () => void 
   let startPan: [number, number] = [0, 0]
   let startZoom = 1
   let scrollAccum = 0
+  let wheelAccum = 0
   let pinchStartDistance = 0
   let pinchStartZoom = 1
   let pinchStartPan: [number, number] = [0, 0]
@@ -236,11 +249,40 @@ export function attachCsInteractions(options: CsInteractionOptions): () => void 
 
   const onContextMenu = (event: Event) => event.preventDefault()
 
+  const onWheel = (event: WheelEvent) => {
+    if (!enableWheel) return
+    event.preventDefault()
+    event.stopPropagation()
+    // Ctrl/⌘ + molette = zoom (comme le host stack) ; sinon = coupes.
+    if (event.ctrlKey || event.metaKey) {
+      const viewport = getViewport()
+      if (!viewport) return
+      try {
+        const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1
+        viewport.setZoom(clampZoom(viewport.getZoom() * factor))
+        viewport.render()
+      } catch {
+        /* viewport détruit */
+      }
+      return
+    }
+    // deltaMode : 0 = pixels, 1 = lignes, 2 = pages — même heuristique que policy.
+    const line = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 48 : 1
+    wheelAccum += event.deltaY * line
+    const steps = Math.trunc(wheelAccum / 48)
+    if (steps === 0) return
+    wheelAccum -= steps * 48
+    onNavigateSlices(steps)
+  }
+
   element.addEventListener('pointerdown', onPointerDown)
   element.addEventListener('pointermove', onPointerMove)
   element.addEventListener('pointerup', onPointerUp)
   element.addEventListener('pointercancel', onPointerUp)
   element.addEventListener('contextmenu', onContextMenu)
+  if (enableWheel) {
+    element.addEventListener('wheel', onWheel, { passive: false })
+  }
   element.style.touchAction = 'none'
 
   return () => {
@@ -249,6 +291,9 @@ export function attachCsInteractions(options: CsInteractionOptions): () => void 
     element.removeEventListener('pointerup', onPointerUp)
     element.removeEventListener('pointercancel', onPointerUp)
     element.removeEventListener('contextmenu', onContextMenu)
+    if (enableWheel) {
+      element.removeEventListener('wheel', onWheel)
+    }
     pointers.clear()
   }
 }

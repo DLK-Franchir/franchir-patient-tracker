@@ -1,5 +1,13 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.5
+
+- **MPR utilisable** : molette (coupes) et Ctrl+molette (zoom) sur chaque vue ;
+  fenêtrage / zoom / pan suivent l’outil de la barre ; Auto, Inverser, Miroir,
+  Réinitialiser et +/- s’appliquent aux trois plans. Préc./Suiv. et le curseur
+  de la pile sont masqués en MPR (chaque vue a son propre défilement). Échap
+  ferme le MPR.
+
 ## 0.15.4
 
 - **Barre complète aussi sur dwv** : Distance, Angle, Cobb, Ciné, Comparer et

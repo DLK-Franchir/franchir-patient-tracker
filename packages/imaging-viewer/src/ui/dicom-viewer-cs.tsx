@@ -39,7 +39,7 @@ import { DicomViewerChrome } from './viewer-chrome'
 import { DicomCornerOverlay } from './viewer-corner-overlay'
 import { ViewerMeasureLayer, type ProjectedAnnotation } from './viewer-measure-layer'
 import { ViewerReferenceLine } from './viewer-reference-line'
-import { DicomMprPanel } from './dicom-mpr-panel'
+import { DicomMprPanel, type DicomMprApi } from './dicom-mpr-panel'
 import { ViewerAdvancedTools } from './viewer-advanced-tools'
 import { viewerMobileHint, viewerToolHint, viewportLoadingMessage } from './messages'
 import { emitImagingTelemetry, nowMs } from '../telemetry'
@@ -95,6 +95,8 @@ export function DicomViewerCornerstone({
   const [compareSlice, setCompareSlice] = useState(0)
   const [mprOpen, setMprOpen] = useState(false)
   const [frame, setFrame] = useState(0)
+  const mprApiRef = useRef<DicomMprApi | null>(null)
+  const getMprTool = useCallback(() => toolRef.current, [])
 
   // Identité stable : l'effet stack dépend des capabilities (wasm path, concurrence).
   const capabilitiesKey = JSON.stringify(capabilitiesOverride ?? null)
@@ -279,58 +281,97 @@ export function DicomViewerCornerstone({
   }, [])
 
   const handleReset = useCallback(() => {
+    if (mprOpen && mprApiRef.current) {
+      mprApiRef.current.resetView()
+      setActivePreset(null)
+      setInverted(false)
+      return
+    }
     csResetView(handleRef.current)
     setActivePreset(null)
     setInverted(false)
-  }, [])
+  }, [mprOpen])
 
   const handleZoomStep = useCallback(
     (step: number) => {
+      if (mprOpen && mprApiRef.current) {
+        mprApiRef.current.zoomStep(step)
+        if (toolRef.current !== 'ZoomAndPan') activateTool('ZoomAndPan')
+        return
+      }
       csZoomStep(handleRef.current, step)
       if (toolRef.current !== 'ZoomAndPan') activateTool('ZoomAndPan')
     },
-    [activateTool]
+    [activateTool, mprOpen]
   )
 
   const applyWindowPreset = useCallback(
     (preset: (typeof WL_PRESETS)[number]) => {
+      if (mprOpen && mprApiRef.current) {
+        mprApiRef.current.setWindowLevel(preset.center, preset.width)
+        if (toolRef.current !== 'WindowLevel') activateTool('WindowLevel')
+        setActivePreset(preset.id)
+        return
+      }
       csSetWindowLevel(handleRef.current, preset.center, preset.width)
       if (toolRef.current !== 'WindowLevel') activateTool('WindowLevel')
       setActivePreset(preset.id)
     },
-    [activateTool]
+    [activateTool, mprOpen]
   )
 
   const handleAutoWindow = useCallback(() => {
+    if (mprOpen && mprApiRef.current) {
+      mprApiRef.current.resetWindowLevel()
+      setActivePreset(null)
+      return
+    }
     csResetWindowLevel(handleRef.current)
     setActivePreset(null)
-  }, [])
+  }, [mprOpen])
 
   const handleToggleInvert = useCallback(() => {
+    if (mprOpen && mprApiRef.current) {
+      const next = mprApiRef.current.toggleInvert()
+      if (next !== null) setInverted(next)
+      return
+    }
     const next = csToggleInvert(handleRef.current)
     if (next !== null) setInverted(next)
-  }, [])
+  }, [mprOpen])
 
   const handleFlipHorizontal = useCallback(() => {
+    if (mprOpen && mprApiRef.current) {
+      mprApiRef.current.flipHorizontal()
+      return
+    }
     csFlip(handleRef.current, 'x')
-  }, [])
+  }, [mprOpen])
 
   const goToSlice = useCallback(
     (target: number) => {
+      if (mprOpen) return
       void csGoToSlice(handleRef.current, target, failedIndexes)
     },
-    [failedIndexes]
+    [failedIndexes, mprOpen]
   )
 
   const navigateSlice = useCallback(
     (delta: number) => {
       if (delta === 0) return
+      if (mprOpen && mprApiRef.current) {
+        mprApiRef.current.navigateSlices(delta)
+        return
+      }
       void csNavigateSlice(handleRef.current, delta, failedIndexes)
     },
-    [failedIndexes]
+    [failedIndexes, mprOpen]
   )
 
-  const canNavigateSlices = isReady && sliceCount > 1
+  // En MPR : Préc./Suiv. et le slider de pile sont masqués (chaque vue a son
+  // propre défilement via molette / outil Coupes). Les flèches clavier passent
+  // quand même par navigateSlice → api MPR.
+  const canNavigateSlices = isReady && sliceCount > 1 && !mprOpen
 
   useEffect(() => {
     navigateSlicesRef.current = navigateSlice
@@ -343,6 +384,16 @@ export function DicomViewerCornerstone({
       const consume = () => {
         event.preventDefault()
         event.stopPropagation()
+      }
+      if (key === 'Escape') {
+        consume()
+        if (mprOpen) {
+          setMprOpen(false)
+          return
+        }
+        setMeasureKind(null)
+        setDraftPoints([])
+        return
       }
       if (key === 'ArrowLeft' || key === 'ArrowDown') {
         consume()
@@ -358,10 +409,10 @@ export function DicomViewerCornerstone({
         navigateSlice(-Math.max(1, Math.round(sliceCount / 10)))
       } else if (key === 'Home') {
         consume()
-        goToSlice(0)
+        if (!mprOpen) goToSlice(0)
       } else if (key === 'End') {
         consume()
-        goToSlice(sliceCount - 1)
+        if (!mprOpen) goToSlice(sliceCount - 1)
       } else if (key === 'i' || key === 'I') {
         consume()
         handleToggleInvert()
@@ -371,14 +422,11 @@ export function DicomViewerCornerstone({
       } else if (key === 'r' || key === 'R') {
         consume()
         handleReset()
-      } else if (key === 'Escape') {
-        consume()
-        setMeasureKind(null)
-        setDraftPoints([])
       }
     },
     [
       status,
+      mprOpen,
       navigateSlice,
       goToSlice,
       sliceCount,
@@ -400,10 +448,12 @@ export function DicomViewerCornerstone({
   }, [status])
 
   // Molette = coupes (capture avant Cornerstone) ; scroll page bloqué au-dessus du viewport.
+  // En MPR la molette est gérée par chaque vue (ne pas capturer ici).
   useEffect(() => {
     const surface = surfaceRef.current
     if (!surface) return
     const onWheel = (event: WheelEvent) => {
+      if (mprOpen) return
       event.preventDefault()
       event.stopPropagation()
       if (!canNavigateSlices && !compareOn) return
@@ -423,7 +473,7 @@ export function DicomViewerCornerstone({
     }
     surface.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => surface.removeEventListener('wheel', onWheel, { capture: true })
-  }, [canNavigateSlices, navigateSlice, compareOn])
+  }, [canNavigateSlices, navigateSlice, compareOn, mprOpen])
 
   // Le viewport suit la taille de la surface (rail replié, rotation mobile…).
   useEffect(() => {
@@ -691,9 +741,10 @@ export function DicomViewerCornerstone({
       id: 'Scroll',
       label: 'Coupes',
       shortLabel: 'Coupes',
-      available: isCoarsePointer && sliceCount > 1,
-      disabledTitle:
-        sliceCount < 2
+      available: mprOpen || (isCoarsePointer && sliceCount > 1),
+      disabledTitle: mprOpen
+        ? undefined
+        : sliceCount < 2
           ? 'Une seule coupe'
           : 'Réservé à l’écran tactile : balayer pour changer de coupe',
     },
@@ -774,13 +825,16 @@ export function DicomViewerCornerstone({
       onKeyDown={handleKeyDown}
       onSurfacePointerEnter={handleSurfacePointerEnter}
       toolbarExtra={toolbarExtra}
-      hideCornerOverlay={compareOn}
+      hideCornerOverlay={compareOn || mprOpen}
     >
       {mprOpen ? (
         <DicomMprPanel
           imageIds={urls.map(toImageId)}
           capabilities={capabilities}
           onClose={() => setMprOpen(false)}
+          getTool={getMprTool}
+          toolRef={toolRef}
+          apiRef={mprApiRef}
         />
       ) : (
         <div className="absolute inset-0 flex min-h-0">
