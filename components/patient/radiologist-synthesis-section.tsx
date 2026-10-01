@@ -8,6 +8,7 @@ import {
   isRadiologistReportCandidate,
   reportNeedsFreshSynthesis,
 } from '@/lib/documents/report-candidates'
+import { isLikelyReportName, REPORT_READ_REV } from '@/lib/documents/report-triage'
 import { extractReportTextFromFile } from '@/lib/documents/extract-report-text'
 
 type ReportRow = {
@@ -17,6 +18,7 @@ type ReportRow = {
   synthesis_status?: 'pending' | 'ok' | 'error' | 'skipped' | null
   synthesis?: RadiologistSynthesis | null
   error_code?: string | null
+  synthesis_model?: string | null
   synthesized_at?: string | null
   extracted_at?: string
   patient_documents?:
@@ -213,13 +215,17 @@ export default function RadiologistSynthesisSection({ patientId }: RadiologistSy
   }, [run])
 
   const docById = new Map(candidates.map(d => [d.id, d]))
-  const withSynthesis = reports.filter(r => r.synthesis_status === 'ok' && r.synthesis)
-  const problems = reports.filter(
-    r =>
-      docById.has(r.document_id) &&
-      (r.status === 'no_text' || r.status === 'error' || r.synthesis_status === 'error') &&
-      r.synthesis_status !== 'ok',
+  const freshSynthesis = (row: ReportRow) => (row.synthesis_model ?? '').includes(REPORT_READ_REV)
+  const withSynthesis = reports.filter(
+    r => r.synthesis_status === 'ok' && r.synthesis && r.error_code !== 'off_topic' && freshSynthesis(r),
   )
+  const problems = reports.filter(r => {
+    if (r.error_code === 'off_topic' || r.synthesis_status === 'ok') return false
+    if (!docById.has(r.document_id)) return false
+    const label = labelOf(docById.get(r.document_id), r)
+    if (!isLikelyReportName(label)) return false
+    return r.status === 'no_text' || r.status === 'error' || r.synthesis_status === 'error'
+  })
 
   return (
     <section
@@ -280,8 +286,8 @@ export default function RadiologistSynthesisSection({ patientId }: RadiologistSy
 
         {!loading && !busy && withSynthesis.length === 0 && problems.length === 0 ? (
           <p className="rounded-xl border border-dashed border-neutral-border bg-neutral-surface px-4 py-6 text-center text-sm text-neutral-text-muted">
-            Aucun compte rendu radiologue détecté dans ce dossier. Les questionnaires et les
-            fichiers techniques de CD sont exclus.
+            Aucun compte rendu médical textuel dans ce dossier. Les PDF techniques, les pages
+            de garde et les images sans texte restent dans Imagerie.
           </p>
         ) : null}
 
