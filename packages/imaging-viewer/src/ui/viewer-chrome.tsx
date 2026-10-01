@@ -9,13 +9,14 @@
 import { useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import type { DicomTool, ImagingSeries, NavMode, ViewerInfoKind, ViewerStatus } from '../contract'
 import { VIEWER_INFORMATIVE_NOTICE, type WlPresetId } from '../policy'
-import { VIEWER_BG } from './messages'
+import { VIEWER_BG, type ViewerShortcutMode } from './messages'
 import { DicomSeriesHeader } from './viewer-series-header'
 import { DicomViewerToolbar, type WindowPreset } from './viewer-toolbar'
 import { DicomViewportErrorOverlay, DicomViewportLoadingOverlay } from './viewer-overlays'
 import { DicomSeriesRail } from './viewer-series-rail'
 import { DicomCornerOverlay } from './viewer-corner-overlay'
 import { DicomSliceSlider } from './viewer-slice-slider'
+import { ViewerShortcutBubble } from './viewer-shortcut-bubble'
 
 export type DicomViewerChromeProps = {
   name: string
@@ -69,8 +70,14 @@ export type DicomViewerChromeProps = {
   displaySliceIndex: number
   displayTotal: number
   sliceUnit: 'coupe' | 'fichier'
+  /** Ligne grise desktop héritée — laissée vide quand la bulle de raccourcis est active. */
   hint: string
   mobileHint: string
+  /**
+   * Mode d’aide gestuelle pour `ViewerShortcutBubble`.
+   * Desktop : bulle ; mobile étroit : `mobileHint` seul.
+   */
+  shortcutMode?: ViewerShortcutMode
 
   modality: string | null
   description?: string | null
@@ -135,8 +142,8 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
     displaySliceIndex,
     displayTotal,
     sliceUnit,
-    hint,
     mobileHint,
+    shortcutMode = 'stack',
     modality,
     description,
     windowLevel,
@@ -159,6 +166,8 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
   const showHeader = Boolean(
     fullscreen || onClose || hasSeriesNav || onDownloadSeries || onDownloadStudy
   )
+  const hasSlices = sliceCount > 1 || (navMode === 'sequential' && fileCount > 1)
+  // Desktop : bulle de raccourcis remplace la ligne grise ; mobile garde mobileHint.
 
   return (
     <div
@@ -228,7 +237,7 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
             infoNote={infoNote}
             preloadLoaded={preloadLoaded}
             preloadMode={preloadMode}
-            hint={hint}
+            hint=""
             mobileHint={mobileHint}
             seriesCount={hasSeriesRail ? seriesCount : 0}
             onOpenSeriesSheet={hasSeriesRail ? () => setSeriesSheetOpen(true) : undefined}
@@ -271,6 +280,17 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
                 downloadHref={downloadHref}
                 downloadName={name}
               />
+            ) : null}
+
+            {/* Desktop only — mobile étroit garde `mobileHint` dans la toolbar. */}
+            {isReady ? (
+              <div className="pointer-events-none absolute inset-0 hidden sm:block">
+                <ViewerShortcutBubble
+                  tool={tool}
+                  mode={shortcutMode}
+                  hasSlices={hasSlices}
+                />
+              </div>
             ) : null}
           </div>
 

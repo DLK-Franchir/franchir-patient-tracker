@@ -7,11 +7,18 @@ export {
   VIEWER_ACCENT,
   VIEWER_BG,
   viewerMobileHint,
+  viewerShortcutChips,
   viewerToolHint,
   viewportLoadingMessage,
+  type ViewerShortcutChip,
+  type ViewerShortcutMode,
 } from './messages'
 
 export { ViewerInfoBubble, type ViewerInfoBubbleProps } from './viewer-info-bubble'
+export {
+  ViewerShortcutBubble,
+  type ViewerShortcutBubbleProps,
+} from './viewer-shortcut-bubble'
 export {
   DicomViewportErrorOverlay,
   DicomViewportLoadingOverlay,

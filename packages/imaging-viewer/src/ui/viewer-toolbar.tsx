@@ -298,7 +298,10 @@ export function DicomViewerToolbar({
           />
         ) : null}
 
-        <span className="ml-auto hidden text-[11px] text-white/40 sm:block">{hint}</span>
+        {/* Desktop : bulle de raccourcis dans le chrome ; ligne grise seulement si fournie. */}
+        {hint ? (
+          <span className="ml-auto hidden text-[11px] text-white/40 sm:block">{hint}</span>
+        ) : null}
       </div>
 
       <p className="shrink-0 border-b border-white/5 px-3 py-1.5 text-center text-[11px] text-white/50 sm:hidden">

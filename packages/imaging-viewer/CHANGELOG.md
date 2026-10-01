@@ -1,5 +1,13 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.7
+
+- **Bulle de raccourcis** : `ViewerShortcutBubble` dans le chrome partagé
+  (`viewerShortcutChips` selon outil + mode `stack` | `compare` | `mpr` |
+  `jpeg2000`). Puces `kbd` contrastées (fond `#0B1020`), bouton « ? » pour
+  replier. Desktop : bulle ; mobile étroit : ligne `mobileHint` inchangée.
+  Distincte de `ViewerInfoBubble` (statut de série).
+
 ## 0.15.6
 
 - **MPR pro** : les trois vues restent liées (même point anatomique au scroll) ;

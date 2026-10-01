@@ -829,6 +829,9 @@ export function DicomViewerCornerstone({
       sliceUnit="coupe"
       hint={hint}
       mobileHint={mobileHint}
+      shortcutMode={
+        mprOpen ? 'mpr' : compareOn ? 'compare' : 'stack'
+      }
       modality={modality}
       description={activeSeries?.description}
       windowLevel={windowLevel}
