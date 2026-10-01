@@ -3,6 +3,12 @@
 -- Date: 2026-10-01
 -- Projet cible: zdmeidekszdrzmjuasee (Tracker)
 -- ============================================================
+-- ✅ APPLIQUÉE EN PROD le 2026-10-01 (go explicite, via Supabase MCP
+-- apply_migration → version remote `20261001100447_patient_document_reports`).
+-- Ce fichier est la trace versionnée ; il est IDEMPOTENT
+-- (CREATE TABLE IF NOT EXISTS / DROP POLICY IF EXISTS) et peut être
+-- rejoué sans effet supplémentaire.
+--
 -- ADDITIVE : nouvelle table patient_document_reports.
 -- Stocke une synthèse EXTRACTIVE (phrases du PDF uniquement), jamais
 -- d'interprétation clinique. Pas de PHI dans les logs applicatifs.
