@@ -27,13 +27,12 @@ wasm à la demande) n'est **jamais** téléchargé tant que le flag n'est pas po
 Pas de `@cornerstonejs/tools` (worker incompatible Turbopack) : gestes dans
 `engine-cs/interaction.ts`. Repli dwv automatique si le chunk / l'init échoue.
 
-**U2 (0.15.3)** n'apparaît qu'avec ce flag : Distance / Angle / Cobb (non
-enregistrées), ciné, comparaison de deux séries (défilement et fenêtrage
-synchronisés, ligne de référence si les plans se coupent), MPR actif seulement
-sur une série homogène. Le moteur dwv ne montre pas ces boutons. Une radio
-JPEG 2000 que Cornerstone ne décode pas (Fatima) reste dans la même barre :
-Fenêtrage, Zoom, Inverser et Miroir marchent ; Distance, Angle, Cobb, Ciné,
-Comparer et MPR restent visibles et grisés.
+**U2 (0.15.4)** : Distance / Angle / Cobb (non enregistrées), ciné, comparaison
+de deux séries (défilement et fenêtrage synchronisés, ligne de référence si
+les plans se coupent), MPR actif seulement sur une série homogène. La barre
+montre toujours ces boutons. Ils ne s’activent qu’avec
+`NEXT_PUBLIC_IMAGING_ENGINE=cornerstone` ; sur dwv ou OpenJPEG ils restent
+visibles et grisés (raison au survol).
 
 | Variable                     | Valeur                     | Effet                                                                                   |
 | ---------------------------- | -------------------------- | --------------------------------------------------------------------------------------- |

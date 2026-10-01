@@ -1,5 +1,12 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.4
+
+- **Barre complète aussi sur dwv** : Distance, Angle, Cobb, Ciné, Comparer et
+  MPR restent visibles (grisés) quand le moteur actif est dwv — même chrome
+  qu’avec Cornerstone / OpenJPEG. Les outils ne s’activent qu’avec
+  `NEXT_PUBLIC_IMAGING_ENGINE=cornerstone`.
+
 ## 0.15.3
 
 - **Même barre d’outils** sur le lecteur principal et le repli JPEG 2000
