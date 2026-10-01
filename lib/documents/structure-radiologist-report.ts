@@ -119,17 +119,25 @@ export function structureRadiologistReport(rawText: string): ReportSection[] {
   }
 
   let current: ReportSectionId | null = null
+  let sawHeader = false
+  const preamble: string[] = []
 
   for (const line of lines) {
     const header = matchSectionHeader(line)
     if (header) {
+      sawHeader = true
       current = header.id
       if (header.rest) buckets[current].push(header.rest)
       continue
     }
-    if (current && line.trim()) {
-      buckets[current].push(line.trim())
-    }
+    if (!line.trim()) continue
+    if (current) buckets[current].push(line.trim())
+    else preamble.push(line.trim())
+  }
+
+  if (preamble.length > 0) {
+    if (!sawHeader) buckets.resultats.push(...preamble)
+    else if (buckets.indication.length === 0) buckets.indication.unshift(...preamble)
   }
 
   return REPORT_SECTION_IDS.map(id => {

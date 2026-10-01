@@ -8,9 +8,16 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@franchir/synthesis-contract', '@franchir/imaging-viewer'],
   // unpdf embarque pdf.js (pas de worker fichier). Ne pas externaliser pdfjs-dist :
   // ça cassait l'extract en serverless (workerSrc manquant).
+  // Les polices standard doivent être dans le trace : sans elles, un CR Helvetica/Times
+  // lève standardFontDataUrl et la synthèse tombe en extract_failed.
   serverExternalPackages: ['unpdf'],
   outputFileTracingIncludes: {
-    '/api/patients/**': ['./node_modules/unpdf/dist/**/*'],
+    '/api/patients/**': [
+      './node_modules/unpdf/dist/**/*',
+      './node_modules/pdfjs-dist/package.json',
+      './node_modules/pdfjs-dist/standard_fonts/**/*',
+      './node_modules/pdfjs-dist/cmaps/**/*',
+    ],
   },
   // Glues Emscripten `@cornerstonejs/codec-*` référencent `fs` (branche Node
   // morte côté navigateur) : alias vide, équivalent webpack `fallback: { fs: false }`.
