@@ -146,6 +146,10 @@ export interface PatientDocumentReport {
   source_sha: string | null
   extracted_at: string
   error_code: string | null
+  synthesis?: Json | null
+  synthesis_status?: 'pending' | 'ok' | 'error' | 'skipped' | null
+  synthesis_model?: string | null
+  synthesized_at?: string | null
 }
 
 export interface MedicalDecision {
