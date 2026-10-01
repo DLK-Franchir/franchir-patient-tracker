@@ -45,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data, error } = await service
     .from('patient_document_reports')
     .select(
-      'id, patient_id, document_id, status, sections, source_sha, extracted_at, error_code, patient_documents(file_name, mime_type, kind)',
+      'id, patient_id, document_id, status, sections, synthesis, synthesis_status, synthesis_model, synthesized_at, source_sha, extracted_at, error_code, patient_documents(file_name, mime_type, kind)',
     )
     .eq('patient_id', patientId)
     .order('extracted_at', { ascending: false })
