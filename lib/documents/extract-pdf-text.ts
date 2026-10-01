@@ -4,9 +4,38 @@
  */
 
 import { createHash } from 'node:crypto'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 export function sha256Hex(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
+}
+
+let workerConfigured = false
+
+async function loadPdfjs() {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  if (!workerConfigured) {
+    // Sans workerSrc, pdf.js plante en Node/serverless :
+    // « Setting up fake worker failed: No GlobalWorkerOptions.workerSrc specified ».
+    const workerPath = path.join(
+      process.cwd(),
+      'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+    )
+    pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href
+    workerConfigured = true
+  }
+  return pdfjs
+}
+
+/**
+ * Copie défensive : pdf.js refuse un `Buffer` Node et peut échouer sur une
+ * vue Uint8Array dont le buffer sous-jacent est partagé / détaché.
+ */
+function toPdfData(pdfBytes: Uint8Array): Uint8Array {
+  return pdfBytes.byteOffset === 0 && pdfBytes.byteLength === pdfBytes.buffer.byteLength
+    ? pdfBytes.slice()
+    : new Uint8Array(pdfBytes)
 }
 
 /**
@@ -14,10 +43,10 @@ export function sha256Hex(bytes: Uint8Array): string {
  * Ne loggue jamais le contenu (PHI).
  */
 export async function extractPdfText(pdfBytes: Uint8Array): Promise<string> {
-  // Legacy build Node-friendly (pas de worker obligatoire).
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const pdfjs = await loadPdfjs()
+  const data = toPdfData(pdfBytes)
   const loadingTask = pdfjs.getDocument({
-    data: pdfBytes,
+    data,
     useSystemFonts: true,
     isEvalSupported: false,
     useWorkerFetch: false,

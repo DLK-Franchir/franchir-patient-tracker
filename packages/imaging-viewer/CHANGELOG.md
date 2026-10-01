@@ -1,5 +1,11 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.8
+
+- **Aide visionneuse** : bulle avec titre + phrase d’intro + puces en phrases
+  complètes (`viewerShortcutHelp`) — plus de libellés cryptiques
+  « Glisser contraste ».
+
 ## 0.15.7
 
 - **Bulle de raccourcis** : `ViewerShortcutBubble` dans le chrome partagé

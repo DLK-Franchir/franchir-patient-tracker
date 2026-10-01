@@ -49,6 +49,23 @@ describe('RadiologistReportCard', () => {
       />
     )
     expect(html).toContain('data-testid="radiologist-report-no-text"')
-    expect(html).toMatch(/Ouvrir le PDF/i)
+    expect(html).toMatch(/scann|OCR|PDF/i)
+  })
+
+  it('erreur extract_failed explique d’ouvrir le PDF', () => {
+    const html = renderToStaticMarkup(
+      <RadiologistReportCard
+        report={{
+          id: 'r3',
+          document_id: 'd3',
+          status: 'error',
+          error_code: 'extract_failed',
+          extracted_at: '2026-10-01T00:00:00Z',
+          sections: [],
+        }}
+      />
+    )
+    expect(html).toContain('data-testid="radiologist-report-error"')
+    expect(html).toMatch(/PDF source|corrompu|format/i)
   })
 })
