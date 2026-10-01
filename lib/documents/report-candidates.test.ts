@@ -86,10 +86,16 @@ describe('reportNeedsFreshSynthesis', () => {
     expect(reportNeedsFreshSynthesis({ status: 'error', synthesis_status: 'error' }, false)).toBe(true)
     expect(
       reportNeedsFreshSynthesis(
-        { status: 'ok', synthesis_status: 'ok', synthesis_model: 'deterministic@triage-2' },
+        { status: 'ok', synthesis_status: 'ok', synthesis_model: 'openai/gpt-5.4-mini@gateway-1' },
         false,
       ),
     ).toBe(false)
+    expect(
+      reportNeedsFreshSynthesis(
+        { status: 'ok', synthesis_status: 'ok', synthesis_model: 'deterministic@triage-2' },
+        false,
+      ),
+    ).toBe(true)
     expect(
       reportNeedsFreshSynthesis(
         { status: 'ok', synthesis_status: 'ok', synthesis_model: 'deterministic' },
