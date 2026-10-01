@@ -2,7 +2,10 @@
 
 import { FileText, ExternalLink, AlertCircle } from 'lucide-react'
 import { SynthesisCard } from '@/components/patient/synthesis/synthesis-card'
-import type { ReportSection } from '@/lib/documents/structure-radiologist-report'
+import {
+  reportExtractErrorMessage,
+  type ReportSection,
+} from '@/lib/documents/structure-radiologist-report'
 
 export type RadiologistReportView = {
   id: string
@@ -28,7 +31,7 @@ export function RadiologistReportCard({ report, staggerIndex = 0 }: RadiologistR
   return (
     <SynthesisCard
       title={title}
-      description="Extrait du document, sans interprétation"
+      description="Phrases extraites du PDF uniquement — aucune interprétation ajoutée"
       staggerIndex={staggerIndex}
       actions={
         report.source_url ? (
@@ -51,10 +54,7 @@ export function RadiologistReportCard({ report, staggerIndex = 0 }: RadiologistR
           data-testid="radiologist-report-no-text"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <p>
-            Aucune couche texte dans ce PDF (scan probable). Ouvrir le PDF pour le lire —
-            l’extraction automatique sans OCR n’est pas disponible.
-          </p>
+          <p>{reportExtractErrorMessage('no_text_layer')}</p>
         </div>
       ) : null}
 
@@ -64,14 +64,7 @@ export function RadiologistReportCard({ report, staggerIndex = 0 }: RadiologistR
           data-testid="radiologist-report-error"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <p>
-            Lecture impossible
-            {report.error_code === 'no_encapsulated_pdf'
-              ? ' — PDF encapsulé introuvable dans ce fichier DICOM.'
-              : report.error_code === 'unsupported_mime'
-                ? ' — format non pris en charge.'
-                : ' — réessayez ou ouvrez le PDF.'}
-          </p>
+          <p>{reportExtractErrorMessage(report.error_code)}</p>
         </div>
       ) : null}
 
@@ -94,7 +87,7 @@ export function RadiologistReportCard({ report, staggerIndex = 0 }: RadiologistR
 
       <p className="mt-4 flex items-center gap-1.5 text-[11px] text-neutral-text-muted">
         <FileText className="size-3" aria-hidden />
-        Extrait du document, sans interprétation
+        Extrait du document, sans interprétation clinique
       </p>
     </SynthesisCard>
   )

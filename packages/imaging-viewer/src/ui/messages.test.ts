@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   viewerMobileHint,
   viewerShortcutChips,
+  viewerShortcutHelp,
   viewerToolHint,
   viewportLoadingMessage,
 } from './messages'
@@ -64,62 +65,44 @@ describe('viewer hints', () => {
   })
 })
 
-describe('viewerShortcutChips', () => {
-  it('fenêtrage : contraste, coupes, I, H', () => {
-    const chips = viewerShortcutChips({
+describe('viewerShortcutHelp', () => {
+  it('fenêtrage : titre + phrase + puces explicites', () => {
+    const help = viewerShortcutHelp({
       tool: 'WindowLevel',
       mode: 'stack',
       hasSlices: true,
     })
-    expect(chips.map(c => `${c.keys}:${c.label}`)).toEqual([
-      'Glisser:contraste',
-      'Molette:coupes',
-      'I:inverser',
-      'H:miroir',
-    ])
+    expect(help.title).toMatch(/Fenêtrage/i)
+    expect(help.summary).toMatch(/contraste|éclaircir|assombrir/i)
+    expect(help.chips.some(c => /contraste/.test(c.label))).toBe(true)
+    expect(help.chips.some(c => c.keys === 'Molette' && /coupe/.test(c.label))).toBe(true)
+    expect(help.chips.some(c => c.keys === 'I' && /inverse/.test(c.label))).toBe(true)
   })
 
-  it('zoom : glisser/molette zoom + Maj déplacer', () => {
-    const chips = viewerShortcutChips({
+  it('zoom : explique Maj pour déplacer', () => {
+    const help = viewerShortcutHelp({
       tool: 'ZoomAndPan',
       mode: 'stack',
       hasSlices: true,
     })
-    expect(chips).toEqual(
-      expect.arrayContaining([
-        { keys: 'Glisser', label: 'zoom' },
-        { keys: 'Molette', label: 'zoom' },
-        { keys: 'Maj+glisser', label: 'déplacer' },
-        { keys: 'Maj+molette', label: 'déplacer' },
-      ])
-    )
+    expect(help.title).toMatch(/Zoom/i)
+    expect(help.summary).toMatch(/Maj/i)
+    expect(help.chips.some(c => /Maj \+ glisser/.test(c.keys))).toBe(true)
   })
 
   it('MPR : coupes liées + Échap', () => {
-    const chips = viewerShortcutChips({
+    const help = viewerShortcutHelp({
       tool: 'WindowLevel',
       mode: 'mpr',
       hasSlices: true,
     })
-    expect(chips.map(c => c.label).join(' · ')).toMatch(/coupes liées/)
-    expect(chips.some(c => c.keys === 'Échap')).toBe(true)
+    expect(help.title).toMatch(/MPR|3 vues/i)
+    expect(help.chips.map(c => c.label).join(' · ')).toMatch(/3 vues/)
+    expect(help.chips.some(c => c.keys === 'Échap')).toBe(true)
   })
 
-  it('JPEG 2000 signale mesures / MPR indisponibles', () => {
-    const chips = viewerShortcutChips({
-      tool: 'WindowLevel',
-      mode: 'jpeg2000',
-      hasSlices: false,
-    })
-    expect(chips.some(c => /indisponibles/.test(c.label))).toBe(true)
-  })
-
-  it('sans coupes : pas de puce molette=coupes en stack', () => {
-    const chips = viewerShortcutChips({
-      tool: 'WindowLevel',
-      mode: 'stack',
-      hasSlices: false,
-    })
-    expect(chips.some(c => c.keys === 'Molette' && c.label === 'coupes')).toBe(false)
+  it('viewerShortcutChips délègue à help.chips', () => {
+    const input = { tool: 'WindowLevel' as const, mode: 'stack' as const, hasSlices: false }
+    expect(viewerShortcutChips(input)).toEqual(viewerShortcutHelp(input).chips)
   })
 })

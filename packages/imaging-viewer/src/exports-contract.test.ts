@@ -91,6 +91,7 @@ const REQUIRED_UI_EXPORTS = [
   'viewerToolHint',
   'viewerMobileHint',
   'viewerShortcutChips',
+  'viewerShortcutHelp',
   'decodeJpeg2000',
   'parseDicomForFallback',
   'grayPixelsToRgba',

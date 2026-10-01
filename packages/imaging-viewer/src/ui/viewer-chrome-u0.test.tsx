@@ -232,14 +232,15 @@ describe('ViewerAdvancedTools', () => {
 })
 
 describe('ViewerShortcutBubble', () => {
-  it('affiche des puces kbd contrastées pour le fenêtrage', () => {
+  it('affiche un titre, un résumé et des puces explicites', () => {
     const html = renderToStaticMarkup(
       <ViewerShortcutBubble tool="WindowLevel" mode="stack" hasSlices />
     )
     expect(html).toContain('data-testid="dicom-shortcut-bubble"')
-    expect(html).toContain('data-testid="dicom-shortcut-chips"')
+    expect(html).toContain('data-testid="dicom-shortcut-title"')
+    expect(html).toContain('Outil Fenêtrage')
+    expect(html).toMatch(/contraste|éclaircir|assombrir/i)
     expect(html).toContain('>Glisser<')
-    expect(html).toContain('contraste')
     expect(html).toContain('>I<')
   })
 
@@ -247,7 +248,7 @@ describe('ViewerShortcutBubble', () => {
     const html = renderToStaticMarkup(
       <ViewerShortcutBubble tool="WindowLevel" mode="mpr" hasSlices />
     )
-    expect(html).toMatch(/coupes liées/)
+    expect(html).toMatch(/3 vues|MPR/i)
     expect(html).toContain('Échap')
   })
 })

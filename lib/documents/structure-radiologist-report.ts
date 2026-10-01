@@ -78,13 +78,15 @@ function matchSectionHeader(line: string): { id: ReportSectionId; rest: string }
       if (normalized === alias) {
         return { id, rest: '' }
       }
-      if (normalized.startsWith(`${alias}:`) || normalized.startsWith(`${alias}.`) || normalized.startsWith(`${alias} -`)) {
-        const rest = raw.replace(new RegExp(`^[^:.\-]+[:.\-]\\s*`, 'i'), '').trim()
+      if (
+        normalized.startsWith(`${alias}:`) ||
+        normalized.startsWith(`${alias}.`) ||
+        normalized.startsWith(`${alias} -`)
+      ) {
+        const rest = raw.replace(new RegExp(`^[^:.\\-]+[:.\\-]\\s*`, 'i'), '').trim()
         return { id, rest }
       }
-      // « INDICATION rachialgie… » sans séparateur
       if (normalized.startsWith(`${alias} `) && normalized.length > alias.length + 1) {
-        // Éviter de matcher « conclusions » dans une phrase longue hors titre
         const after = normalized.slice(alias.length).trim()
         if (after.length < 80) {
           const rest = raw.slice(raw.length - after.length).trim()
@@ -145,4 +147,22 @@ export function structureRadiologistReport(rawText: string): ReportSection[] {
 /** True si au moins une section a du contenu issu du PDF. */
 export function reportHasExtractedContent(sections: ReportSection[]): boolean {
   return sections.some(s => s.present)
+}
+
+/** Message utilisateur pour un code d'erreur machine (jamais de PHI). */
+export function reportExtractErrorMessage(errorCode: string | null | undefined): string {
+  switch (errorCode) {
+    case 'no_encapsulated_pdf':
+      return 'Aucun PDF trouvé dans ce fichier DICOM. Ouvrez le fichier pour le consulter.'
+    case 'unsupported_mime':
+      return 'Ce type de fichier ne peut pas être lu automatiquement. Ouvrez le PDF source.'
+    case 'no_text_layer':
+      return 'Ce PDF est une image scannée (sans texte sélectionnable). Ouvrez le PDF — la lecture automatique sans OCR n’est pas disponible.'
+    case 'extract_failed':
+      return 'La lecture automatique a échoué (fichier corrompu ou format inhabituel). Ouvrez le PDF source.'
+    case 'worker_unavailable':
+      return 'Service de lecture PDF indisponible sur le serveur. Réessayez dans un instant.'
+    default:
+      return 'Lecture automatique impossible. Ouvrez le PDF source pour le consulter.'
+  }
 }

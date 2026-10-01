@@ -66,73 +66,143 @@ export type ViewerShortcutMode = 'stack' | 'compare' | 'mpr' | 'jpeg2000'
 export type ViewerShortcutChip = {
   /** Libellé clavier / geste affiché en `kbd` contrasté. */
   keys: string
-  /** Action associée. */
+  /** Action associée — phrase courte, compréhensible sans jargon. */
   label: string
 }
 
+export type ViewerShortcutHelp = {
+  /** Titre selon l’outil / mode actif. */
+  title: string
+  /** Une phrase d’intro (« à quoi sert cet outil »). */
+  summary: string
+  chips: ViewerShortcutChip[]
+}
+
 /**
- * Puces de raccourcis dynamiques selon outil + mode.
- * Texte déterministe, sans PHI — tests vitest sur le contenu.
+ * Aide gestuelle dynamique selon outil + mode.
+ * Phrases explicites (pas de libellés cryptiques) — tests vitest.
  */
+export function viewerShortcutHelp(input: {
+  tool: DicomTool
+  mode: ViewerShortcutMode
+  hasSlices: boolean
+}): ViewerShortcutHelp {
+  const { tool, mode, hasSlices } = input
+
+  if (mode === 'mpr') {
+    const chips: ViewerShortcutChip[] = [
+      {
+        keys: 'Molette',
+        label: 'fait défiler les 3 vues en même temps (même point anatomique)',
+      },
+      { keys: 'Outil Zoom', label: 'glisser ou molette pour agrandir une vue' },
+      { keys: 'Échap', label: 'ferme le mode 3 vues et revient à la série' },
+    ]
+    if (tool === 'WindowLevel') {
+      chips.unshift({
+        keys: 'Glisser',
+        label: 'règle le contraste / luminosité sur les 3 vues',
+      })
+    }
+    if (tool === 'ZoomAndPan') {
+      chips.unshift({ keys: 'Glisser', label: 'agrandit la vue sous le curseur' })
+      chips.splice(2, 0, {
+        keys: 'Maj + glisser',
+        label: 'déplace l’image dans la vue',
+      })
+    }
+    return {
+      title: 'Mode 3 vues (MPR)',
+      summary:
+        'Trois plans du volume (de face, de profil, du dessus). Les coupes restent liées.',
+      chips,
+    }
+  }
+
+  if (tool === 'ZoomAndPan') {
+    const chips: ViewerShortcutChip[] = [
+      { keys: 'Glisser', label: 'agrandit ou réduit l’image' },
+      { keys: 'Molette', label: 'zoom aussi (pas de changement de coupe)' },
+      { keys: 'Maj + glisser', label: 'déplace l’image (pan)' },
+      { keys: 'Maj + molette', label: 'déplace verticalement' },
+    ]
+    if (mode === 'compare') {
+      chips.push({
+        keys: 'Comparer',
+        label: 'les deux séries défilent ensemble',
+      })
+    }
+    if (mode === 'jpeg2000') {
+      chips.push({
+        keys: 'Mesures / MPR',
+        label: 'indisponibles sur ce format d’image',
+      })
+    }
+    return {
+      title: 'Outil Zoom / Déplacement',
+      summary: 'Agrandissez l’image, puis maintenez Maj pour la déplacer.',
+      chips,
+    }
+  }
+
+  if (tool === 'Scroll') {
+    return {
+      title: 'Outil Coupes',
+      summary: 'Balayez pour changer de coupe (tactile ou curseur).',
+      chips: [
+        { keys: 'Glisser', label: 'passe à la coupe précédente / suivante' },
+        { keys: 'Molette', label: 'même effet que le glisser' },
+      ],
+    }
+  }
+
+  // Fenêtrage (défaut)
+  const chips: ViewerShortcutChip[] = [
+    {
+      keys: 'Glisser',
+      label: 'règle le contraste et la luminosité (fenêtrage)',
+    },
+  ]
+  if (hasSlices || mode === 'compare') {
+    chips.push({
+      keys: 'Molette',
+      label:
+        mode === 'compare'
+          ? 'change de coupe sur les deux séries en même temps'
+          : 'change de coupe (← → et le curseur en bas aussi)',
+    })
+  }
+  chips.push(
+    { keys: 'I', label: 'inverse le noir et le blanc' },
+    { keys: 'H', label: 'miroir horizontal (retourne gauche/droite)' },
+  )
+  if (mode === 'jpeg2000') {
+    chips.push({
+      keys: 'Mesures / MPR',
+      label: 'indisponibles sur ce format d’image',
+    })
+  }
+  if (mode === 'compare') {
+    chips.push({
+      keys: 'Comparer',
+      label: 'le contraste est synchronisé entre les deux séries',
+    })
+  }
+  return {
+    title: 'Outil Fenêtrage',
+    summary:
+      'Cliquez-glissez sur l’image pour éclaircir / assombrir. La molette change de coupe.',
+    chips,
+  }
+}
+
+/** @deprecated Préférer `viewerShortcutHelp` (titre + résumé + puces). */
 export function viewerShortcutChips(input: {
   tool: DicomTool
   mode: ViewerShortcutMode
   hasSlices: boolean
 }): ViewerShortcutChip[] {
-  const { tool, mode, hasSlices } = input
-
-  if (mode === 'mpr') {
-    const chips: ViewerShortcutChip[] = [
-      { keys: 'Molette', label: 'coupes liées (3 vues)' },
-      { keys: 'Zoom', label: 'zoom sur la vue' },
-      { keys: 'Échap', label: 'quitter le MPR' },
-    ]
-    if (tool === 'WindowLevel') {
-      chips.unshift({ keys: 'Glisser', label: 'contraste' })
-    }
-    if (tool === 'ZoomAndPan') {
-      chips.unshift({ keys: 'Glisser', label: 'zoom' })
-      chips.splice(2, 0, { keys: 'Maj+glisser', label: 'déplacer' })
-    }
-    return chips
-  }
-
-  if (tool === 'ZoomAndPan') {
-    const chips: ViewerShortcutChip[] = [
-      { keys: 'Glisser', label: 'zoom' },
-      { keys: 'Molette', label: 'zoom' },
-      { keys: 'Maj+glisser', label: 'déplacer' },
-      { keys: 'Maj+molette', label: 'déplacer' },
-    ]
-    if (mode === 'compare') {
-      chips.push({ keys: 'Comparer', label: 'défilement synchronisé' })
-    }
-    if (mode === 'jpeg2000') {
-      chips.push({ keys: 'Mesures / MPR', label: 'indisponibles' })
-    }
-    return chips
-  }
-
-  if (tool === 'Scroll') {
-    return [
-      { keys: 'Glisser', label: 'coupes' },
-      { keys: 'Molette', label: 'coupes' },
-    ]
-  }
-
-  // Fenêtrage (défaut) et autres outils de lecture
-  const chips: ViewerShortcutChip[] = [{ keys: 'Glisser', label: 'contraste' }]
-  if (hasSlices || mode === 'compare') {
-    chips.push({ keys: 'Molette', label: mode === 'compare' ? 'coupes synchronisées' : 'coupes' })
-  }
-  chips.push({ keys: 'I', label: 'inverser' }, { keys: 'H', label: 'miroir' })
-  if (mode === 'jpeg2000') {
-    chips.push({ keys: 'Mesures / MPR', label: 'indisponibles' })
-  }
-  if (mode === 'compare' && tool === 'WindowLevel') {
-    chips.push({ keys: 'Comparer', label: 'W/L synchronisé' })
-  }
-  return chips
+  return viewerShortcutHelp(input).chips
 }
 
 /** Accent teal Franchir (hex — indépendant des tokens Tailwind app). */

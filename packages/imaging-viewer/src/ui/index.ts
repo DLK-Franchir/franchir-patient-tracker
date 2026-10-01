@@ -8,9 +8,11 @@ export {
   VIEWER_BG,
   viewerMobileHint,
   viewerShortcutChips,
+  viewerShortcutHelp,
   viewerToolHint,
   viewportLoadingMessage,
   type ViewerShortcutChip,
+  type ViewerShortcutHelp,
   type ViewerShortcutMode,
 } from './messages'
 

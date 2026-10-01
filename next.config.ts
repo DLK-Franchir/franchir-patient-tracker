@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ['@franchir/synthesis-contract', '@franchir/imaging-viewer'],
   serverExternalPackages: ['pdfjs-dist'],
+  // Inclure le worker pdf.js dans le bundle serverless (sinon extract_failed en prod).
+  outputFileTracingIncludes: {
+    '/api/patients/*/documents/*/report-extract': [
+      './node_modules/pdfjs-dist/legacy/build/pdf.mjs',
+      './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+    ],
+  },
   // Glues Emscripten `@cornerstonejs/codec-*` référencent `fs` (branche Node
   // morte côté navigateur) : alias vide, équivalent webpack `fallback: { fs: false }`.
   turbopack: {

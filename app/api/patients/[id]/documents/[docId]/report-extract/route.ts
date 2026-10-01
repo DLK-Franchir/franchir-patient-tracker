@@ -152,8 +152,12 @@ export async function POST(
   let text = ''
   try {
     text = await extractPdfText(resolved.pdf)
-  } catch {
-    log.error('Échec extraction pdf.js', { code: 'extract_failed' })
+  } catch (err) {
+    const reason =
+      err instanceof Error && /workerSrc|fake worker|ENOENT|Cannot find module/i.test(err.message)
+        ? 'worker_unavailable'
+        : 'extract_failed'
+    log.error('Échec extraction pdf.js', { code: reason })
     const sections = structureRadiologistReport('')
     const payload = {
       patient_id: patientId,
@@ -162,7 +166,7 @@ export async function POST(
       sections,
       source_sha: sha256Hex(resolved.pdf),
       extracted_at: new Date().toISOString(),
-      error_code: 'extract_failed',
+      error_code: reason,
     }
     const { data: saved, error: upsertError } = await service
       .from('patient_document_reports')

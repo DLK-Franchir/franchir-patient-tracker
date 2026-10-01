@@ -658,11 +658,17 @@ export default function DocumentsSection({
         }
         const data = (await res.json()) as { report?: { status?: string } }
         if (data.report?.status === 'no_text') {
-          setExtractHint('PDF sans texte — ouvrez le PDF pour le lire.')
+          setExtractHint(
+            'PDF scanné sans texte sélectionnable — ouvrez le PDF pour le lire (pas d’OCR automatique).',
+          )
         } else if (data.report?.status === 'error') {
-          setExtractHint('Lecture impossible — ouvrez le PDF source.')
+          setExtractHint(
+            'Lecture automatique impossible pour ce fichier — utilisez « Voir le PDF source » sous Comptes rendus.',
+          )
         } else {
-          setExtractHint('Extrait disponible sous Imagerie & documents.')
+          setExtractHint(
+            'Extrait prêt : faites défiler jusqu’à « Comptes rendus (extrait) » sous Imagerie.',
+          )
         }
         onReportExtracted?.()
       } catch {
@@ -1052,7 +1058,7 @@ export default function DocumentsSection({
                     className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#1E2B70]/20 bg-[#1E2B70]/5 px-2 py-1.5 text-[11px] font-semibold text-[#1E2B70] transition hover:bg-[#1E2B70]/10 disabled:opacity-50"
                   >
                     <BookOpen className="size-3.5" aria-hidden />
-                    {extractBusy ? 'Lecture…' : 'Lire le compte rendu'}
+                    {extractBusy ? 'Lecture…' : 'Extraire le texte du CR'}
                   </button>
                 ) : null}
               </div>

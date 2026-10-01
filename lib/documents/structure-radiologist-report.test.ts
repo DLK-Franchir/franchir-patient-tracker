@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ABSENT_SECTION_LABEL,
+  reportExtractErrorMessage,
   reportHasExtractedContent,
   structureRadiologistReport,
 } from './structure-radiologist-report'
@@ -52,5 +53,11 @@ Contrôle clinique.
     const sections = structureRadiologistReport('')
     expect(sections.every(s => !s.present)).toBe(true)
     expect(sections.every(s => s.text === ABSENT_SECTION_LABEL)).toBe(true)
+  })
+
+  it('messages d’erreur utilisateurs sont actionnables', () => {
+    expect(reportExtractErrorMessage('extract_failed')).toMatch(/PDF source/)
+    expect(reportExtractErrorMessage('no_text_layer')).toMatch(/scann|OCR/i)
+    expect(reportExtractErrorMessage('no_encapsulated_pdf')).toMatch(/DICOM/)
   })
 })
