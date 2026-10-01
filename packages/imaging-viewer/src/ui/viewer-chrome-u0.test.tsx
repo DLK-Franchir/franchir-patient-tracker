@@ -7,6 +7,7 @@ import { DicomSeriesRail } from './viewer-series-rail'
 import { DicomSliceSlider } from './viewer-slice-slider'
 import { ViewerAdvancedTools } from './viewer-advanced-tools'
 import { DicomViewerToolbar, type DicomViewerToolbarProps } from './viewer-toolbar'
+import { ViewerShortcutBubble } from './viewer-shortcut-bubble'
 
 const series: ImagingSeries[] = [
   {
@@ -227,5 +228,26 @@ describe('ViewerAdvancedTools', () => {
     expect(html).toContain('Indisponible sur les images JPEG 2000')
     expect(html).toContain('Il faut au moins deux coupes')
     expect(html).toContain('Les trois vues sont indisponibles')
+  })
+})
+
+describe('ViewerShortcutBubble', () => {
+  it('affiche des puces kbd contrastées pour le fenêtrage', () => {
+    const html = renderToStaticMarkup(
+      <ViewerShortcutBubble tool="WindowLevel" mode="stack" hasSlices />
+    )
+    expect(html).toContain('data-testid="dicom-shortcut-bubble"')
+    expect(html).toContain('data-testid="dicom-shortcut-chips"')
+    expect(html).toContain('>Glisser<')
+    expect(html).toContain('contraste')
+    expect(html).toContain('>I<')
+  })
+
+  it('MPR annonce les coupes liées', () => {
+    const html = renderToStaticMarkup(
+      <ViewerShortcutBubble tool="WindowLevel" mode="mpr" hasSlices />
+    )
+    expect(html).toMatch(/coupes liées/)
+    expect(html).toContain('Échap')
   })
 })

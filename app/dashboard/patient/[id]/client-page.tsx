@@ -10,6 +10,7 @@ import { PatientPageHeader } from '@/components/patient/patient-page-header'
 import { PatientWorkContextBanner } from '@/components/patient/patient-work-context-banner'
 import { PatientActionPanel } from '@/components/patient/patient-action-panel'
 import DocumentsSection from '@/components/patient/documents-section'
+import RadiologistReportsSection from '@/components/patient/radiologist-reports-section'
 import QuestionnairePatientCard from '@/components/patient/questionnaire-patient-card'
 import QuestionnaireDispatchModal, {
   type QuestionnaireDispatchPayload,
@@ -104,6 +105,7 @@ export default function PatientDetailClient({
   } | null>(null)
   const [dispatchPayload, setDispatchPayload] = useState<QuestionnaireDispatchPayload | null>(null)
   const [dispatchConfirming, setDispatchConfirming] = useState(false)
+  const [reportsRefreshToken, setReportsRefreshToken] = useState(0)
 
   useEffect(() => {
     setPatient(initialPatient)
@@ -522,7 +524,15 @@ export default function PatientDetailClient({
               />
             )}
 
-            <DocumentsSection patientId={patient.id} canManage={canManageDocumentsEffective} />
+            <DocumentsSection
+              patientId={patient.id}
+              canManage={canManageDocumentsEffective}
+              onReportExtracted={() => setReportsRefreshToken(token => token + 1)}
+            />
+            <RadiologistReportsSection
+              patientId={patient.id}
+              refreshToken={reportsRefreshToken}
+            />
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-5 py-4 bg-[#1E2B70] border-b border-[#171F52]">
