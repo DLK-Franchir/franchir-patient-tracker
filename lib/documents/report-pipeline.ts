@@ -16,6 +16,7 @@ import {
 } from '@/lib/documents/structure-radiologist-report'
 import { synthesizeRadiologistReport } from '@/lib/documents/synthesize-radiologist-report'
 import { extractEncapsulatedPdf } from '@/lib/imaging/dicom-content'
+import { findPdfSlice } from '@/lib/documents/pdf-bytes'
 import { Logger } from '@/lib/logger'
 
 const log = new Logger('documents/report-pipeline')
@@ -28,6 +29,7 @@ export type DocMeta = {
   mime_type: string | null
   kind: string
   modality: string | null
+  series_description?: string | null
 }
 
 function looksLikePdf(name: string, mime: string | null): boolean {
@@ -44,17 +46,23 @@ export function isRadiologistReportCandidate(doc: {
   mime_type?: string | null
   mimeType?: string | null
   modality?: string | null
+  series_description?: string | null
+  seriesDescription?: string | null
   renderType?: string | null
 }): boolean {
-  const name = (doc.file_name ?? doc.fileName ?? '').toLowerCase()
-  if (/questionnaire|anamneze|consentement|ndi|odi/.test(name)) return false
+  const name = `${doc.file_name ?? doc.fileName ?? ''} ${doc.series_description ?? doc.seriesDescription ?? ''}`.toLowerCase()
+  if (/questionnaire|anamneze|consentement|\bndi\b|\bodi\b/.test(name)) return false
 
   const mime = (doc.mime_type ?? doc.mimeType ?? '').toLowerCase()
-  if (looksLikePdf(name, mime) || doc.renderType === 'pdf') return true
+  const fileName = (doc.file_name ?? doc.fileName ?? '').toLowerCase()
+  if (mime === 'application/pdf' || fileName.endsWith('.pdf') || doc.renderType === 'pdf') {
+    return true
+  }
 
   if (doc.kind === 'dicom') {
     const mod = (doc.modality ?? '').toUpperCase()
-    if (mod === 'DOC' || /report|cr\b|compte.?rendu|radiolog/.test(name)) return true
+    if (mod === 'DOC') return true
+    if (/report|compte.?rendu|radiolog|\bcr\b/.test(name)) return true
   }
   return false
 }
@@ -64,13 +72,16 @@ async function resolvePdfBytes(
   row: DocMeta,
 ): Promise<{ pdf: Uint8Array } | { error: string }> {
   if (looksLikePdf(row.file_name, row.mime_type)) {
-    return { pdf: fileBytes }
+    const pdf = findPdfSlice(fileBytes)
+    return pdf ? { pdf } : { error: 'not_a_pdf' }
   }
   if (row.kind === 'dicom') {
     const encapsulated = extractEncapsulatedPdf(fileBytes)
-    if (encapsulated && encapsulated.byteLength > 0) {
-      return { pdf: encapsulated }
-    }
+    const fromTag = encapsulated ? findPdfSlice(encapsulated) : null
+    if (fromTag && fromTag.byteLength > 8) return { pdf: fromTag }
+    // Le parseur DICOM peut rater le tag : on cherche %PDF dans le fichier.
+    const embedded = findPdfSlice(fileBytes)
+    if (embedded && embedded.byteLength > 8) return { pdf: embedded }
     return { error: 'no_encapsulated_pdf' }
   }
   return { error: 'unsupported_mime' }

@@ -15,18 +15,27 @@ type ReportRow = {
   synthesized_at?: string | null
   extracted_at?: string
   patient_documents?:
-    | { file_name?: string | null; mime_type?: string | null; kind?: string | null }
-    | { file_name?: string | null }[]
+    | { file_name?: string | null; series_description?: string | null; mime_type?: string | null; kind?: string | null }
+    | { file_name?: string | null; series_description?: string | null }[]
     | null
 }
 
 type ListedDoc = { id: string; url: string; fileName: string }
 
-function fileNameOf(row: ReportRow): string {
+type DocRel = { file_name?: string | null; series_description?: string | null }
+
+function nestDoc(row: ReportRow): DocRel | null {
   const rel = row.patient_documents
-  if (!rel) return 'Compte rendu'
-  if (Array.isArray(rel)) return rel[0]?.file_name ?? 'Compte rendu'
-  return rel.file_name ?? 'Compte rendu'
+  if (!rel) return null
+  if (Array.isArray(rel)) return rel[0] ?? null
+  return rel
+}
+
+function fileNameOf(row: ReportRow): string {
+  const doc = nestDoc(row)
+  const series = doc?.series_description?.trim()
+  if (series) return series
+  return doc?.file_name?.trim() || 'Compte rendu'
 }
 
 type RadiologistSynthesisSectionProps = {

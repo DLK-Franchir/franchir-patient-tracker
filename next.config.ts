@@ -6,13 +6,11 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV,
   },
   transpilePackages: ['@franchir/synthesis-contract', '@franchir/imaging-viewer'],
-  serverExternalPackages: ['pdfjs-dist'],
-  // Inclure le worker pdf.js dans le bundle serverless (sinon extract_failed en prod).
+  // unpdf embarque pdf.js (pas de worker fichier). Ne pas externaliser pdfjs-dist :
+  // ça cassait l'extract en serverless (workerSrc manquant).
+  serverExternalPackages: ['unpdf'],
   outputFileTracingIncludes: {
-    '/api/patients/*/documents/*/report-extract': [
-      './node_modules/pdfjs-dist/legacy/build/pdf.mjs',
-      './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
-    ],
+    '/api/patients/**': ['./node_modules/unpdf/dist/**/*'],
   },
   // Glues Emscripten `@cornerstonejs/codec-*` référencent `fs` (branche Node
   // morte côté navigateur) : alias vide, équivalent webpack `fallback: { fs: false }`.

@@ -23,6 +23,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** Garde-fou serverless : max CR traités par appel. */
 const MAX_PER_RUN = 4
 
+export const maxDuration = 60
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -57,7 +59,7 @@ export async function POST(
 
   const { data: docs, error: docsError } = await service
     .from('patient_documents')
-    .select('id, patient_id, file_path, file_name, mime_type, kind, modality')
+    .select('id, patient_id, file_path, file_name, mime_type, kind, modality, series_description')
     .eq('patient_id', patientId)
     .order('created_at', { ascending: false })
     .limit(200)
@@ -111,7 +113,7 @@ export async function POST(
   const { data: reports } = await service
     .from('patient_document_reports')
     .select(
-      'id, patient_id, document_id, status, sections, synthesis, synthesis_status, synthesis_model, synthesized_at, extracted_at, error_code, patient_documents(file_name, mime_type, kind, modality)',
+      'id, patient_id, document_id, status, sections, synthesis, synthesis_status, synthesis_model, synthesized_at, extracted_at, error_code, patient_documents(file_name, series_description, mime_type, kind, modality)',
     )
     .eq('patient_id', patientId)
     .order('synthesized_at', { ascending: false, nullsFirst: false })
