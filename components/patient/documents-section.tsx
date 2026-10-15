@@ -28,11 +28,16 @@ import {
   type ImagingDownloadScope,
 } from '@franchir/imaging-viewer/ui/card-actions'
 import DocumentUpload from '@/components/patient/document-upload'
+import { ImagingTypeBadge } from '@/components/patient/imaging-type-badge'
 import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
 import { isViewableDicomFile } from '@/lib/imaging/dicom-folder-import'
+import {
+  imagingThumbnailBadge,
+  type ImagingThumbnailBadge,
+} from '@/lib/imaging/imaging-thumbnail-badge'
 import { groupDicomFilesByMetadata, isNonImageDicomModality } from '@/lib/imaging/dicom-series-group'
 import {
   filterImagingBySourceDate,
@@ -162,6 +167,51 @@ type ViewerItem =
       groupId: string
       sourceDate: string | null
     }
+
+function badgeForItem(item: ViewerItem): ImagingThumbnailBadge | null {
+  if (item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series') {
+    return imagingThumbnailBadge({
+      kind: 'dicom',
+      modality: item.modality,
+      seriesDescription: item.seriesDescription,
+      fileName: item.name,
+    })
+  }
+  if (item.kind === 'dicom-pdf-series' || item.kind === 'questionnaire-dicom-pdf-series') {
+    return imagingThumbnailBadge({ kind: 'pdf' })
+  }
+  if (item.kind === 'file') {
+    const render = item.doc.renderType
+    return imagingThumbnailBadge({
+      kind:
+        render === 'dicom'
+          ? 'dicom'
+          : render === 'pdf'
+            ? 'pdf'
+            : render === 'video'
+              ? 'video'
+              : render === 'image'
+                ? 'image'
+                : 'other',
+      modality: item.doc.modality,
+      seriesDescription: item.doc.seriesDescription,
+      fileName: item.doc.fileName,
+    })
+  }
+  return imagingThumbnailBadge({
+    kind:
+      item.renderType === 'dicom'
+        ? 'dicom'
+        : item.renderType === 'pdf'
+          ? 'pdf'
+          : item.renderType === 'video'
+            ? 'video'
+            : item.renderType === 'image'
+              ? 'image'
+              : 'other',
+    fileName: item.name,
+  })
+}
 
 /**
  * Regroupe tous les DICOM en une seule entrée « série » (chargée d'un bloc dans
@@ -995,6 +1045,11 @@ export default function DocumentsSection({
               item.kind === 'file' ||
               item.kind === 'questionnaire-file'
             const cardDownloadBusy = downloadBusy && downloadTargetId === item.id
+            const typeBadge = badgeForItem(item)
+            const imageCount =
+              item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series'
+                ? item.urls.length
+                : 0
             return (
               <div key={itemKey} className="group relative">
                 <button
@@ -1004,57 +1059,49 @@ export default function DocumentsSection({
                   className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 >
                   {isDicom ? (
-                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
                       <Brain className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
-                      <span className="rounded bg-indigo-500 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white sm:text-[10px]">
-                        DICOM
-                      </span>
                     </div>
                   ) : isDicomPdf ? (
-                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
+                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
+                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
                       <FileText className="size-10 text-[#2563EB] sm:size-7" strokeWidth={1.75} />
-                      <span className="text-[11px] font-bold tracking-wide text-[#2563EB] uppercase sm:text-[10px]">
-                        PDF DICOM
-                      </span>
                     </div>
                   ) : doc && doc.renderType === 'video' ? (
-                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
                       <Play className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
-                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white sm:text-[10px]">
-                        MP4
-                      </span>
                     </div>
                   ) : qFile && qFile.renderType === 'video' ? (
-                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
+                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
                       <Play className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
-                      <span className="rounded bg-violet-500 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white sm:text-[10px]">
-                        MP4
-                      </span>
                     </div>
                   ) : doc && doc.renderType === 'image' ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={doc.url}
-                      alt={doc.fileName}
-                      className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
-                    />
+                    <div className="relative">
+                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={doc.url}
+                        alt={doc.fileName}
+                        className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
+                      />
+                    </div>
                   ) : qFile && qFile.renderType === 'image' ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={qFile.url}
-                      alt={qFile.name}
-                      className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
-                    />
+                    <div className="relative">
+                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qFile.url}
+                        alt={qFile.name}
+                        className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
+                      />
+                    </div>
                   ) : (
-                    <div className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
+                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
+                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
                       <FileText className="size-10 text-[#2563EB] sm:size-7" strokeWidth={1.75} />
-                      <span className="text-[11px] font-bold tracking-wide text-[#2563EB] uppercase sm:text-[10px]">
-                        {doc?.renderType === 'pdf' || qFile?.renderType === 'pdf'
-                          ? 'PDF'
-                          : doc?.renderType === 'video' || qFile?.renderType === 'video'
-                            ? 'MP4'
-                            : 'Fichier'}
-                      </span>
                     </div>
                   )}
                   <div className="bg-white px-2 py-2 sm:py-1.5">
@@ -1062,6 +1109,7 @@ export default function DocumentsSection({
                       {label}
                     </p>
                     <p className="truncate text-center text-[11px] text-gray-500">
+                      {imageCount > 1 ? `${imageCount} images · ` : null}
                       {item.sourceDate ? formatSourceDateLabel(item.sourceDate) : 'Sans date d’examen'}
                     </p>
                     {(qFile ||
