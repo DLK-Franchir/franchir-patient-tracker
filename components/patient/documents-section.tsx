@@ -6,17 +6,14 @@ import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import {
   FileText,
-  Brain,
   Download,
   Plus,
   X,
   ArrowLeft,
   ArrowRight,
   AlertCircle,
-  Play,
 } from 'lucide-react'
 import {
-  ImagingCardActionMenu,
   ImagingDeleteConfirmDialog,
   ImagingDownloadScopeDialog,
   ImagingDownloadStatus,
@@ -28,16 +25,21 @@ import {
   type ImagingDownloadScope,
 } from '@franchir/imaging-viewer/ui/card-actions'
 import DocumentUpload from '@/components/patient/document-upload'
-import { ImagingTypeBadge } from '@/components/patient/imaging-type-badge'
+import {
+  ImagingLibraryCard,
+  ImagingLibraryChrome,
+  imagingLibraryStyles as libraryStyles,
+} from '@/components/patient/imaging-library-card'
 import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
 import { isViewableDicomFile } from '@/lib/imaging/dicom-folder-import'
 import {
-  imagingThumbnailBadge,
-  type ImagingThumbnailBadge,
-} from '@/lib/imaging/imaging-thumbnail-badge'
+  presentImagingCard,
+  type ImagingCardCategory,
+  type ImagingCardSource,
+} from '@/lib/imaging/imaging-card-presentation'
 import { groupDicomFilesByMetadata, isNonImageDicomModality } from '@/lib/imaging/dicom-series-group'
 import {
   filterImagingBySourceDate,
@@ -127,6 +129,7 @@ type ViewerItem =
       documentIds: string[]
       modality?: string | null
       seriesDescription?: string | null
+      bodyPart?: string | null
       sourceDate: string | null
     }
   | {
@@ -137,6 +140,8 @@ type ViewerItem =
       firstUrl: string
       groupId: string
       documentIds: string[]
+      seriesDescription?: string | null
+      bodyPart?: string | null
       sourceDate: string | null
     }
   | {
@@ -156,6 +161,7 @@ type ViewerItem =
       groupId: string
       modality?: string | null
       seriesDescription?: string | null
+      bodyPart?: string | null
       sourceDate: string | null
     }
   | {
@@ -165,52 +171,64 @@ type ViewerItem =
       urls: string[]
       firstUrl: string
       groupId: string
+      seriesDescription?: string | null
       sourceDate: string | null
     }
 
-function badgeForItem(item: ViewerItem): ImagingThumbnailBadge | null {
-  if (item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series') {
-    return imagingThumbnailBadge({
-      kind: 'dicom',
-      modality: item.modality,
-      seriesDescription: item.seriesDescription,
-      fileName: item.name,
-    })
-  }
-  if (item.kind === 'dicom-pdf-series' || item.kind === 'questionnaire-dicom-pdf-series') {
-    return imagingThumbnailBadge({ kind: 'pdf' })
-  }
+function cardSourceFromItem(item: ViewerItem): ImagingCardSource {
   if (item.kind === 'file') {
     const render = item.doc.renderType
-    return imagingThumbnailBadge({
-      kind:
-        render === 'dicom'
-          ? 'dicom'
-          : render === 'pdf'
-            ? 'pdf'
-            : render === 'video'
-              ? 'video'
-              : render === 'image'
-                ? 'image'
+    return {
+      categoryHint:
+        render === 'pdf'
+          ? 'pdf'
+          : render === 'video'
+            ? 'video'
+            : render === 'image'
+              ? 'image'
+              : render === 'dicom'
+                ? 'dicom'
                 : 'other',
       modality: item.doc.modality,
       seriesDescription: item.doc.seriesDescription,
-      fileName: item.doc.fileName,
-    })
+      bodyPart: item.doc.bodyPart,
+      classifyHint: item.doc.fileName,
+    }
   }
-  return imagingThumbnailBadge({
-    kind:
-      item.renderType === 'dicom'
-        ? 'dicom'
-        : item.renderType === 'pdf'
+  if (item.kind === 'questionnaire-file') {
+    return {
+      categoryHint:
+        item.renderType === 'pdf'
           ? 'pdf'
           : item.renderType === 'video'
             ? 'video'
             : item.renderType === 'image'
               ? 'image'
-              : 'other',
-    fileName: item.name,
-  })
+              : item.renderType === 'dicom'
+                ? 'dicom'
+                : 'other',
+      classifyHint: item.name,
+    }
+  }
+  if (item.kind === 'dicom-pdf-series' || item.kind === 'questionnaire-dicom-pdf-series') {
+    return {
+      categoryHint: 'dicom-pdf',
+      modality: 'DOC',
+      seriesDescription: item.seriesDescription,
+      classifyHint: item.name,
+    }
+  }
+  return {
+    categoryHint: 'dicom',
+    modality: item.modality,
+    seriesDescription: item.seriesDescription,
+    bodyPart: item.bodyPart,
+    classifyHint: item.name,
+  }
+}
+
+function presentViewerItem(item: ViewerItem) {
+  return presentImagingCard(cardSourceFromItem(item))
 }
 
 /**
@@ -269,6 +287,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
       documentIds,
       modality: first.modality ?? null,
       seriesDescription: first.seriesDescription ?? null,
+      bodyPart: first.bodyPart ?? null,
       sourceDate: imagingSourceDate(series.files.map((file) => file.acquisitionDatetime)),
     })
   }
@@ -391,6 +410,7 @@ export default function DocumentsSection({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [dateFilter, setDateFilter] = useState<ImagingDateFilter>('all')
   const [dateSort, setDateSort] = useState<ImagingDateSort>('newest')
+  const [libraryCategory, setLibraryCategory] = useState<'tous' | ImagingCardCategory>('tous')
 
   const items = useMemo(() => {
     // Forward patient-images = copie du tracker : masquer les doublons Q.
@@ -415,10 +435,11 @@ export default function DocumentsSection({
     [items],
   )
   const activeDateFilter = dateOptions.some((option) => option.id === dateFilter) ? dateFilter : 'all'
-  const visibleItems = useMemo(
-    () => filterImagingBySourceDate(items, activeDateFilter, dateSort),
-    [items, activeDateFilter, dateSort],
-  )
+  const visibleItems = useMemo(() => {
+    const dated = filterImagingBySourceDate(items, activeDateFilter, dateSort)
+    if (libraryCategory === 'tous') return dated
+    return dated.filter((item) => presentViewerItem(item).category === libraryCategory)
+  }, [items, activeDateFilter, dateSort, libraryCategory])
   const navigationItems = visibleItems.some((item) => item.id === selectedId) ? visibleItems : items
 
   const dicomViewerSeries = useMemo(
@@ -608,9 +629,7 @@ export default function DocumentsSection({
   )
 
   const resolveCardLabel = useCallback((item: ViewerItem): string => {
-    if (item.kind === 'file') return item.doc.fileName
-    if (item.kind === 'questionnaire-file') return item.name
-    return item.name
+    return presentViewerItem(item).title
   }, [])
 
   const resolveDeletableDocumentIds = useCallback((item: ViewerItem): string[] => {
@@ -856,9 +875,9 @@ export default function DocumentsSection({
       ? ''
       : selectedItem.kind === 'file'
         ? selectedItem.doc.fileName
-        : selectedItem.kind === 'questionnaire-file' || selectedItem.kind === 'questionnaire-dicom-series'
+        : selectedItem.kind === 'questionnaire-file'
           ? selectedItem.name
-          : selectedItem.name
+          : presentViewerItem(selectedItem).title
 
   return (
     <section id="patient-documents-section" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -973,168 +992,95 @@ export default function DocumentsSection({
         />
       ) : (
         <>
-          <div className="mb-4 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-gray-900">Dates</p>
-              <div className="flex rounded-lg border border-gray-200 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setDateSort('newest')}
-                  aria-pressed={dateSort === 'newest'}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                    dateSort === 'newest' ? 'bg-[#2563EB] text-white' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  Plus récent
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDateSort('oldest')}
-                  aria-pressed={dateSort === 'oldest'}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                    dateSort === 'oldest' ? 'bg-[#2563EB] text-white' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  Plus ancien
-                </button>
+          <ImagingLibraryChrome>
+            <div className={libraryStyles.toolbar}>
+              <div className={libraryStyles.categoryTabs} role="group" aria-label="Type de fichier">
+                {(
+                  [
+                    ['tous', 'Tous', items.length],
+                    ['imagerie', 'Imageries', items.filter((item) => presentViewerItem(item).category === 'imagerie').length],
+                    ['document', 'Documents', items.filter((item) => presentViewerItem(item).category === 'document').length],
+                  ] as const
+                ).map(([id, label, count]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={libraryCategory === id ? libraryStyles.active : undefined}
+                    onClick={() => setLibraryCategory(id)}
+                  >
+                    {label} <span>{count}</span>
+                  </button>
+                ))}
               </div>
+              <button
+                type="button"
+                className={libraryStyles.sortButton}
+                onClick={() => setDateSort((current) => (current === 'newest' ? 'oldest' : 'newest'))}
+              >
+                {dateSort === 'newest' ? 'Plus récent' : 'Plus ancien'}
+                <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
+                  <path d="M8 10l4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                </svg>
+              </button>
             </div>
-            <p className="text-xs text-gray-500">Date de l’examen dans le fichier, pas la date d’import.</p>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer par date d’examen">
-              {dateOptions.map((option) => {
-                const selected = option.id === activeDateFilter
-                return (
+            <div className={libraryStyles.dateFilter}>
+              <span>Filtrer par date</span>
+              <div className={libraryStyles.dateOptions} role="group" aria-label="Filtrer par date d’examen">
+                {dateOptions.map((option) => (
                   <button
                     key={option.id}
                     type="button"
+                    className={option.id === activeDateFilter ? libraryStyles.active : undefined}
                     onClick={() => setDateFilter(option.id)}
-                    aria-pressed={selected}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                      selected
-                        ? 'border-[#2563EB] bg-blue-50 text-[#1d4ed8]'
-                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
+                    aria-pressed={option.id === activeDateFilter}
                   >
                     {option.label}
                   </button>
-                )
-              })}
-            </div>
-          </div>
-          {visibleItems.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">Aucun fichier à cette date.</p>
-          ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-          {visibleItems.map((item) => {
-            const isDicom =
-              item.kind === 'dicom-series' ||
-              item.kind === 'questionnaire-dicom-series'
-            const isDicomPdf =
-              item.kind === 'dicom-pdf-series' ||
-              item.kind === 'questionnaire-dicom-pdf-series'
-            const doc = item.kind === 'file' ? item.doc : null
-            const qFile = item.kind === 'questionnaire-file' ? item : null
-            const itemKey = item.id
-            const label =
-              isDicom || isDicomPdf ? item.name : doc ? doc.fileName : qFile!.name
-            const deletableIds = resolveDeletableDocumentIds(item)
-            const canDeleteCard = canManage && deletableIds.length > 0
-            const canDownloadCard =
-              item.kind === 'dicom-series' ||
-              item.kind === 'dicom-pdf-series' ||
-              item.kind === 'file' ||
-              item.kind === 'questionnaire-file'
-            const cardDownloadBusy = downloadBusy && downloadTargetId === item.id
-            const typeBadge = badgeForItem(item)
-            const imageCount =
-              item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series'
-                ? item.urls.length
-                : 0
-            return (
-              <div key={itemKey} className="group relative">
-                <button
-                  type="button"
-                  onClick={() => openViewer(item.id)}
-                  aria-label={`Voir ${label}`}
-                  className="block w-full rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
-                >
-                  {isDicom ? (
-                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
-                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
-                      <Brain className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
-                    </div>
-                  ) : isDicomPdf ? (
-                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
-                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
-                      <FileText className="size-10 text-[#2563EB] sm:size-7" strokeWidth={1.75} />
-                    </div>
-                  ) : doc && doc.renderType === 'video' ? (
-                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
-                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
-                      <Play className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
-                    </div>
-                  ) : qFile && qFile.renderType === 'video' ? (
-                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-[#0B1020] sm:h-28">
-                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
-                      <Play className="size-10 text-white/90 sm:size-7" strokeWidth={1.75} />
-                    </div>
-                  ) : doc && doc.renderType === 'image' ? (
-                    <div className="relative">
-                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={doc.url}
-                        alt={doc.fileName}
-                        className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
-                      />
-                    </div>
-                  ) : qFile && qFile.renderType === 'image' ? (
-                    <div className="relative">
-                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={qFile.url}
-                        alt={qFile.name}
-                        className="h-32 w-full object-cover transition group-hover:opacity-90 sm:h-28"
-                      />
-                    </div>
-                  ) : (
-                    <div className="relative flex h-32 w-full flex-col items-center justify-center gap-2 bg-blue-50 sm:h-28">
-                      {typeBadge ? <ImagingTypeBadge badge={typeBadge} /> : null}
-                      <FileText className="size-10 text-[#2563EB] sm:size-7" strokeWidth={1.75} />
-                    </div>
-                  )}
-                  <div className="bg-white px-2 py-2 sm:py-1.5">
-                    <p className="truncate text-center text-xs font-semibold text-gray-700 sm:font-medium">
-                      {label}
-                    </p>
-                    <p className="truncate text-center text-[11px] text-gray-500">
-                      {imageCount > 1 ? `${imageCount} images · ` : null}
-                      {item.sourceDate ? formatSourceDateLabel(item.sourceDate) : 'Sans date d’examen'}
-                    </p>
-                    {(qFile ||
-                      item.kind === 'questionnaire-dicom-series' ||
-                      item.kind === 'questionnaire-dicom-pdf-series') && (
-                      <p className="truncate text-center text-[10px] text-emerald-700">
-                        Via questionnaire patient
-                      </p>
-                    )}
-                  </div>
-                </button>
-                <ImagingCardActionMenu
-                  itemLabel={label}
-                  canDownload={canDownloadCard}
-                  canDelete={canDeleteCard}
-                  downloadBusy={cardDownloadBusy}
-                  deleteBusy={Boolean(deletingId && deletableIds.includes(deletingId))}
-                  onDownload={() => requestCardDownload(item)}
-                  onDelete={() => setDeleteTargetId(item.id)}
-                />
+                ))}
               </div>
-            )
-          })}
-        </div>
-          )}
+            </div>
+            <div className={libraryStyles.resultsLine}>
+              <p>
+                <strong>{visibleItems.length}</strong>{' '}
+                {visibleItems.length > 1 ? 'éléments' : 'élément'}
+              </p>
+              <span>Triés par date d’examen</span>
+            </div>
+            {visibleItems.length === 0 ? (
+              <div className={libraryStyles.emptyState}>
+                <h2>Aucun fichier à cette date</h2>
+                <p>Modifiez le filtre pour afficher d’autres éléments.</p>
+              </div>
+            ) : (
+              <div className={libraryStyles.fileGrid}>
+                {visibleItems.map((item) => {
+                  const presentation = presentViewerItem(item)
+                  const deletableIds = resolveDeletableDocumentIds(item)
+                  const canDownloadCard =
+                    item.kind === 'dicom-series' ||
+                    item.kind === 'dicom-pdf-series' ||
+                    item.kind === 'file' ||
+                    item.kind === 'questionnaire-file'
+                  return (
+                    <ImagingLibraryCard
+                      key={item.id}
+                      presentation={presentation}
+                      dateLabel={
+                        item.sourceDate ? formatSourceDateLabel(item.sourceDate) : 'Non renseignée'
+                      }
+                      canDownload={canDownloadCard}
+                      canDelete={canManage && deletableIds.length > 0}
+                      downloadBusy={downloadBusy && downloadTargetId === item.id}
+                      deleteBusy={Boolean(deletingId && deletableIds.includes(deletingId))}
+                      onOpen={() => openViewer(item.id)}
+                      onDownload={() => requestCardDownload(item)}
+                      onDelete={() => setDeleteTargetId(item.id)}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </ImagingLibraryChrome>
         </>
       )}
 

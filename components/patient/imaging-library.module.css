@@ -1,0 +1,652 @@
+.library {
+  color: #172033;
+}
+
+.library button {
+  font: inherit;
+}
+
+.library button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 2px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px;
+  background: #f7f9fc;
+  border: 1px solid #e5eaf1;
+  border-radius: 14px;
+}
+
+.categoryTabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.categoryTabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 13px;
+  color: #5e687a;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.categoryTabs button span {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  place-items: center;
+  color: #657084;
+  background: #e9edf3;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.categoryTabs button:hover {
+  color: #172033;
+}
+
+.categoryTabs button.active {
+  color: #1d4ed8;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.categoryTabs button.active span {
+  color: #1d4ed8;
+  background: #e9f0ff;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 12px 0 14px;
+  color: #354055;
+  background: #ffffff;
+  border: 1px solid #dce2e9;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.dateFilter {
+  padding: 25px 2px 20px;
+  border-bottom: 1px solid #e8ecf1;
+}
+
+.dateFilter > span {
+  display: block;
+  margin-bottom: 10px;
+  color: #717b8d;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dateOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dateOptions button {
+  min-height: 35px;
+  padding: 0 13px;
+  color: #596476;
+  background: #ffffff;
+  border: 1px solid #dce2e9;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.dateOptions button:hover {
+  color: #1d4ed8;
+  border-color: #a8bfee;
+}
+
+.dateOptions button.active {
+  color: #1d4ed8;
+  background: #edf3ff;
+  border-color: #8bb0ff;
+}
+
+.resultsLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 1px 14px;
+  color: #778194;
+  font-size: 13px;
+}
+
+.resultsLine p {
+  margin: 0;
+}
+
+.resultsLine strong {
+  color: #182135;
+  font-size: 15px;
+}
+
+.fileGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.fileCard {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #dfe5ec;
+  border-radius: 15px;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.035);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.fileCard:hover {
+  border-color: #b8c6da;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+}
+
+.cardHitarea {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.preview {
+  position: relative;
+  height: 124px;
+  overflow: hidden;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 50% 55%, rgba(66, 153, 225, 0.36), transparent 43%),
+    linear-gradient(145deg, #172f4f, #081321);
+  border-bottom: 1px solid #dfe5ec;
+}
+
+.preview::after {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 100% 4px;
+  content: "";
+  pointer-events: none;
+}
+
+.previewDocument {
+  color: #334155;
+  background:
+    radial-gradient(circle at 70% 15%, rgba(37, 99, 235, 0.17), transparent 40%),
+    #e6edf6;
+}
+
+.modality {
+  position: absolute;
+  z-index: 4;
+  top: 13px;
+  left: 13px;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 58px);
+  min-height: 31px;
+  padding: 0 11px;
+  overflow: hidden;
+  color: #ffffff;
+  background: #0891b2;
+  border: 1px solid #22d3ee;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(8, 145, 178, 0.26);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toneScanner {
+  background: #4f46e5;
+  border-color: #818cf8;
+  box-shadow: 0 3px 8px rgba(79, 70, 229, 0.28);
+}
+
+.toneInfilt {
+  background: #ea580c;
+  border-color: #fb923c;
+  box-shadow: 0 3px 8px rgba(234, 88, 12, 0.28);
+}
+
+.toneIrmT2 {
+  background: #059669;
+  border-color: #34d399;
+  box-shadow: 0 3px 8px rgba(5, 150, 105, 0.28);
+}
+
+.toneIrmT1 {
+  background: #0f766e;
+  border-color: #5eead4;
+  box-shadow: 0 3px 8px rgba(15, 118, 110, 0.28);
+}
+
+.toneIrm {
+  background: #047857;
+  border-color: #6ee7b7;
+  box-shadow: 0 3px 8px rgba(4, 120, 87, 0.28);
+}
+
+.toneRadio {
+  background: #b45309;
+  border-color: #fbbf24;
+  box-shadow: 0 3px 8px rgba(180, 83, 9, 0.28);
+}
+
+.tonePdf {
+  background: #e11d48;
+  border-color: #fb7185;
+  box-shadow: 0 3px 8px rgba(225, 29, 72, 0.28);
+}
+
+.toneVideo {
+  background: #7c3aed;
+  border-color: #c4b5fd;
+  box-shadow: 0 3px 8px rgba(124, 58, 237, 0.28);
+}
+
+.toneEcho {
+  background: #6d28d9;
+  border-color: #ddd6fe;
+}
+
+.toneAngio {
+  background: #be185d;
+  border-color: #f9a8d4;
+}
+
+.toneOther {
+  background: #334155;
+  border-color: #94a3b8;
+}
+
+.moreButton {
+  position: absolute;
+  z-index: 5;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  color: #526075;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(213, 220, 229, 0.85);
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+}
+
+.moreButton:hover {
+  color: #1d4ed8;
+  background: #ffffff;
+}
+
+.moreMenu {
+  position: absolute;
+  z-index: 6;
+  top: 48px;
+  right: 10px;
+  min-width: 148px;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+}
+
+.moreMenu button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  color: #b91c1c;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.moreMenu button:hover {
+  background: #fff1f2;
+}
+
+.medicalImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.88;
+  transition:
+    opacity 180ms ease,
+    transform 240ms ease;
+}
+
+.previewFull .medicalImage {
+  object-position: center 48%;
+}
+
+.previewLombaires .medicalImage {
+  object-position: center 51%;
+}
+
+.previewCervicales .medicalImage {
+  object-position: center 46%;
+}
+
+.fileCard:hover .medicalImage {
+  opacity: 1;
+  transform: scale(1.025);
+}
+
+.fileKind {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  bottom: 11px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.fileKind svg {
+  width: 15px;
+  height: 15px;
+}
+
+.previewDocument .fileKind {
+  color: #64748b;
+}
+
+.documentVisual {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  padding-top: 32px;
+  place-items: center;
+}
+
+.documentSheet {
+  position: relative;
+  width: 90px;
+  height: 112px;
+  padding: 43px 13px 10px;
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 5px 15px 5px 5px;
+  box-shadow: 0 9px 22px rgba(51, 65, 85, 0.15);
+  transform: rotate(-1deg);
+}
+
+.documentSheet::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(225deg, #eef2f7 50%, #d9e0e9 51%, #ffffff 53%);
+  border-radius: 0 13px 0 0;
+  content: "";
+}
+
+.pdfLabel {
+  position: absolute;
+  top: 13px;
+  left: 13px;
+  color: #e11d48;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+}
+
+.documentSheet span {
+  display: block;
+  height: 3px;
+  margin-bottom: 6px;
+  background: #dce2e9;
+  border-radius: 10px;
+}
+
+.shortLine {
+  width: 67%;
+}
+
+.documentSheet b {
+  position: absolute;
+  right: 9px;
+  bottom: 7px;
+  color: #8691a2;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cardContent {
+  min-width: 0;
+}
+
+.cardCopy {
+  min-width: 0;
+  padding: 14px 14px 13px;
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cardCopy h3 {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  margin: 0;
+  color: #182135;
+  font-size: 17px;
+  font-weight: 780;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardCopy p {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: #4b5870;
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.downloadButton {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  color: #2563eb;
+  background: #edf3ff;
+  border: 1px solid #ccdcff;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.downloadButton:hover {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.downloadButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.cardDate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 14px;
+  background: #fafbfc;
+  border-top: 1px solid #ebeff3;
+}
+
+.cardDate span {
+  color: #8a94a4;
+  font-size: 11px;
+}
+
+.cardDate time {
+  color: #344057;
+  font-size: 12px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.emptyState {
+  display: grid;
+  min-height: 290px;
+  color: #8590a2;
+  background: #fafbfc;
+  border: 1px dashed #ced6e0;
+  border-radius: 14px;
+  place-content: center;
+  text-align: center;
+}
+
+.emptyState h2 {
+  margin: 0 0 5px;
+  color: #354055;
+  font-size: 16px;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 13px;
+}
+
+@media (min-width: 1280px) {
+  .fileGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .fileGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .toolbar {
+    display: block;
+    padding: 6px;
+    overflow-x: auto;
+  }
+
+  .categoryTabs {
+    width: max-content;
+  }
+
+  .sortButton {
+    width: 100%;
+    margin-top: 10px;
+    justify-content: space-between;
+  }
+
+  .dateOptions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .fileGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fileCard {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+
+  .preview {
+    grid-row: 1;
+    height: 100%;
+    min-height: 146px;
+    border-right: 1px solid #dfe5ec;
+    border-bottom: 0;
+  }
+
+  .cardContent {
+    grid-column: 2;
+  }
+
+  .modality {
+    top: 9px;
+    left: 8px;
+    max-width: calc(100% - 16px);
+    min-height: 27px;
+    padding: 0 7px;
+    font-size: 9px;
+  }
+
+  .fileKind {
+    display: none;
+  }
+
+  .cardCopy h3 {
+    font-size: 16px;
+  }
+}
