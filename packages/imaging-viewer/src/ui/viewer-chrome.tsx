@@ -55,6 +55,7 @@ export type DicomViewerChromeProps = {
   tool: DicomTool
   activateTool: (tool: DicomTool) => void
   handleZoomStep: (step: number) => void
+  handleBrightnessStep?: (direction: 1 | -1) => void
   activePreset: WlPresetId | null
   presets: readonly WindowPreset[]
   applyWindowPreset: (preset: WindowPreset) => void
@@ -128,6 +129,7 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
     tool,
     activateTool,
     handleZoomStep,
+    handleBrightnessStep,
     activePreset,
     presets,
     applyWindowPreset,
@@ -216,6 +218,7 @@ export function DicomViewerChrome(props: DicomViewerChromeProps) {
             isReady={isReady}
             activateTool={activateTool}
             handleZoomStep={handleZoomStep}
+            handleBrightnessStep={handleBrightnessStep}
             activePreset={activePreset}
             presets={presets}
             applyWindowPreset={applyWindowPreset}

@@ -10,6 +10,7 @@ import {
   accumulateWheelSlices,
   wheelPrefersZoom,
   wheelZoomStep,
+  stepWindowBrightness,
   formatDicomLoadError,
   formatSeriesOverlayLabel,
   formatWindowLevelOverlay,
@@ -105,6 +106,17 @@ describe('wheelPrefersZoom', () => {
     expect(wheelZoomStep(-120)).toBeGreaterThan(0)
     expect(wheelZoomStep(120)).toBeLessThan(0)
     expect(wheelZoomStep(0)).toBe(0)
+  })
+})
+
+describe('stepWindowBrightness', () => {
+  it('éclaircit en baissant le centre et assombrit dans l autre sens', () => {
+    const start = { center: 400, width: 800 }
+    const brighter = stepWindowBrightness(start, 1)
+    const darker = stepWindowBrightness(start, -1)
+    expect(brighter.center).toBeLessThan(start.center)
+    expect(darker.center).toBeGreaterThan(start.center)
+    expect(brighter.width).toBe(start.width)
   })
 })
 

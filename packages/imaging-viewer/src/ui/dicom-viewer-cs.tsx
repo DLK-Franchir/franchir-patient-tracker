@@ -13,6 +13,7 @@ import {
   type WlPresetId,
   WL_PRESETS,
   accumulateWheelSlices,
+  stepWindowBrightness,
   wheelPrefersZoom,
   wheelZoomStep,
   normalizeModality,
@@ -311,6 +312,21 @@ export function DicomViewerCornerstone({
       if (toolRef.current !== 'ZoomAndPan') activateTool('ZoomAndPan')
     },
     [activateTool, mprOpen]
+  )
+
+  const handleBrightnessStep = useCallback(
+    (direction: 1 | -1) => {
+      if (!windowLevel) return
+      const next = stepWindowBrightness(windowLevel, direction)
+      if (mprOpen && mprApiRef.current) {
+        mprApiRef.current.setWindowLevel(next.center, next.width)
+      } else {
+        csSetWindowLevel(handleRef.current, next.center, next.width)
+      }
+      setWindowLevel(next)
+      setActivePreset(null)
+    },
+    [mprOpen, windowLevel]
   )
 
   const applyWindowPreset = useCallback(
@@ -847,6 +863,7 @@ export function DicomViewerCornerstone({
       tool={tool}
       activateTool={activateTool}
       handleZoomStep={handleZoomStep}
+      handleBrightnessStep={handleBrightnessStep}
       activePreset={activePreset}
       presets={presets}
       applyWindowPreset={applyWindowPreset}

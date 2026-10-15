@@ -6,12 +6,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { App } from 'dwv'
+import { WindowLevel, type App } from 'dwv'
 import type { DicomTool, DicomViewerProps, ImagingPoolEntry, NavMode } from '../contract'
 import {
   type WlPresetId,
   WL_PRESETS,
   accumulateWheelSlices,
+  stepWindowBrightness,
   wheelPrefersZoom,
   wheelZoomStep,
   nextLayerGroupId,
@@ -323,6 +324,19 @@ export function DicomViewerDwv({
     return app.getActiveLayerGroup()?.getActiveViewLayer()?.getViewController()
   }, [])
 
+  const handleBrightnessStep = useCallback(
+    (direction: 1 | -1) => {
+      const current = readWindowLevel(appRef.current)
+      const controller = getViewController()
+      if (!current || !controller) return
+      const next = stepWindowBrightness(current, direction)
+      controller.setWindowLevel(new WindowLevel(next.center, next.width))
+      setWindowLevel(next)
+      setActivePreset(null)
+    },
+    [getViewController],
+  )
+
   const applyWindowPreset = useCallback(
     (preset: (typeof WL_PRESETS)[number]) => {
       const app = appRef.current
@@ -603,6 +617,7 @@ export function DicomViewerDwv({
       tool={tool}
       activateTool={activateTool}
       handleZoomStep={handleZoomStep}
+      handleBrightnessStep={handleBrightnessStep}
       activePreset={activePreset}
       presets={presets}
       applyWindowPreset={applyWindowPreset}

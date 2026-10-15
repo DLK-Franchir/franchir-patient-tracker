@@ -53,6 +53,18 @@ export function wheelPrefersZoom(input: {
   return input.tool === 'ZoomAndPan' || input.shiftKey || input.ctrlKey || input.metaKey
 }
 
+/**
+ * Luminosité = centre de fenêtre. En DICOM, baisser le centre éclaircit.
+ * `direction` +1 éclaircit, −1 assombrit.
+ */
+export function stepWindowBrightness(
+  current: { center: number; width: number },
+  direction: 1 | -1,
+): { center: number; width: number } {
+  const delta = Math.max(1, Math.abs(current.width) * 0.12) * direction
+  return { center: current.center - delta, width: Math.max(1, current.width) }
+}
+
 /** Pas de zoom relatif pour un delta de molette / pavé (positif = agrandir). */
 export function wheelZoomStep(deltaY: number): number {
   if (!Number.isFinite(deltaY) || deltaY === 0) return 0

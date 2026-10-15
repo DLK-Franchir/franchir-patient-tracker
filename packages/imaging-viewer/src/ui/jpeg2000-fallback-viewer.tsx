@@ -18,6 +18,7 @@ import {
 import type { DicomTool, ImagingSeries } from '../contract'
 import {
   accumulateWheelSlices,
+  stepWindowBrightness,
   wheelPrefersZoom,
   wheelZoomStep,
   normalizeModality,
@@ -531,6 +532,10 @@ function DicomJpeg2000FallbackViewerInner({
       tool={tool}
       activateTool={setTool}
       handleZoomStep={step => zoomBy(step > 0 ? 1.15 : 1 / 1.15)}
+      handleBrightnessStep={direction => {
+        if (!wl) return
+        setWl(stepWindowBrightness(wl, direction))
+      }}
       activePreset={null}
       presets={presets}
       applyWindowPreset={() => undefined}

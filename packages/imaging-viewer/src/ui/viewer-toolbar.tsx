@@ -22,6 +22,8 @@ export type DicomViewerToolbarProps = {
   isReady: boolean
   activateTool: (tool: DicomTool) => void
   handleZoomStep: (step: number) => void
+  /** +1 éclaircit, −1 assombrit (centre de fenêtre). */
+  handleBrightnessStep?: (direction: 1 | -1) => void
   activePreset: WlPresetId | null
   /** Presets HU filtrés par modality (vide hors CT) — voir `windowPresetsForModality`. */
   presets?: readonly WindowPreset[]
@@ -63,6 +65,7 @@ export function DicomViewerToolbar({
   isReady,
   activateTool,
   handleZoomStep,
+  handleBrightnessStep,
   activePreset,
   presets = WL_PRESETS,
   applyWindowPreset,
@@ -146,6 +149,9 @@ export function DicomViewerToolbar({
         })}
 
         <div className="flex items-center gap-1">
+          <span className="px-1 text-[10px] font-semibold uppercase tracking-wide text-white/50">
+            Zoom
+          </span>
           <button
             type="button"
             onClick={() => handleZoomStep(0.15)}
@@ -165,6 +171,36 @@ export function DicomViewerToolbar({
             −
           </button>
         </div>
+
+        {handleBrightnessStep ? (
+          <div className="flex items-center gap-1">
+            <span className="px-1 text-[10px] font-semibold uppercase tracking-wide text-white/50">
+              Luminosité
+            </span>
+            <button
+              type="button"
+              onClick={() => handleBrightnessStep(-1)}
+              disabled={!isReady}
+              aria-label="Assombrir"
+              title="Assombrir"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-white/10 text-lg font-bold text-white transition disabled:opacity-30"
+              data-testid="dicom-brightness-down"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBrightnessStep(1)}
+              disabled={!isReady}
+              aria-label="Éclaircir"
+              title="Éclaircir"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-white/10 text-lg font-bold text-white transition disabled:opacity-30"
+              data-testid="dicom-brightness-up"
+            >
+              +
+            </button>
+          </div>
+        ) : null}
 
         <span className="mx-1 hidden h-4 w-px bg-white/15 sm:block" aria-hidden="true" />
 

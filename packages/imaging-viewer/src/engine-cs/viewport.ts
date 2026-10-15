@@ -4,7 +4,6 @@
  */
 
 import { Enums as csEnums, utilities as csUtils, type Types as CsTypes } from '@cornerstonejs/core'
-import { contentZoomFactor } from './content-zoom'
 import type { CsStackHandle } from './stack'
 
 type Viewport = CsTypes.IStackViewport
@@ -54,28 +53,13 @@ export function csResetWindowLevel(handle: CsStackHandle | null) {
   }
 }
 
-/**
- * Cadrage de lecture : fit, interpolation lisse, zoom sur l'anatomie si le
- * cadre est surtout du noir. `setZoom(1)` après `resetCamera` = image entière.
- */
+/** Cadrage entier de l'image, interpolation lisse. Pas d'agrandissement forcé. */
 export function presentCsViewportForReading(viewport: CsTypes.IStackViewport) {
   viewport.resetCamera()
   try {
     viewport.setProperties({ interpolationType: csEnums.InterpolationType.LINEAR })
   } catch {
     /* image couleur */
-  }
-  try {
-    const image = viewport.getImageData()
-    const width = image?.dimensions?.[0]
-    const height = image?.dimensions?.[1]
-    const pixels = image?.scalarData
-    if (width && height && pixels) {
-      const factor = contentZoomFactor(pixels, width, height)
-      if (factor > 1) viewport.setZoom(factor)
-    }
-  } catch {
-    /* pixels pas encore décodés */
   }
   viewport.render()
 }

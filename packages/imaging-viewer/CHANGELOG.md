@@ -1,5 +1,12 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.12
+
+- **Luminosité** : boutons Éclaircir / Assombrir dans la barre, en plus du
+  glisser Fenêtrage. Visibles sur IRM (les presets scanner restent réservés au CT).
+- **Netteté** : plus d’agrandissement automatique des repérages. Étendre une
+  matrice de 256 pixels remplissait l’écran d’un flou.
+
 ## 0.15.11
 
 - **Netteté** : le canvas n’est plus affiché en pixels bruts. Sur un écran
