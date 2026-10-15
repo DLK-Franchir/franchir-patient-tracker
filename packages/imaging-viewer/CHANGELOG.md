@@ -1,5 +1,13 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.9
+
+- **Aide outils** : la bulle « Outil Fenêtrage » se replie après 2 secondes et
+  ne se rouvre pas au changement de série (une fois par session d’onglet).
+  Le bouton « ? » la rouvre. Chargement et erreur restent affichés.
+- **Bandeau navigation** : molette / flèches, une fois par session, masqué
+  après 2 secondes.
+
 ## 0.15.8
 
 - **Aide visionneuse** : bulle avec titre + phrase d’intro + puces en phrases
