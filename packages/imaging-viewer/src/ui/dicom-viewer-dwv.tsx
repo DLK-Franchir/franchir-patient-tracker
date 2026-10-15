@@ -326,9 +326,11 @@ export function DicomViewerDwv({
 
   const handleBrightnessStep = useCallback(
     (direction: 1 | -1) => {
-      const current = readWindowLevel(appRef.current)
+      const app = appRef.current
       const controller = getViewController()
-      if (!current || !controller) return
+      if (!app || !controller) return
+      const current = readWindowLevel(app)
+      if (!current) return
       const next = stepWindowBrightness(current, direction)
       controller.setWindowLevel(new WindowLevel(next.center, next.width))
       setWindowLevel(next)
