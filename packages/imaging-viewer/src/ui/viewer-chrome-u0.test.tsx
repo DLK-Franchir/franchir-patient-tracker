@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ImagingSeries } from '../contract'
-import { WL_PRESETS } from '../policy'
+import { VIEWER_TOOL_HINT_SESSION_KEY, WL_PRESETS } from '../policy'
 import { DicomCornerOverlay } from './viewer-corner-overlay'
 import { DicomSeriesRail } from './viewer-series-rail'
 import { DicomSliceSlider } from './viewer-slice-slider'
@@ -250,5 +250,25 @@ describe('ViewerShortcutBubble', () => {
     )
     expect(html).toMatch(/3 vues|MPR/i)
     expect(html).toContain('Échap')
+  })
+
+  it('reste repliée si l aide a déjà été vue dans la session', () => {
+    const store = new Map<string, string>([[VIEWER_TOOL_HINT_SESSION_KEY, '1']])
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value)
+      },
+    })
+    try {
+      const html = renderToStaticMarkup(
+        <ViewerShortcutBubble tool="WindowLevel" mode="stack" hasSlices />
+      )
+      expect(html).toContain('data-testid="dicom-shortcut-bubble-expand"')
+      expect(html).not.toContain('data-testid="dicom-shortcut-bubble"')
+      expect(html).not.toContain('Outil Fenêtrage')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

@@ -3,12 +3,29 @@
 import { useEffect, useState } from 'react'
 import { CircleHelp, X } from 'lucide-react'
 import type { DicomTool } from '../contract'
+import { VIEWER_NAV_HINT_HIDE_MS, VIEWER_TOOL_HINT_SESSION_KEY } from '../policy'
 import {
   VIEWER_ACCENT,
   VIEWER_BG,
   viewerShortcutHelp,
   type ViewerShortcutMode,
 } from './messages'
+
+function toolHintAlreadySeen(): boolean {
+  try {
+    return globalThis.sessionStorage?.getItem(VIEWER_TOOL_HINT_SESSION_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markToolHintSeen(): void {
+  try {
+    globalThis.sessionStorage?.setItem(VIEWER_TOOL_HINT_SESSION_KEY, '1')
+  } catch {
+    // Session privée : la bulle se replie quand même au bout du délai.
+  }
+}
 
 export type ViewerShortcutBubbleProps = {
   tool: DicomTool
@@ -20,7 +37,8 @@ export type ViewerShortcutBubbleProps = {
 
 /**
  * Bulle d’aide gestuelle — distincte de `ViewerInfoBubble` (statut série).
- * Titre + phrase d’intro + puces explicites. « ? » pour replier.
+ * Ouverte 2 s à la première série de la session, puis repliée. « ? » pour la rouvrir.
+ * Changer d’IRM ne la réouvre pas.
  */
 export function ViewerShortcutBubble({
   tool,
@@ -28,12 +46,18 @@ export function ViewerShortcutBubble({
   hasSlices,
   className,
 }: ViewerShortcutBubbleProps) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => toolHintAlreadySeen())
   const help = viewerShortcutHelp({ tool, mode, hasSlices })
 
   useEffect(() => {
-    setCollapsed(false)
-  }, [tool, mode])
+    if (toolHintAlreadySeen()) {
+      setCollapsed(true)
+      return
+    }
+    markToolHintSeen()
+    const timer = window.setTimeout(() => setCollapsed(true), VIEWER_NAV_HINT_HIDE_MS)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   if (collapsed) {
     return (

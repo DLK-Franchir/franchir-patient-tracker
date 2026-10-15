@@ -313,6 +313,8 @@ export function resolveViewerInfoKind(input: {
 
 /** Bandeau molette / flèches : une fois par connexion (session d'onglet), puis masqué. */
 export const VIEWER_NAV_HINT_SESSION_KEY = 'franchir-viewer-nav-hint-seen'
+/** Aide « Outil Fenêtrage » : une fois par connexion, puis repliée. */
+export const VIEWER_TOOL_HINT_SESSION_KEY = 'franchir-viewer-tool-hint-seen'
 export const VIEWER_NAV_HINT_HIDE_MS = 2000
 
 const VIEWER_NAV_HINT_KINDS = new Set<ViewerInfoKind>([
