@@ -8,6 +8,8 @@ import {
   WHEEL_SLICE_STEP_PX,
   WL_PRESETS,
   accumulateWheelSlices,
+  wheelPrefersZoom,
+  wheelZoomStep,
   formatDicomLoadError,
   formatSeriesOverlayLabel,
   formatWindowLevelOverlay,
@@ -80,6 +82,29 @@ describe('accumulateWheelSlices (U0)', () => {
     }
     expect(total).toBe(1)
     expect(acc).toBe(6)
+  })
+})
+
+describe('wheelPrefersZoom', () => {
+  it('zoome avec Maj, le pincement ou l outil Zoom', () => {
+    expect(
+      wheelPrefersZoom({ tool: 'WindowLevel', shiftKey: true, ctrlKey: false, metaKey: false })
+    ).toBe(true)
+    expect(
+      wheelPrefersZoom({ tool: 'WindowLevel', shiftKey: false, ctrlKey: true, metaKey: false })
+    ).toBe(true)
+    expect(
+      wheelPrefersZoom({ tool: 'ZoomAndPan', shiftKey: false, ctrlKey: false, metaKey: false })
+    ).toBe(true)
+    expect(
+      wheelPrefersZoom({ tool: 'WindowLevel', shiftKey: false, ctrlKey: false, metaKey: false })
+    ).toBe(false)
+  })
+
+  it('agrandit quand le pavé monte', () => {
+    expect(wheelZoomStep(-120)).toBeGreaterThan(0)
+    expect(wheelZoomStep(120)).toBeLessThan(0)
+    expect(wheelZoomStep(0)).toBe(0)
   })
 })
 

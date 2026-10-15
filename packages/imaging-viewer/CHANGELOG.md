@@ -1,5 +1,12 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.10
+
+- **Pavé** : sans touche, le pavé change de coupe. Maj + pavé, pincement,
+  ou outil Zoom zooment. Les boutons +/− restent visibles sur ordinateur.
+- **Cadrage** : après chargement, l’image remplit la vue (reset caméra) au lieu
+  de rester un îlot au milieu du noir.
+
 ## 0.15.9
 
 - **Aide outils** : la bulle « Outil Fenêtrage » se replie après 2 secondes et

@@ -39,6 +39,29 @@ export function windowPresetsForModality(
   return HU_PRESET_MODALITIES.includes(key) ? WL_PRESETS : []
 }
 
+/**
+ * Pavé / molette : zoom si l’outil Zoom est actif, si Maj est enfoncée,
+ * ou si le geste est un pincement (Ctrl/⌘, trackpad macOS).
+ * Sinon le pavé change de coupe.
+ */
+export function wheelPrefersZoom(input: {
+  tool: string
+  shiftKey: boolean
+  ctrlKey: boolean
+  metaKey: boolean
+}): boolean {
+  return input.tool === 'ZoomAndPan' || input.shiftKey || input.ctrlKey || input.metaKey
+}
+
+/** Pas de zoom relatif pour un delta de molette / pavé (positif = agrandir). */
+export function wheelZoomStep(deltaY: number): number {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return 0
+  const step = -deltaY / 480
+  if (step > 0.4) return 0.4
+  if (step < -0.4) return -0.4
+  return step
+}
+
 /** Seuil deltaY (px) cumulé avant de changer de coupe au trackpad. */
 export const WHEEL_SLICE_STEP_PX = 24
 /** Au-delà, un événement seul est un cran de souris : exactement une coupe. */

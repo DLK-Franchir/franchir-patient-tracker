@@ -145,7 +145,7 @@ export function DicomViewerToolbar({
           )
         })}
 
-        <div className="flex items-center gap-1 sm:hidden">
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => handleZoomStep(0.15)}

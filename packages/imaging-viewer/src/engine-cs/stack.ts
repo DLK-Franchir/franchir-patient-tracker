@@ -334,6 +334,7 @@ export function useCornerstoneStack(params: CsStackParams) {
         if (!firstRendered) setStatus('rendering')
         setProgress(Math.round(100 / imageIds.length))
         setPreloadLoaded(1)
+        viewport.resetCamera()
         viewport.render()
         // Filet : si IMAGE_RENDERED n'arrive pas (backend CPU / onglet masqué),
         // considérer prêt dès que le viewport porte des données image.

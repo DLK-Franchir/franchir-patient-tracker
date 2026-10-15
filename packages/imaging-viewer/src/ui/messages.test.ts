@@ -75,7 +75,8 @@ describe('viewerShortcutHelp', () => {
     expect(help.title).toMatch(/Fenêtrage/i)
     expect(help.summary).toMatch(/contraste|éclaircir|assombrir/i)
     expect(help.chips.some(c => /contraste/.test(c.label))).toBe(true)
-    expect(help.chips.some(c => c.keys === 'Molette' && /coupe/.test(c.label))).toBe(true)
+    expect(help.chips.some(c => c.keys === 'Pavé' && /coupe/.test(c.label))).toBe(true)
+    expect(help.chips.some(c => c.keys === 'Maj + pavé' && /zoome/.test(c.label))).toBe(true)
     expect(help.chips.some(c => c.keys === 'I' && /inverse/.test(c.label))).toBe(true)
   })
 

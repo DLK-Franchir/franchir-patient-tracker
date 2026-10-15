@@ -18,6 +18,8 @@ import {
 import type { DicomTool, ImagingSeries } from '../contract'
 import {
   accumulateWheelSlices,
+  wheelPrefersZoom,
+  wheelZoomStep,
   normalizeModality,
   resolveViewerInfoKind,
   windowPresetsForModality,
@@ -387,8 +389,17 @@ function DicomJpeg2000FallbackViewerInner({
   // Molette = coupes (comme le host dwv) ; Ctrl/⌘ + molette ou image unique = zoom.
   const onWheel = (e: WheelEvent) => {
     if (status !== 'ready') return
-    if (fileCount <= 1 || e.ctrlKey || e.metaKey) {
-      zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15)
+    if (
+      fileCount <= 1 ||
+      wheelPrefersZoom({
+        tool,
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+      })
+    ) {
+      const step = wheelZoomStep(e.deltaY)
+      if (step !== 0) zoomBy(1 + step)
       return
     }
     const { steps, remainder } = accumulateWheelSlices(wheelAccumRef.current, e.deltaY, e.deltaMode)

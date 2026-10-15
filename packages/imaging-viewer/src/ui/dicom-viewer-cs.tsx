@@ -13,6 +13,8 @@ import {
   type WlPresetId,
   WL_PRESETS,
   accumulateWheelSlices,
+  wheelPrefersZoom,
+  wheelZoomStep,
   normalizeModality,
   resolveViewerCapabilities,
   resolveViewerInfoKind,
@@ -74,6 +76,7 @@ export function DicomViewerCornerstone({
   const onJpeg2000UnsupportedRef = useRef(onJpeg2000Unsupported)
   const openStartedAtRef = useRef(0)
   const paintedRef = useRef(false)
+  const didFitRef = useRef(false)
   const openReportedRef = useRef(false)
   const wheelAccumRef = useRef(0)
   const navigateSlicesRef = useRef<(delta: number) => void>(() => undefined)
@@ -221,6 +224,10 @@ export function DicomViewerCornerstone({
       })
     }
   }, [status, fileCount, errorMessage])
+
+  useEffect(() => {
+    didFitRef.current = false
+  }, [urlsKey])
 
   useCornerstoneStack({
     urlsKey,
@@ -456,16 +463,21 @@ export function DicomViewerCornerstone({
       if (mprOpen) return
       event.preventDefault()
       event.stopPropagation()
-      const zoomTool = toolRef.current === 'ZoomAndPan' || event.ctrlKey || event.metaKey
+      const zoomTool = wheelPrefersZoom({
+        tool: toolRef.current,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+      })
       if (zoomTool) {
         const target = event.target
-        const step = event.deltaY < 0 ? 0.1 : -0.1
+        const step = wheelZoomStep(event.deltaY)
+        if (step === 0) return
         if (compareOn && target instanceof Node && compareElementRef.current?.contains(target)) {
           csZoomStep(compareHandleRef.current, step)
           return
         }
         csZoomStep(handleRef.current, step)
-        if (toolRef.current !== 'ZoomAndPan') activateTool('ZoomAndPan')
         return
       }
       if (!canNavigateSlices && !compareOn) return
@@ -499,6 +511,12 @@ export function DicomViewerCornerstone({
         if (!handle) return
         try {
           handle.renderingEngine.resize(true, false)
+          const rect = element.getBoundingClientRect()
+          if (!didFitRef.current && rect.width > 80 && rect.height > 80) {
+            handle.viewport.resetCamera()
+            handle.viewport.render()
+            didFitRef.current = true
+          }
         } catch {
           /* engine détruit */
         }

@@ -12,6 +12,8 @@ import {
   type WlPresetId,
   WL_PRESETS,
   accumulateWheelSlices,
+  wheelPrefersZoom,
+  wheelZoomStep,
   nextLayerGroupId,
   normalizeModality,
   resolveViewerCapabilities,
@@ -482,6 +484,22 @@ export function DicomViewerDwv({
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
       event.stopPropagation()
+      if (
+        wheelPrefersZoom({
+          tool: toolRef.current,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+        })
+      ) {
+        const step = wheelZoomStep(event.deltaY)
+        const app = appRef.current
+        if (step !== 0 && app) {
+          const rect = surface.getBoundingClientRect()
+          app.zoom(step, rect.width / 2, rect.height / 2)
+        }
+        return
+      }
       if (!canNavigateSlices) return
       const { steps, remainder } = accumulateWheelSlices(
         wheelAccumRef.current,

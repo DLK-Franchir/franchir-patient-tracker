@@ -122,9 +122,8 @@ export function viewerShortcutHelp(input: {
   if (tool === 'ZoomAndPan') {
     const chips: ViewerShortcutChip[] = [
       { keys: 'Glisser', label: 'agrandit ou réduit l’image' },
-      { keys: 'Molette', label: 'zoom aussi (pas de changement de coupe)' },
+      { keys: 'Pavé', label: 'zoome (le pavé seul change de coupe hors de cet outil)' },
       { keys: 'Maj + glisser', label: 'déplace l’image (pan)' },
-      { keys: 'Maj + molette', label: 'déplace verticalement' },
     ]
     if (mode === 'compare') {
       chips.push({
@@ -165,11 +164,15 @@ export function viewerShortcutHelp(input: {
   ]
   if (hasSlices || mode === 'compare') {
     chips.push({
-      keys: 'Molette',
+      keys: 'Pavé',
       label:
         mode === 'compare'
           ? 'change de coupe sur les deux séries en même temps'
           : 'change de coupe (← → et le curseur en bas aussi)',
+    })
+    chips.push({
+      keys: 'Maj + pavé',
+      label: 'zoome ou dézoome sans changer d’outil',
     })
   }
   chips.push(
