@@ -3,7 +3,8 @@
  * pour que le host reste identique (invert, flip, presets, saut de coupe…).
  */
 
-import { utilities as csUtils, type Types as CsTypes } from '@cornerstonejs/core'
+import { Enums as csEnums, utilities as csUtils, type Types as CsTypes } from '@cornerstonejs/core'
+import { contentZoomFactor } from './content-zoom'
 import type { CsStackHandle } from './stack'
 
 type Viewport = CsTypes.IStackViewport
@@ -51,6 +52,32 @@ export function csResetWindowLevel(handle: CsStackHandle | null) {
   } catch {
     /* viewport détruit */
   }
+}
+
+/**
+ * Cadrage de lecture : fit, interpolation lisse, zoom sur l'anatomie si le
+ * cadre est surtout du noir. `setZoom(1)` après `resetCamera` = image entière.
+ */
+export function presentCsViewportForReading(viewport: CsTypes.IStackViewport) {
+  viewport.resetCamera()
+  try {
+    viewport.setProperties({ interpolationType: csEnums.InterpolationType.LINEAR })
+  } catch {
+    /* image couleur */
+  }
+  try {
+    const image = viewport.getImageData()
+    const width = image?.dimensions?.[0]
+    const height = image?.dimensions?.[1]
+    const pixels = image?.scalarData
+    if (width && height && pixels) {
+      const factor = contentZoomFactor(pixels, width, height)
+      if (factor > 1) viewport.setZoom(factor)
+    }
+  } catch {
+    /* pixels pas encore décodés */
+  }
+  viewport.render()
 }
 
 export function csResetView(handle: CsStackHandle | null) {

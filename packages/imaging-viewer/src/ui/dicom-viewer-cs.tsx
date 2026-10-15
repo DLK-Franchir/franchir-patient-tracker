@@ -26,6 +26,7 @@ import {
   csNavigateSlice,
   csResetView,
   csResetWindowLevel,
+  presentCsViewportForReading,
   csSetWindowLevel,
   csSliceCount,
   csSliceIndex,
@@ -499,6 +500,22 @@ export function DicomViewerCornerstone({
     return () => surface.removeEventListener('wheel', onWheel, { capture: true })
   }, [canNavigateSlices, navigateSlice, compareOn, mprOpen, activateTool])
 
+  // Cornerstone pose `image-rendering: pixelated` sur le canvas. Sur un écran
+  // Retina le bitmap est 2× puis réduit en nearest-neighbor : le détail disparaît.
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+    const smooth = () => {
+      element.querySelectorAll('canvas').forEach(canvas => {
+        if (canvas.style.imageRendering !== 'auto') canvas.style.imageRendering = 'auto'
+      })
+    }
+    smooth()
+    const observer = new MutationObserver(smooth)
+    observer.observe(element, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] })
+    return () => observer.disconnect()
+  }, [urlsKey, mprOpen])
+
   // Le viewport suit la taille de la surface (rail replié, rotation mobile…).
   useEffect(() => {
     const element = elementRef.current
@@ -513,8 +530,7 @@ export function DicomViewerCornerstone({
           handle.renderingEngine.resize(true, false)
           const rect = element.getBoundingClientRect()
           if (!didFitRef.current && rect.width > 80 && rect.height > 80) {
-            handle.viewport.resetCamera()
-            handle.viewport.render()
+            presentCsViewportForReading(handle.viewport)
             didFitRef.current = true
           }
         } catch {

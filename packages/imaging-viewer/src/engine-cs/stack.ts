@@ -28,6 +28,7 @@ import {
 import { emitImagingTelemetry, type ImagingTelemetryHandler } from '../telemetry'
 import { ensureCornerstone } from './init'
 import { attachCsInteractions } from './interaction'
+import { presentCsViewportForReading } from './viewport'
 
 export type CsStackHandle = {
   viewport: CsTypes.IStackViewport
@@ -295,6 +296,7 @@ export function useCornerstoneStack(params: CsStackParams) {
         const imageId = viewport.getCurrentImageId()
         if (imageId && jpeg2000PixelsAreFlat(imageId) && requestJpeg2000Fallback()) return
         firstRendered = true
+        presentCsViewportForReading(viewport)
         setModality(readCsModality(imageId))
         syncWl()
         setStatus('ready')
@@ -334,8 +336,7 @@ export function useCornerstoneStack(params: CsStackParams) {
         if (!firstRendered) setStatus('rendering')
         setProgress(Math.round(100 / imageIds.length))
         setPreloadLoaded(1)
-        viewport.resetCamera()
-        viewport.render()
+        presentCsViewportForReading(viewport)
         // Filet : si IMAGE_RENDERED n'arrive pas (backend CPU / onglet masqué),
         // considérer prêt dès que le viewport porte des données image.
         window.setTimeout(() => {

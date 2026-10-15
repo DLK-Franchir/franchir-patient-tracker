@@ -1,5 +1,12 @@
 # Changelog — `@franchir/imaging-viewer`
 
+## 0.15.11
+
+- **Netteté** : le canvas n’est plus affiché en pixels bruts. Sur un écran
+  Retina, le détail rendu était jeté au redimensionnement.
+- **Lecture** : si l’anatomie ne remplit qu’une partie du cadre (repérage),
+  la vue s’agrandit dessus. Une série déjà pleine reste au cadrage entier.
+
 ## 0.15.10
 
 - **Pavé** : sans touche, le pavé change de coupe. Maj + pavé, pincement,

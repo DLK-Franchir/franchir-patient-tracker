@@ -43,4 +43,5 @@ export {
   csSliceIndex,
   csToggleInvert,
   csZoomStep,
+  presentCsViewportForReading,
 } from './viewport'
