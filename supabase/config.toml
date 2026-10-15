@@ -115,7 +115,8 @@ port = 54324
 [storage]
 enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
-file_size_limit = "50MiB"
+# Aligné sur MAX_DOCUMENT_FILE_SIZE (100 Mo) — EOS corps entier ~60–70 Mo.
+file_size_limit = "100MiB"
 
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]

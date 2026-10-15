@@ -59,6 +59,30 @@ export function basenameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
+/** Modalités DICOM sans pixels (état de présentation, SR, key object). */
+const NON_VIEWABLE_DICOM_MODALITIES = new Set(['PR', 'SR', 'KO'])
+
+export function isNonViewableDicomModality(modality: string | null | undefined): boolean {
+  if (!modality) return false
+  return NON_VIEWABLE_DICOM_MODALITIES.has(modality.trim().toUpperCase())
+}
+
+/** Dossier visionneuse embarquée d'un CD (Sectra IDS, vignettes…). */
+export function isCdViewerCompanionPath(relativePath: string): boolean {
+  const parts = relativePath.split(/[\\/]/).filter(Boolean)
+  return parts.some((part) => {
+    const lower = part.toLowerCase()
+    return lower === 'viewer' || lower === 'thumbnails' || lower === 'componentupdate'
+  })
+}
+
+/** Fichier déjà stocké : vignette CD ou modalité sans image. */
+export function isViewableDicomFile(fileName: string, modality: string | null | undefined): boolean {
+  const base = basenameFromPath(fileName)
+  if (/^thumbnails_/i.test(base)) return false
+  return !isNonViewableDicomModality(modality)
+}
+
 function sanitizeBasename(name: string): string {
   const base = basenameFromPath(name)
   const safe = base.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)
@@ -192,7 +216,11 @@ export async function importDicomFolder(
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index]!
     const displayPath = fileRelativePath(file)
-    if (isIgnorableCompanionFile(displayPath) || isIgnorableCompanionFile(file.name)) {
+    if (
+      isIgnorableCompanionFile(displayPath) ||
+      isIgnorableCompanionFile(file.name) ||
+      isCdViewerCompanionPath(displayPath)
+    ) {
       ignoredCompanionCount += 1
     } else {
       scannedCandidateCount += 1
@@ -209,27 +237,38 @@ export async function importDicomFolder(
           .slice(0, Math.min(file.size, DICOM_HEADER_SCAN_BYTES))
           .arrayBuffer()
         const header = parseDicomHeaderInfo(headBuffer)
-        const seriesKey = resolveSeriesKey(header, displayPath)
         const persisted = extractDicomPersistedMetadata(headBuffer)
+        const modality = persisted?.modality ?? header?.modality ?? null
+        if (isNonViewableDicomModality(modality)) {
+          ignoredCompanionCount += 1
+          scannedCandidateCount -= 1
+        } else {
+          const seriesUid = persisted?.seriesInstanceUid || header?.seriesInstanceUid || ''
+          const namingHeader: DicomHeaderInfo = {
+            seriesInstanceUid: seriesUid,
+            modality,
+            sopInstanceUid: persisted?.sopInstanceUid ?? header?.sopInstanceUid ?? null,
+          }
+          const seriesKey = seriesUid || resolveSeriesKey(header, displayPath)
 
-        const preparedFile = prepareDicomUploadFile(file, displayPath, header)
-        cachePreparedDicomMeta(preparedFile, {
-          sopInstanceUid: persisted?.sopInstanceUid ?? header?.sopInstanceUid ?? null,
-          seriesInstanceUid:
-            persisted?.seriesInstanceUid ?? header?.seriesInstanceUid ?? seriesKey,
-          modality: persisted?.modality ?? header?.modality ?? null,
-          seriesDescription: persisted?.seriesDescription ?? null,
-          bodyPart: persisted?.bodyPart ?? null,
-          instanceNumber: persisted?.instanceNumber ?? null,
-          acquisitionDatetime: persisted?.acquisitionDatetime ?? null,
-        })
-        prepared.push({
-          file: preparedFile,
-          seriesInstanceUid: seriesKey,
-          modality: header?.modality ?? null,
-          originalName: file.name,
-          relativePath: displayPath,
-        })
+          const preparedFile = prepareDicomUploadFile(file, displayPath, namingHeader)
+          cachePreparedDicomMeta(preparedFile, {
+            sopInstanceUid: namingHeader.sopInstanceUid,
+            seriesInstanceUid: seriesUid || seriesKey,
+            modality,
+            seriesDescription: persisted?.seriesDescription ?? null,
+            bodyPart: persisted?.bodyPart ?? null,
+            instanceNumber: persisted?.instanceNumber ?? null,
+            acquisitionDatetime: persisted?.acquisitionDatetime ?? null,
+          })
+          prepared.push({
+            file: preparedFile,
+            seriesInstanceUid: seriesKey,
+            modality,
+            originalName: file.name,
+            relativePath: displayPath,
+          })
+        }
       }
     }
 

@@ -34,6 +34,12 @@ const UPLOAD_CONCURRENCY = 2
 
 const UPLOAD_TIMEOUT_MS = 90_000
 
+/** Débit plancher ~256 Ko/s, plafonné à 10 min (EOS corps entier ~60–70 Mo). */
+function uploadTimeoutMs(sizeBytes: number): number {
+  const bySize = Math.ceil(sizeBytes / (256 * 1024)) * 1000
+  return Math.min(10 * 60_000, Math.max(UPLOAD_TIMEOUT_MS, bySize))
+}
+
 /** Aligné sur MAX_IMAGING_FILES côté portail questionnaires (10). */
 const QUESTIONNAIRES_SIGN_BATCH_SIZE = 10
 
@@ -69,6 +75,8 @@ export type UploadResultSummary = {
   count: number
   skipped: number
   failed: number
+  /** Premier message d'échec Storage (taille, réseau), sans chemin patient. */
+  failureDetail: string | null
 }
 
 /** Au-delà, les JPEG/PDF du viewer CD sont traités comme du bruit, pas un envoi mixte voulu. */
@@ -261,7 +269,7 @@ export async function uploadPatientDocuments(
   files: File[],
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResultSummary> {
-  if (files.length === 0) return { count: 0, skipped: 0, failed: 0 }
+  if (files.length === 0) return { count: 0, skipped: 0, failed: 0, failureDetail: null }
 
   const uploadFiles = selectFilesForPatientUpload(files)
 
@@ -270,6 +278,7 @@ export async function uploadPatientDocuments(
   let skippedDuplicates = 0
   let savedCount = 0
   let failedCount = 0
+  let failureDetail: string | null = null
   const skipForward = patientId === IMAGING_SANDBOX_PATIENT_ID
 
   onProgress?.({ total: uploadFiles.length, uploaded: 0, phase: 'prepare' })
@@ -354,7 +363,7 @@ export async function uploadPatientDocuments(
           supabase.storage.from(PATIENT_DOCUMENTS_BUCKET).uploadToSignedUrl(upload.path, upload.token, file, {
             contentType: file.type || 'application/octet-stream',
           }),
-          UPLOAD_TIMEOUT_MS,
+          uploadTimeoutMs(file.size),
           file.name,
         )
         if (error) {
@@ -367,8 +376,11 @@ export async function uploadPatientDocuments(
           type: file.type || null,
           dicom,
         })
-      } catch {
+      } catch (err) {
         failedCount += 1
+        if (!failureDetail) {
+          failureDetail = err instanceof Error ? err.message : "échec d'envoi"
+        }
       }
       processedCount += 1
       onProgress?.({
@@ -422,5 +434,6 @@ export async function uploadPatientDocuments(
     count: savedCount,
     skipped: skippedDuplicates,
     failed: failedCount,
+    failureDetail,
   }
 }

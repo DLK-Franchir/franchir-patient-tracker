@@ -32,7 +32,17 @@ import { PinchZoomImage } from '@/components/ui/pinch-zoom-image'
 import { uploadPatientDocuments } from '@/lib/documents/upload-client'
 import type { PatientDocument } from '@/lib/documents/patient-documents'
 import type { QuestionnaireImagingFile } from '@/lib/integrations/fetch-questionnaire-imaging'
+import { isViewableDicomFile } from '@/lib/imaging/dicom-folder-import'
 import { groupDicomFilesByMetadata, isNonImageDicomModality } from '@/lib/imaging/dicom-series-group'
+import {
+  filterImagingBySourceDate,
+  formatSourceDateLabel,
+  imagingDateFilterOptions,
+  imagingSourceDate,
+  sourceDateKey,
+  type ImagingDateFilter,
+  type ImagingDateSort,
+} from '@/lib/imaging/imaging-source-date'
 import { filterQuestionnaireImagingAgainstTracker } from '@/lib/imaging/dedupe-imaging-sources'
 import { isSignedUrlListingStale } from '@/lib/documents/signed-url-freshness'
 import { resolveSeriesDeepLinkId } from '@/lib/imaging/resolve-series-deep-link'
@@ -101,7 +111,7 @@ type DocumentsSectionProps = {
 }
 
 type ViewerItem =
-  | { kind: 'file'; id: string; doc: PatientDocument }
+  | { kind: 'file'; id: string; doc: PatientDocument; sourceDate: string | null }
   | {
       kind: 'dicom-series'
       id: string
@@ -112,6 +122,7 @@ type ViewerItem =
       documentIds: string[]
       modality?: string | null
       seriesDescription?: string | null
+      sourceDate: string | null
     }
   | {
       kind: 'dicom-pdf-series'
@@ -121,6 +132,7 @@ type ViewerItem =
       firstUrl: string
       groupId: string
       documentIds: string[]
+      sourceDate: string | null
     }
   | {
       kind: 'questionnaire-file'
@@ -128,6 +140,7 @@ type ViewerItem =
       name: string
       url: string
       renderType: 'image' | 'pdf' | 'dicom' | 'video' | 'other'
+      sourceDate: string | null
     }
   | {
       kind: 'questionnaire-dicom-series'
@@ -138,6 +151,7 @@ type ViewerItem =
       groupId: string
       modality?: string | null
       seriesDescription?: string | null
+      sourceDate: string | null
     }
   | {
       kind: 'questionnaire-dicom-pdf-series'
@@ -146,6 +160,7 @@ type ViewerItem =
       urls: string[]
       firstUrl: string
       groupId: string
+      sourceDate: string | null
     }
 
 /**
@@ -156,12 +171,20 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
   const items: ViewerItem[] = []
   for (const doc of docs) {
     if (doc.renderType !== 'dicom') {
-      items.push({ kind: 'file', id: `doc-${doc.id}`, doc })
+      items.push({
+        kind: 'file',
+        id: `doc-${doc.id}`,
+        doc,
+        sourceDate: sourceDateKey(doc.acquisitionDatetime),
+      })
     }
   }
 
   const dicomDocs = docs.filter(
-    (d) => d.renderType === 'dicom' && !isNonImageDicomModality(d.modality),
+    (d) =>
+      d.renderType === 'dicom' &&
+      isViewableDicomFile(d.fileName, d.modality) &&
+      !isNonImageDicomModality(d.modality),
   )
   for (const series of groupDicomFilesByMetadata(
     dicomDocs.map((d) => ({
@@ -196,6 +219,7 @@ function buildViewerItems(docs: PatientDocument[]): ViewerItem[] {
       documentIds,
       modality: first.modality ?? null,
       seriesDescription: first.seriesDescription ?? null,
+      sourceDate: imagingSourceDate(series.files.map((file) => file.acquisitionDatetime)),
     })
   }
 
@@ -219,13 +243,14 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
         name: file.name,
         url: file.url,
         renderType: questionnaireFileRenderType(file),
+        sourceDate: null,
       })
     }
   }
 
   for (const series of groupDicomFilesByMetadata(
     files
-      .filter((f) => f.type === 'dicom')
+      .filter((f) => f.type === 'dicom' && isViewableDicomFile(f.name, null))
       .map((f) => ({
         name: f.name,
         url: f.url,
@@ -254,6 +279,7 @@ function buildQuestionnaireViewerItems(files: QuestionnaireImagingFile[]): Viewe
       groupId: series.groupId,
       modality: null,
       seriesDescription: first.seriesDescription ?? null,
+      sourceDate: null,
     })
   }
 
@@ -313,6 +339,8 @@ export default function DocumentsSection({
   const [downloadProgress, setDownloadProgress] = useState<ExportProgressLike | null>(null)
   const [downloadTargetId, setDownloadTargetId] = useState<string | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [dateFilter, setDateFilter] = useState<ImagingDateFilter>('all')
+  const [dateSort, setDateSort] = useState<ImagingDateSort>('newest')
 
   const items = useMemo(() => {
     // Forward patient-images = copie du tracker : masquer les doublons Q.
@@ -332,14 +360,28 @@ export default function DocumentsSection({
     ]
   }, [documents, questionnaireFiles])
 
-  const dicomViewerSeries = useMemo(() => buildDicomViewerSeries(items), [items])
+  const dateOptions = useMemo(
+    () => imagingDateFilterOptions(items.map((item) => item.sourceDate)),
+    [items],
+  )
+  const activeDateFilter = dateOptions.some((option) => option.id === dateFilter) ? dateFilter : 'all'
+  const visibleItems = useMemo(
+    () => filterImagingBySourceDate(items, activeDateFilter, dateSort),
+    [items, activeDateFilter, dateSort],
+  )
+  const navigationItems = visibleItems.some((item) => item.id === selectedId) ? visibleItems : items
+
+  const dicomViewerSeries = useMemo(
+    () => buildDicomViewerSeries(navigationItems),
+    [navigationItems],
+  )
 
   const dicomItems = useMemo(
     () =>
-      items.filter(
+      navigationItems.filter(
         (item) => item.kind === 'dicom-series' || item.kind === 'questionnaire-dicom-series',
       ),
-    [items],
+    [navigationItems],
   )
 
   /** Documents tracker (rapide : table + batch signed URLs). */
@@ -430,7 +472,7 @@ export default function DocumentsSection({
       setUploadStatus(`Préparation de ${pendingFiles.length} fichier(s)… Ne fermez pas la page.`)
     })
     try {
-      const { count, skipped, failed } = await uploadPatientDocuments(
+      const { count, skipped, failed, failureDetail } = await uploadPatientDocuments(
         patientId,
         pendingFiles,
         (progress) => {
@@ -461,7 +503,11 @@ export default function DocumentsSection({
         parts.push(`${skipped} doublon(s) ignoré(s).`)
       }
       if (failed > 0) {
-        parts.push(`${failed} échec(s) — réessayez Envoyer pour les manquants.`)
+        parts.push(
+          failureDetail
+            ? `${failed} échec(s) : ${failureDetail}`
+            : `${failed} échec(s) — réessayez Envoyer pour les manquants.`,
+        )
       }
       setUploadSuccess(parts.join(' '))
       setUploadStatus(null)
@@ -547,7 +593,7 @@ export default function DocumentsSection({
   const navigateDicomSeries = useCallback(
     (direction: 'next' | 'prev') => {
       if (!selectedId) return
-      const current = findDicomSeriesIndexById(items, selectedId)
+      const current = findDicomSeriesIndexById(navigationItems, selectedId)
       const nextIndex =
         direction === 'next'
           ? Math.min(current + 1, dicomItems.length - 1)
@@ -556,7 +602,7 @@ export default function DocumentsSection({
       if (!nextItem || nextItem.id === selectedId) return
       void openViewer(nextItem.id)
     },
-    [dicomItems, items, openViewer, selectedId],
+    [dicomItems, navigationItems, openViewer, selectedId],
   )
 
   /** Rail séries (U0) : saut direct par index dans `dicomViewerSeries`. */
@@ -752,7 +798,9 @@ export default function DocumentsSection({
   }, [loading, seriesDeepLink, items, openViewer])
 
   const selectedItem = selectedId ? resolveItemById(selectedId) : null
-  const selectedIndex = selectedId ? items.findIndex((item) => item.id === selectedId) : -1
+  const selectedIndex = selectedId
+    ? navigationItems.findIndex((item) => item.id === selectedId)
+    : -1
   const selectedName =
     selectedItem === null
       ? ''
@@ -874,8 +922,60 @@ export default function DocumentsSection({
           description={`Les séries DICOM, PDF, images${VIEWER_CAPS.mp4Native ? ' et vidéos MP4' : ''} apparaîtront ici une fois déposés.`}
         />
       ) : (
+        <>
+          <div className="mb-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-gray-900">Dates</p>
+              <div className="flex rounded-lg border border-gray-200 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setDateSort('newest')}
+                  aria-pressed={dateSort === 'newest'}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                    dateSort === 'newest' ? 'bg-[#2563EB] text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Plus récent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateSort('oldest')}
+                  aria-pressed={dateSort === 'oldest'}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                    dateSort === 'oldest' ? 'bg-[#2563EB] text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Plus ancien
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">Date de l’examen dans le fichier, pas la date d’import.</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer par date d’examen">
+              {dateOptions.map((option) => {
+                const selected = option.id === activeDateFilter
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setDateFilter(option.id)}
+                    aria-pressed={selected}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      selected
+                        ? 'border-[#2563EB] bg-blue-50 text-[#1d4ed8]'
+                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {visibleItems.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-500">Aucun fichier à cette date.</p>
+          ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const isDicom =
               item.kind === 'dicom-series' ||
               item.kind === 'questionnaire-dicom-series'
@@ -961,6 +1061,9 @@ export default function DocumentsSection({
                     <p className="truncate text-center text-xs font-semibold text-gray-700 sm:font-medium">
                       {label}
                     </p>
+                    <p className="truncate text-center text-[11px] text-gray-500">
+                      {item.sourceDate ? formatSourceDateLabel(item.sourceDate) : 'Sans date d’examen'}
+                    </p>
                     {(qFile ||
                       item.kind === 'questionnaire-dicom-series' ||
                       item.kind === 'questionnaire-dicom-pdf-series') && (
@@ -983,6 +1086,8 @@ export default function DocumentsSection({
             )
           })}
         </div>
+          )}
+        </>
       )}
 
       <ImagingDownloadStatus
@@ -1081,7 +1186,7 @@ export default function DocumentsSection({
                 name={selectedName}
                 fullscreen
                 series={dicomViewerSeries}
-                activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(items, selectedItem.id))}
+                activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(navigationItems, selectedItem.id))}
                 onNextSeries={() => navigateDicomSeries('next')}
                 onPrevSeries={() => navigateDicomSeries('prev')}
                 onSelectSeries={selectDicomSeries}
@@ -1103,7 +1208,7 @@ export default function DocumentsSection({
                   name={selectedName}
                   fullscreen
                   series={dicomViewerSeries}
-                  activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(items, selectedItem.id))}
+                  activeSeriesIndex={Math.max(0, findDicomSeriesIndexById(navigationItems, selectedItem.id))}
                   onNextSeries={() => navigateDicomSeries('next')}
                   onPrevSeries={() => navigateDicomSeries('prev')}
                   onSelectSeries={selectDicomSeries}
@@ -1181,13 +1286,13 @@ export default function DocumentsSection({
                       <span className="hidden sm:inline">Télécharger</span>
                     </a>
                   )}
-                  {items.length > 1 && (
+                  {navigationItems.length > 1 && (
                     <>
                       <button
                         type="button"
                         disabled={selectedIndex <= 0}
                         onClick={() => {
-                          const prev = items[Math.max(selectedIndex - 1, 0)]
+                          const prev = navigationItems[Math.max(selectedIndex - 1, 0)]
                           if (prev) openViewer(prev.id)
                         }}
                         className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
@@ -1196,13 +1301,13 @@ export default function DocumentsSection({
                         Préc.
                       </button>
                       <span className="text-xs text-white/50">
-                        {selectedIndex + 1} / {items.length}
+                        {selectedIndex + 1} / {navigationItems.length}
                       </span>
                       <button
                         type="button"
-                        disabled={selectedIndex >= items.length - 1}
+                        disabled={selectedIndex >= navigationItems.length - 1}
                         onClick={() => {
-                          const next = items[Math.min(selectedIndex + 1, items.length - 1)]
+                          const next = navigationItems[Math.min(selectedIndex + 1, navigationItems.length - 1)]
                           if (next) openViewer(next.id)
                         }}
                         className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-30"

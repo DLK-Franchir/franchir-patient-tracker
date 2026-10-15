@@ -19,6 +19,7 @@ import {
   normalizeModality,
   orientationFallbackMessage,
   resolveViewerCapabilities,
+  isViewerNavigationHint,
   resolveViewerInfoKind,
   windowPresetsForModality,
 } from './policy'
@@ -186,6 +187,17 @@ describe('orientationFallbackMessage', () => {
     expect(orientationFallbackMessage('SAG T1 (19 images)')).toBe(
       SEQUENTIAL_ORIENTATION_FALLBACK_MSG
     )
+  })
+})
+
+describe('isViewerNavigationHint', () => {
+  it('cible les messages de navigation, pas le chargement ni l erreur', () => {
+    expect(isViewerNavigationHint('stack')).toBe(true)
+    expect(isViewerNavigationHint('single')).toBe(true)
+    expect(isViewerNavigationHint('sequential')).toBe(true)
+    expect(isViewerNavigationHint('partial')).toBe(true)
+    expect(isViewerNavigationHint('loading')).toBe(false)
+    expect(isViewerNavigationHint('error')).toBe(false)
   })
 })
 

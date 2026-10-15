@@ -17,9 +17,10 @@ export const PATIENT_DOCUMENTS_BUCKET = 'patient-documents'
 
 /**
  * Taille max par fichier : 100 Mo. Les séries DICOM et scans haute résolution
- * peuvent être lourds. Depuis l'upload DIRECT navigateur → Storage (URLs signées),
- * les octets ne transitent plus par la fonction serverless (plus de limite
- * pratique de ~4,5 Mo par requête) : seule cette limite par fichier subsiste.
+ * peuvent être lourds (EOS corps entier ~60–70 Mo). Depuis l'upload DIRECT
+ * navigateur → Storage (URLs signées), les octets ne transitent plus par la
+ * fonction serverless (plus de limite pratique de ~4,5 Mo par requête).
+ * Le plafond global Storage du projet doit être au moins égal à cette valeur.
  */
 export const MAX_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
 

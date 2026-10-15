@@ -310,3 +310,19 @@ export function resolveViewerInfoKind(input: {
   if (input.sliceCount > 1) return 'stack'
   return 'single'
 }
+
+/** Bandeau molette / flèches : une fois par connexion (session d'onglet), puis masqué. */
+export const VIEWER_NAV_HINT_SESSION_KEY = 'franchir-viewer-nav-hint-seen'
+export const VIEWER_NAV_HINT_HIDE_MS = 2000
+
+const VIEWER_NAV_HINT_KINDS = new Set<ViewerInfoKind>([
+  'single',
+  'stack',
+  'partial',
+  'sequential',
+])
+
+/** Vrai pour les messages de navigation (pas le chargement, pas l'erreur). */
+export function isViewerNavigationHint(kind: ViewerInfoKind): boolean {
+  return VIEWER_NAV_HINT_KINDS.has(kind)
+}

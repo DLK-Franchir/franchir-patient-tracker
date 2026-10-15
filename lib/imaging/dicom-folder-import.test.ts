@@ -11,6 +11,9 @@ import {
   extractSeriesFolderKey,
   formatEmptyDicomFolderMessage,
   importDicomFolder,
+  isCdViewerCompanionPath,
+  isNonViewableDicomModality,
+  isViewableDicomFile,
   prepareDicomUploadFile,
   resolveSeriesKey,
 } from '@/lib/imaging/dicom-folder-import'
@@ -156,6 +159,30 @@ describe('dicom-folder-import', () => {
     const chunks: number[] = []
     appendExplicitTag(chunks, 0x0008, 0x0060, 'CS', 'MR')
     expect(hasLikelyRawDicomStructure(new Uint8Array(chunks))).toBe(true)
+  })
+
+  it('ignore la visionneuse CD et les DICOM sans pixels (PR/SR)', async () => {
+    expect(isCdViewerCompanionPath('CD/Viewer/thumbnails/00001B9E')).toBe(true)
+    expect(isNonViewableDicomModality('PR')).toBe(true)
+    expect(isNonViewableDicomModality('DX')).toBe(false)
+    expect(isViewableDicomFile('thumbnails_00001B9E.dcm', null)).toBe(false)
+    expect(isViewableDicomFile('EOS_FullBody_A.dcm', 'DX')).toBe(true)
+    expect(isViewableDicomFile('dose.dcm', 'SR')).toBe(false)
+
+    const image = buildMinimalDicom({ seriesUid: '1.2.3.4.5', modality: 'DX' })
+    const presentation = buildMinimalDicom({ seriesUid: '9.9.9', modality: 'PR' })
+    const thumb = buildMinimalDicom({ seriesUid: '8.8.8', modality: 'DX' })
+    const files = [
+      mockFileWithPath('EE919111', image, 'CD/DICOM/0000F099/EE919111'),
+      mockFileWithPath('FFCD1152', presentation, 'CD/DICOM/0000AD3E/FFCD1152'),
+      mockFileWithPath('00001B9E', thumb, 'CD/Viewer/thumbnails/00001B9E'),
+    ]
+    const result = await importDicomFolder(files)
+    expect(result.series).toHaveLength(1)
+    expect(result.series[0]?.files).toHaveLength(1)
+    expect(result.series[0]?.modality).toBe('DX')
+    expect(result.series[0]?.files[0]?.file.name.endsWith('.dcm')).toBe(true)
+    expect(result.ignoredCompanionCount).toBe(2)
   })
 
   it('formate une erreur explicite quand aucun DICOM', async () => {

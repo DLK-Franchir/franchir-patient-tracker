@@ -1,8 +1,31 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Activity, AlertTriangle, Info } from 'lucide-react'
 import type { ViewerInfoKind } from '../contract'
+import {
+  isViewerNavigationHint,
+  VIEWER_NAV_HINT_HIDE_MS,
+  VIEWER_NAV_HINT_SESSION_KEY,
+} from '../policy'
 import { VIEWER_ACCENT } from './messages'
+
+function navHintAlreadySeen(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return sessionStorage.getItem(VIEWER_NAV_HINT_SESSION_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markNavHintSeen(): void {
+  try {
+    sessionStorage.setItem(VIEWER_NAV_HINT_SESSION_KEY, '1')
+  } catch {
+    // Session privée : le bandeau se masque quand même au bout du délai.
+  }
+}
 
 export type ViewerInfoBubbleProps = {
   kind: ViewerInfoKind
@@ -25,6 +48,26 @@ export function ViewerInfoBubble({
   preloadTotal,
   preloadMode,
 }: ViewerInfoBubbleProps) {
+  const isNavHint = isViewerNavigationHint(kind)
+  const [navHintHidden, setNavHintHidden] = useState(() => isNavHint && navHintAlreadySeen())
+
+  useEffect(() => {
+    if (!isNavHint) {
+      setNavHintHidden(false)
+      return
+    }
+    if (navHintAlreadySeen()) {
+      setNavHintHidden(true)
+      return
+    }
+    markNavHintSeen()
+    setNavHintHidden(false)
+    const timer = window.setTimeout(() => setNavHintHidden(true), VIEWER_NAV_HINT_HIDE_MS)
+    return () => window.clearTimeout(timer)
+  }, [isNavHint, kind])
+
+  if (isNavHint && navHintHidden) return null
+
   if (kind === 'loading') {
     const label =
       preloadMode && preloadTotal && preloadTotal > 1 && typeof preloadLoaded === 'number'
