@@ -124,6 +124,7 @@ export default function PatientDetailClient({
   }, [])
 
   const viewConfig = getPatientDetailViewConfig(userRole, {
+    patientId: patient.id,
     visibilityScope: patient.visibility_scope,
   })
   const canManageQuestionnaire = viewConfig.canManageQuestionnaire

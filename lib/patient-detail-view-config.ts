@@ -1,4 +1,4 @@
-import { isGillesErikVisibilityScope } from '@/lib/access-control'
+import { IMAGING_SANDBOX_PATIENT_ID, isGillesErikVisibilityScope } from '@/lib/access-control'
 import type { UserRole } from '@/lib/workflow-v2'
 
 export type PatientDetailViewConfig = {
@@ -57,21 +57,31 @@ const READ_ONLY_MEDICAL_VIEW: Pick<
   showAnamnezeDashboard: true,
 }
 
-export function getPatientDetailViewConfig(
-  role: UserRole,
-  options?: { visibilityScope?: string | null },
-): PatientDetailViewConfig {
-  if (isGillesErikVisibilityScope(options?.visibilityScope)) {
-    return IMAGING_SANDBOX_VIEW
-  }
-
-  if (role === 'gilles') {
-    return GILLES_VIEW
-  }
-
+function roleView(role: UserRole): PatientDetailViewConfig {
+  if (role === 'gilles') return GILLES_VIEW
   if (role === 'marcel' || role === 'admin') {
     return { ...DEFAULT_VIEW, ...READ_ONLY_MEDICAL_VIEW }
   }
-
   return DEFAULT_VIEW
+}
+
+export function getPatientDetailViewConfig(
+  role: UserRole,
+  options?: { visibilityScope?: string | null; patientId?: string | null },
+): PatientDetailViewConfig {
+  const restricted = isGillesErikVisibilityScope(options?.visibilityScope)
+  const sandboxPatient =
+    !options?.patientId || options.patientId === IMAGING_SANDBOX_PATIENT_ID
+
+  if (restricted && sandboxPatient) {
+    return IMAGING_SANDBOX_VIEW
+  }
+
+  const view = roleView(role)
+  if (!restricted) return view
+
+  return {
+    ...view,
+    canManageDocuments: true,
+  }
 }

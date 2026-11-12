@@ -116,6 +116,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
   }
 
   const viewConfig = getPatientDetailViewConfig(userRole, {
+    patientId: patient.id,
     visibilityScope: patient.visibility_scope,
   })
   let synthesisPreview: QuestionnaireSynthesisPreview | null = null

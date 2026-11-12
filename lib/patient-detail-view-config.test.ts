@@ -39,4 +39,22 @@ describe('getPatientDetailViewConfig', () => {
     expect(view.showWorkflowActions).toBe(false)
     expect(view.canManageQuestionnaire).toBe(false)
   })
+
+  it('garde le bouton questionnaire pour Erik sur un dossier restreint hors sandbox', () => {
+    const view = getPatientDetailViewConfig('franchir', {
+      patientId: '11111111-1111-4111-8111-111111111111',
+      visibilityScope: 'gilles_erik',
+    })
+    expect(view.canManageQuestionnaire).toBe(true)
+    expect(view.canManageDocuments).toBe(true)
+  })
+
+  it('laisse Gilles déposer l\'imagerie sur un dossier restreint hors sandbox', () => {
+    const view = getPatientDetailViewConfig('gilles', {
+      patientId: '11111111-1111-4111-8111-111111111111',
+      visibilityScope: 'gilles_erik',
+    })
+    expect(view.canManageDocuments).toBe(true)
+    expect(view.canManageQuestionnaire).toBe(false)
+  })
 })
