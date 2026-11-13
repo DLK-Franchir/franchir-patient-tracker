@@ -1,5 +1,6 @@
 -- Annuaire chirurgiens actifs (aligné prod) — idempotent par email.
 -- Dr Doan Co Minh : voir 20260625130000_seed_surgeon_doan_co_minh.sql
+-- Dr Olivier Gille : voir 20261001083000_seed_surgeon_olivier_gille.sql
 
 INSERT INTO public.surgeons (full_name, email, specialization, is_active)
 SELECT 'Simon Teyssedou', 's.teyssedou@gmail.com', 'Neurochirurgie', true
